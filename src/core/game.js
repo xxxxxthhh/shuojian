@@ -77,6 +77,13 @@
     G.time += dt;
     G.frame++;
 
+    // 决议 006：playtimeSec 的唯一写入者。必须用 rawDt——用被 slowmo/hitstop
+    // 缩放过的 dt 会把「玩了 30 分钟」记成 20 分钟，而这个数字正是用来验收
+    // DESIGN §9.6「单周目 30 分钟以上」的。标题/暂停等场景由 H 设 countsPlaytime=false。
+    if (G.scene && G.scene.countsPlaytime !== false) {
+      SJ.Save.data.playtimeSec += STEP;
+    }
+
     var top = stack[stack.length - 1];
     if (top && top.update) top.update(dt);
 

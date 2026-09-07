@@ -528,3 +528,71 @@ if (SJ.Game.scene && SJ.Game.scene.countsPlaytime !== false) {
 
 **H 必须给标题画面与暂停菜单的 scene 设 `countsPlaytime = false`**（挂机不算游玩时间）。
 其余 scene 默认计入，不用管。
+
+---
+
+## 决议 007 — 菜单与流程接口（H 提出，Lead 裁定）
+
+### 1. 招式槽的写回：`SJ.Player.setSlot` 是唯一写入者（E 实现，H 调用）
+```js
+SJ.Player.setSlot(i, moveId)   // i=0..3, moveId 可为 null
+// 内部：同时更新 p.slots[i] 与 SJ.Save.data.slots[i]，然后 SJ.Save.save()
+```
+**不采用「`p.slots` 与 `SJ.Save.data.slots` 是同一个数组引用」的方案。**
+理由：`SJ.Save.load()` 会替换整个 `data` 对象，别名会在读档后**静默断开**——
+之后换招只改内存不进存档，重开游戏槽位复原，而且不报错。
+H 读可用招式用 `SJ.player.known`。
+
+### 2. 死亡重生：`SJ.Level.restartFromCheckpoint()`（G 实现，H 调用）
+```js
+SJ.Level.restartFromCheckpoint()   // 回到本关最近检查点，不回退章节，不清存档
+```
+H 不需要知道检查点是怎么编码的。`SJ.Menu.gameover()` 确认后只调这一个函数。
+
+### 3. 标题画面「始 / 继 / 音」
+- **始**：`SJ.Save.reset()` → `SJ.Level.load(0)`。
+  **但若已存在存档，必须二次确认**：「始」字变朱砂色，再按一次才执行。
+  无字、无弹窗、不破坏三项结构 —— 只是让抹掉 30 分钟进度这件事需要按两次。
+- **继**：`SJ.Level.load(SJ.Save.data.chapter)`，从章节开头进（不带检查点）。
+  **无存档时变暗且不可选，但必须仍然显示**（三项结构是硬性要求）。
+- **音**：静音开关，走 `SJ.Audio.setMute`。
+- 标题与暂停菜单的 scene 必须设 `countsPlaytime = false`（决议 006）。
+
+---
+
+## 决议 008 — 敌人系统裁定（F 提出，Lead 裁定）
+
+### 1. `SJ.Combat.lastPlayerMove` 由 combat.js 记录（E 补，F 只读）
+F 发现 `lastFoeMove` 记的是「敌招打到玩家」（给玩家的「说剑」复制用），
+而师兄 P3 要的是**玩家用过的招**，方向相反，目前无人记录。
+
+**不采用 F 在 ai.js 里自己扫 `hitList` 的方案。** 改由 E 在 combat.js 补一个对称字段：
+```js
+// SJ.Combat.hit(o) 内部，创建 hitbox 时即记录（因此挥空也算「他见过这一招」）：
+if (o.team === 'player' && o.moveId) SJ.Combat.lastPlayerMove = o.moveId;
+```
+理由：combat.js 是所有 hitbox 的唯一汇聚点，在这里记录只有一处定义；
+让 F 在另一个模块里重建一套「什么算玩家用了一招」，两处语义迟早漂移。
+**在创建时记录而非命中时记录**是有意的 —— 师兄要学的是「他见过你使这一招」，挥空也该算。
+
+### 2. 守阁人的破防判据
+- **僧人** 认 `guardBreak`（普攻第三段可破）—— 他是**提示**：告诉玩家「有人会格挡」。
+- **守阁人** 无视 `guardBreak`，**只认 `opt.moveId === 'wufeng'`** —— 他是**墙**。
+- 因此 **E 的 tech.js 必须给 `wufeng` 的 hitbox 传 `moveId:'wufeng'`**。
+
+### 3. 守阁人没有失败态 —— 用倒退代替死亡，并强制可发现性
+- 保持 **0 伤害**。P3 起，玩家 6 秒未伤到他则「合十」回 8 点血：**僵持会倒退，但不会死**。
+- **但必须避免「玩家永远想不到该观势」的无限僵局**：
+  僵持超过约 40 秒后，他的守势 telegraph 要**逐步变得更显眼**（朱砂更亮、驻留更久）。
+  **用「线索变清楚」代替「伤害变高」** —— 这是本作不做教程的前提下唯一正当的引导手段。
+- 无软锁保证：观势在墨 ≤20 时不再扣墨（DESIGN §9.3），所以玩家永远有能力读他的守势。
+
+### 4. 僵直预算（战斗耐打度的总闸）
+- **杂兵**：连吃 2 次硬直后进入 1.0s 霸体。
+- **Boss**：**完全无视普通命中的 stun**，只吃完美观势的 0.9s 与阶段转换。
+- 推论且必须保持：**完美观势是全游戏收益最高的动作**。普攻锁不住 Boss，观势能 —— 
+  这条不只是平衡，它是「让玩家自己发现观势」的核心激励，不许被稀释。
+
+### 5. 提灯人的照明
+敌人实体暴露 `e.light = {r, warm}`，自己在 draw 里画 `SJ.Ink.lantern`。
+**G 负责**：雪山的雾/视野受限，读 `SJ.Ent.by('foe')` 上的 `light` 字段自行处理。

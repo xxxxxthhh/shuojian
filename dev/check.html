@@ -303,6 +303,134 @@
     return lack.length ? ['bad', '缺 ' + lack.join(', ')] : ['ok', need.length + ' 个入口齐备 ✔'];
   });
 
+  // 手感基线：E 的 SJ.Player 落地后，自动拿它跑一遍 notes-A.md §4 的数字。
+  // 量不出来（依赖模块没就绪 / 抛错）记黄，量出来对不上记红。
+  chk('手感基线 (notes-A §4)', function () {
+    if (!window.SJ || !SJ.Player || !SJ.Player.create || !SJ.Game || !SJ.Game._step) return null;
+
+    // check.html 从不调 Game.init，Input 的监听器也就没挂上，合成按键会石沉大海。
+    SJ.Input.init(null);
+
+    var FLAT = [[0, 560, 3000, 200, 0]];
+    var LEDGE = [[0, 560, 600, 200, 0]];
+    var track = { min: 1e9 }, p = null;
+
+    function K(t, c) { window.dispatchEvent(new KeyboardEvent(t, { code: c, bubbles: true })); }
+    function step(n) { for (var i = 0; i < n; i++) SJ.Game._step(); }
+    function reset(solids) {
+      if (p) { try { SJ.Ent.remove(p); } catch (e) {} }
+      K('keyup', 'Space'); K('keyup', 'KeyD'); K('keyup', 'KeyA'); K('keyup', 'KeyS');
+      SJ.Input.update(); SJ.Input.consume('jump');
+      SJ.World.load({ solids: solids });
+      p = SJ.Player.create(120, 380);
+      SJ.Game.setScene({
+        countsPlaytime: false,
+        update: function (dt) { p.update(dt); if (p.y < track.min) track.min = p.y; }
+      });
+      track.min = 1e9;
+      step(40);                       // 落地稳定
+      SJ.Input.consume('jump');
+      return p;
+    }
+    function apex(holdFrames) {
+      reset(FLAT);
+      if (!p.onGround) return null;
+      var restY = p.y;
+      track.min = restY;
+      K('keydown', 'Space'); step(holdFrames); K('keyup', 'Space'); step(100);
+      return restY - track.min;
+    }
+    // 走出平台边缘后第 N 帧起跳，量上升高度。
+    // 用「高度」而不是「跳没跳」来判土狼，是为了对设计中立：
+    // 土狼窗口内应当拿到**满跳**；窗口外就算 Player 允许空中二段跳，
+    // 那也只有 -640 的高度（≈90px），明显低于满跳的 114px，两者分得开。
+    function coyoteRise(frames) {
+      reset(LEDGE);
+      K('keydown', 'KeyD');
+      var guard = 0;
+      while (p.onGround && guard++ < 400) step(1);
+      K('keyup', 'KeyD'); SJ.Input.update(); SJ.Input.consume('jump');
+      step(frames);
+      var y0 = p.y;
+      track.min = y0;
+      // 必须按住到过顶点再松，否则可变跳高会把它截成矮跳、量出来的不是满跳
+      K('keydown', 'Space'); step(45); K('keyup', 'Space'); step(90);
+      return y0 - track.min;
+    }
+
+    // Player 的 update 会顺手调 FX.dust / Audio.sfx / Combat.hit 之类。
+    // 这些模块还没落地时，给**仅仅缺席的**那些装上空壳，好让手感在 wave 3 之前就能量。
+    // 只补缺的，绝不覆盖真模块；量完立刻拆掉。
+    function stubMissing() {
+      var made = [];
+      for (var i = 0; i < MANIFEST.length; i++) {
+        var syms = MANIFEST[i][2], root = syms[0][0].split('.');
+        if (root.length !== 2) continue;
+        var name = root[1];
+        if (resolve(syms[0][0]).found) continue;      // 已有真货，不碰
+        var o = syms[0][1] === A ? [] : {};
+        for (var j = 1; j < syms.length; j++) {
+          var q = syms[j][0].split('.');
+          if (q.length !== 3) continue;
+          var want = syms[j][1];
+          o[q[2]] = want === F ? function () { return {}; }
+                  : want === A ? []
+                  : want === O ? {}
+                  : want === B ? false : 0;
+        }
+        SJ[name] = o;
+        made.push(name);
+      }
+      return made;
+    }
+
+    var savedEnt = SJ.Ent.list.slice(), bad = [], info = [];
+    var stubbed = stubMissing();
+    try {
+      reset(FLAT);
+      if (!p.onGround) return ['warn', 'Player 在测试世界里落不了地，无法比对（onGround 一直为 false）'];
+
+      var hold = apex(45), tap = apex(1);
+      if (hold === null || tap === null) return ['warn', 'Player 落地失败，无法比对'];
+      info.push('长按顶点 ' + hold.toFixed(1) + 'px');
+      info.push('点按顶点 ' + tap.toFixed(1) + 'px');
+      if (Math.abs(hold - 114) > 4) bad.push('长按跳顶点 ' + hold.toFixed(1) + '，应 114±4');
+      if (Math.abs(tap - 52.3) > 6) bad.push('点按跳顶点 ' + tap.toFixed(1) + '，应 52.3±6');
+
+      reset(FLAT);
+      K('keydown', 'KeyD'); step(60);
+      var vx = p.vx; K('keyup', 'KeyD'); SJ.Input.update();
+      info.push('走速 ' + vx.toFixed(1));
+      if (Math.abs(vx - 240) > 3) bad.push('走速 60 帧后 ' + vx.toFixed(1) + '，应 240±3');
+
+      var r4 = coyoteRise(4), r12 = coyoteRise(12);
+      info.push('土狼 4帧起跳升 ' + r4.toFixed(0) + 'px / 12帧起跳升 ' + r12.toFixed(0) + 'px');
+      if (r4 < hold - 6) {
+        bad.push('离地 4 帧起跳只升 ' + r4.toFixed(1) + 'px，没拿到满跳 ' +
+                 hold.toFixed(1) + 'px（土狼时间应 0.10s = 6 帧）');
+      }
+      if (r12 > hold - 12) {
+        bad.push('离地 12 帧仍能拿到满跳（升 ' + r12.toFixed(1) +
+                 'px），土狼时间过长（应 0.10s）');
+      }
+    } catch (e) {
+      return ['warn', '无法自动比对（Player 依赖的模块可能未就绪）：' + e.message];
+    } finally {
+      try {
+        if (p) SJ.Ent.remove(p);
+        SJ.Ent.list.length = 0;
+        for (var i = 0; i < savedEnt.length; i++) SJ.Ent.list.push(savedEnt[i]);
+        SJ.World.load({ solids: [] });
+        for (i = 0; i < stubbed.length; i++) { try { delete SJ[stubbed[i]]; } catch (e3) {} }
+      } catch (e2) {}
+    }
+
+    var note = stubbed.length ? '　[空壳代跑：' + stubbed.join(' ') + ']' : '';
+    return bad.length
+      ? ['bad', '与沙盒基线不符 —— ' + bad.join('；') + '　（实测：' + info.join('，') + '）' + note]
+      : ['ok', info.join('，') + ' —— 与沙盒基线一致 ✔' + note];
+  });
+
   if (SJCHK.errs.length) {
     deep.push('<li class="bad">脚本运行时抛错 ' + SJCHK.errs.length + ' 处：<br>' +
               SJCHK.errs.join('<br>') + '</li>');

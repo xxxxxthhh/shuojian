@@ -76,9 +76,10 @@
   }
 
   // 把中心线 + 宽度展开成左右两侧点，填成一个多边形
-  function ribbon(g, sp, wf, jitterAmp, seed) {
+  // caps: 0 不加端帽 / 1 只加起笔 / 2 两端都加
+  function ribbon(g, sp, wf, jitterAmp, seed, caps) {
     var n = sp.length, i, t, tx, ty, L, w, cx, cy, off,
-      left = [], right = [], a, b;
+      left = [], right = [], a, b, sx = 0, sy = 0, ex = 0, ey = 0;
     for (i = 0; i < n; i++) {
       t = n > 1 ? i / (n - 1) : 0;
       a = sp[Math.max(0, i - 1)];
@@ -95,6 +96,8 @@
       }
       left.push(cx - ty * w, cy + tx * w);
       right.push(cx + ty * w, cy - tx * w);
+      if (i === 0) { sx = cx; sy = cy; }
+      if (i === n - 1) { ex = cx; ey = cy; }
     }
     g.beginPath();
     g.moveTo(left[0], left[1]);
@@ -102,6 +105,14 @@
     for (i = n - 1; i >= 0; i--) g.lineTo(right[i * 2], right[i * 2 + 1]);
     g.closePath();
     g.fill();
+    if (caps) {
+      w = wf(0) * 0.5;
+      if (w > 0.35) { g.beginPath(); g.arc(sx, sy, w, 0, TAU); g.fill(); }
+      if (caps === 2) {
+        w = wf(1) * 0.5;
+        if (w > 0.35) { g.beginPath(); g.arc(ex, ey, w, 0, TAU); g.fill(); }
+      }
+    }
   }
 
   // 沿采样线取归一化 t 处的点与切向
@@ -169,18 +180,18 @@
         g.globalAlpha = alpha * (0.30 + si * 0.30);
         ribbon(g, sp, (function (m) {
           return function (t) { return wf(t) * m; };
-        })(sk), wobble, seed);
+        })(sk), wobble, seed, taper ? 1 : 2);
       }
       g.globalAlpha = alpha;
     } else {
-      ribbon(g, sp, wf, wobble, seed);
+      ribbon(g, sp, wf, wobble, seed, taper ? 1 : 2);
     }
 
     // 湿墨芯：只在浓墨粗笔上压一道，做出墨色厚度。
     // 淡墨大笔触（远山）不能加，否则会变成一根有边线的管子。
     if (o.core !== false && w0 > 3.5 && alpha >= 0.55) {
       g.globalAlpha = alpha * 0.26;
-      ribbon(g, sp, function (t) { return wf(t) * 0.40; }, wobble, seed);
+      ribbon(g, sp, function (t) { return wf(t) * 0.40; }, wobble, seed, taper ? 1 : 2);
       g.globalAlpha = alpha;
     }
 
