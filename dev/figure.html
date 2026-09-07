@@ -1,28 +1,50 @@
 <!doctype html><html lang="zh"><head><meta charset="utf-8">
-<title>说剑 · 姿势画廊</title>
+<title>说剑 · 姿势总表</title>
 <style>
   html,body{margin:0;background:#2a2724;color:#c9c0ae;font:13px/1.6 "Songti SC",serif}
-  #wrap{padding:16px 18px 50px}
-  h1{font:600 17px/1 "Songti SC",serif;letter-spacing:.35em;color:#e6dcc6;margin:0 0 10px}
+  #wrap{padding:16px 18px 60px}
+  h1{font:600 17px/1 "Songti SC",serif;letter-spacing:.35em;color:#e6dcc6;margin:0 0 4px}
+  h2{font:600 14px/1 "Songti SC",serif;letter-spacing:.22em;color:#b8ad95;margin:22px 0 8px;
+     border-left:3px solid #6f6a60;padding-left:9px}
   canvas{display:block;box-shadow:0 6px 26px rgba(0,0,0,.5);border-radius:2px}
   .bar{margin:8px 0 12px;color:#8d8474;font-size:12px;letter-spacing:.04em}
+  .note{color:#7d7466;font-size:11.5px;margin:0 0 10px;line-height:1.75}
   label{margin-right:14px;color:#a89e8b}
   input[type=range]{vertical-align:middle;width:110px}
   button{background:#3b3733;color:#c9c0ae;border:1px solid #55504a;border-radius:3px;
     padding:3px 9px;font:12px "Songti SC",serif;cursor:pointer;margin-right:6px}
   button.on{background:#6f6a60;color:#efe7d8}
 </style></head><body><div id="wrap">
-<h1>姿　势</h1>
+<h1>姿　势　总　表</h1>
+<p class="note">
+  每一格分左右两半：<b>左＝游戏内真实大小</b>（主角 scale 0.86，敌人 0.9–1.1，就是这么小，
+  细节全糊，只剩轮廓）；<b>右＝放大版</b>，看笔触与关节。<br>
+  验收看的是<b>左半边</b>：不放大也能一眼读出这是哪一招、剑往哪个方向去。
+  朱砂小圈是 <code>Figure.tip()</code> 返回的剑尖，用来核对特效坐标和画出来的剑是同一个点。
+</p>
 <div class="bar">
-  <label>scale <input id="sc" type="range" min="0.6" max="3" step="0.1" value="1.6"><span id="scv">1.6</span></label>
+  <label>放大版 scale <input id="sc" type="range" min="1" max="3.4" step="0.1" value="1.5"><span id="scv">1.5</span></label>
   <label>weapon <span id="wb"></span></label>
   <label>facing <button id="fa">→</button></label>
   <label>ribbon <button id="rb" class="on">开</button></label>
   <label>cloth <input id="cl" type="range" min="0" max="1" step="0.05" value="0.55"></label>
+  <label>动画 <button id="pl" class="on">播放</button></label>
 </div>
-<div class="bar">战斗片段 · idle → atk1 → atk2 → atk3 → idle 循环（左）／ 移动三态（右）</div>
+
+<h2 id="s-tech">一 · 十二招 · 起手 → 命中</h2>
+<p class="note">起手停在 p=0（前摇只有 5–14 帧，起手在第一帧就必须已经蓄满），命中停在 p=1。
+  播放时在两者之间来回过渡。要能从剪影读出那个字：横 裂 撑 孤 无 连 破 穿 镇 提 分 说。</p>
+<canvas id="tech" width="1240" height="1320"></canvas>
+
+<h2 id="s-atk">二 · 三段普攻 · 横 / 斜 / 竖</h2>
+<p class="note">三段是三个<b>方向</b>不是三个力度：atk1 横（剑与地面平行贯到身前）、
+  atk2 斜（从后下贴地撩到前上）、atk3 竖（过顶劈到脚边）。</p>
+<canvas id="atk" width="1240" height="440"></canvas>
+
+<h2 id="s-hero">三 · 连招与移动（按 DESIGN §7 的真实帧长播放）</h2>
 <canvas id="hero" width="1240" height="300"></canvas>
-<div class="bar" style="margin-top:14px">全部 pose · 循环播放</div>
+
+<h2 id="s-all">四 · 全部 pose（含敌人/Boss 在用的通用姿势）</h2>
 <canvas id="cv" width="1240" height="1180"></canvas>
 </div>
 
@@ -47,15 +69,13 @@
 <script src="../src/render/figure.js"></script>
 <script>
 (function(){
-  var cv=document.getElementById('cv'), g=cv.getContext('2d');
-  var hero=document.getElementById('hero'), hg=hero.getContext('2d');
   var C=SJ.C, Fg=SJ.Figure, T0=performance.now();
   var STATIC=/static/.test(location.search);
+  var GAME_SCALE=0.86;                       // player.js 里主角的真实 scale
 
-  var st={scale:1.6, weapon:'jian', facing:1, ribbon:true, cloth:0.55};
+  var st={scale:1.5, weapon:'jian', facing:1, ribbon:true, cloth:0.55, play:!STATIC};
   var WEAPONS=['jian','dao','qiang','gong','di','gan',null];
 
-  // 控件
   var wb=document.getElementById('wb');
   WEAPONS.forEach(function(w){
     var b=document.createElement('button'); b.textContent=w||'无';
@@ -71,22 +91,151 @@
   document.getElementById('rb').onclick=function(){ st.ribbon=!st.ribbon;
     this.className=st.ribbon?'on':''; this.textContent=st.ribbon?'开':'关'; };
   document.getElementById('cl').oninput=function(){ st.cloth=+this.value; };
+  document.getElementById('pl').onclick=function(){ st.play=!st.play;
+    this.className=st.play?'on':''; this.textContent=st.play?'播放':'定格'; };
 
-  var NAMES=['idle','walk','run','jump','rise','fall','land','crouch','dashF','guard',
-    'observe','hurt','down','dead','sit','bow','thrust','upslash','downslash',
-    'atk1_wind','atk1_hit','atk1_rec','atk2_wind','atk2_hit','atk2_rec',
-    'atk3_wind','atk3_hit','atk3_rec','castWind','castHit'];
-  // 循环播放的 pose 用各自的周期
-  var CYCLE={idle:2.6, walk:1.0, run:0.62, observe:3.0, sit:3.2};
-
-  function ground(g,x,y,w){
+  function ground(g,x,y,w,al){
     SJ.Ink.stroke(g,[[x-w/2,y],[x,y-1.2],[x+w/2,y+0.6]],
-      {w0:2.2,w1:1.2,color:C.ink,alpha:.28,taper:false,hairs:0,seed:99,core:false});
+      {w0:2.2,w1:1.2,color:C.ink,alpha:al||.28,taper:false,hairs:0,seed:99,core:false});
   }
 
-  var GRIDONLY=/grid/.test(location.search);
-  var COLS=GRIDONLY?10:6, PAD=6, CW=(1240-PAD*(COLS+1))/COLS, CH=GRIDONLY?168:224;
+  // 一格：左边游戏内大小，右边放大版，共用同一个 pose
+  function cell(g,x,y,w,h,label,sub,poseName,p,t,key){
+    g.save();
+    g.fillStyle=C.paper; g.fillRect(x,y,w,h);
+    g.save(); g.beginPath(); g.rect(x,y,w,h); g.clip();
+    // 分隔线
+    g.strokeStyle='rgba(27,26,23,0.10)'; g.lineWidth=1;
+    g.beginPath(); g.moveTo(x+w*0.30,y+6); g.lineTo(x+w*0.30,y+h-6); g.stroke();
+    var fy=y+h-24;
+    [[x+w*0.15, GAME_SCALE, w*0.24],[x+w*0.65, st.scale, w*0.60]].forEach(function(a,i){
+      var fx=a[0], sc=a[1];
+      ground(g,fx,fy,a[2], i?0.28:0.20);
+      var o={x:fx,y:fy,facing:st.facing,scale:sc,pose:poseName,p:p,t:t,
+        weapon:st.weapon,cloth:st.cloth,ribbon:st.ribbon,key:key+':'+i,
+        vx:0,vy:0};
+      Fg.draw(g,o);
+      if(i){                                  // 只在放大版上标剑尖
+        var tp=Fg.tip(o);
+        g.beginPath(); g.arc(tp.x,tp.y,3,0,6.283);
+        g.strokeStyle=C.cinnabar; g.lineWidth=1.2; g.stroke();
+        // 被格子切掉的话在左上角点一个朱砂角标 —— 切掉了就等于没验收到
+        var j=Fg.joints(o), k, over=false;
+        for(k in j){ if(j[k] && j[k].y < y+4) over=true; }
+        if(over){ g.fillStyle=C.cinnabar; g.globalAlpha=0.85;
+          g.fillRect(x+2,y+2,10,3); g.globalAlpha=1; }
+      }
+    });
+    g.restore();
+    g.fillStyle='#3a352c'; g.font='600 13px '+SJ.FONT; g.textAlign='left'; g.textBaseline='alphabetic';
+    g.fillText(label,x+7,y+17);
+    g.fillStyle='#8d8474'; g.font='10.5px '+SJ.FONT;
+    g.fillText(sub,x+7,y+h-6);
+    g.restore();
+  }
 
+  // ── 一 · 十二招 ──
+  var MOVES=[
+    ['hengyun','横云断','横 · 剑与地面平行，从后腰贯到身前'],
+    ['liebo','裂　帛','裂 · 双手在中线抓住，向两侧撕开'],
+    ['chengtian','撑　天','撑 · 弓步压到最低，剑直指正上'],
+    ['guying','孤　影','孤 · 团到最小，贴地侧伏'],
+    ['wufeng','无　锋','无 · 剑垂在体侧不指人，中正平推'],
+    ['lianhuan','连环腿','连 · 提膝，前腿踢过胸口'],
+    ['poyu','破　雨','破 · 肘收到腰侧，全场最低的一刺'],
+    ['chuanyang','穿　杨','穿 · 后手拉到耳后，放开时人弹起'],
+    ['zhenshan','镇　山','镇 · 腾空举顶，砸成一团，剑尖插地'],
+    ['tiyun','踏　云','提 · 空中收拢，一腿下蹬拉成箭头'],
+    ['fenshu','焚　书','分 · 环抱聚气，炸成反向撑开'],
+    ['shuojian','说　剑','说 · 剑斜指前上「引」，跨度最大的斜劈']
+  ];
+  var techCv=document.getElementById('tech'), tg=techCv.getContext('2d');
+  var TCOL=4, TPAD=6, TCW=(1240-TPAD*(TCOL+1))/TCOL, TCH=212;
+  techCv.height=TPAD+Math.ceil(MOVES.length*2/TCOL)*(TCH+TPAD);
+  function drawTech(t){
+    tg.fillStyle='#2a2724'; tg.fillRect(0,0,techCv.width,techCv.height);
+    var cells=[];
+    MOVES.forEach(function(m){
+      cells.push([m[0]+'_wind', m[1]+' · 起手', m[2]]);
+      cells.push([m[0]+'_hit',  m[1]+' · 命中', '']);
+    });
+    cells.forEach(function(c,i){
+      var col=i%TCOL, row=(i/TCOL)|0,
+          x=TPAD+col*(TCW+TPAD), y=TPAD+row*(TCH+TPAD);
+      // 起手停 p=0（前摇第一帧就必须蓄满），命中停 p=1；播放时来回过渡
+      var isWind=/_wind$/.test(c[0]);
+      var p = st.play ? (isWind ? (1-Math.abs(Math.sin(t*1.1)))*0.35
+                                : Math.abs(Math.sin(t*1.1))*0.75+0.25)
+                      : (isWind?0:1);
+      cell(tg,x,y,TCW,TCH,c[1],c[2]||c[0],c[0],p,t,'t'+i);
+    });
+  }
+
+  // ── 二 · 三段普攻 ──
+  var ATK=[['atk1_wind','一段 起手','横 · 剑水平收在身后胸高'],
+           ['atk1_hit','一段 命中','横 · 同一条线贯到身前'],
+           ['atk1_rec','一段 后摇',''],
+           ['atk2_wind','二段 起手','斜 · 剑压到后下贴地'],
+           ['atk2_hit','二段 命中','斜 · 撩到前上方，身体展开'],
+           ['atk2_rec','二段 后摇',''],
+           ['atk3_wind','三段 起手','竖 · 举过头顶，重心最高'],
+           ['atk3_hit','三段 命中','竖 · 劈到脚边，重心最低'],
+           ['atk3_rec','三段 后摇','']];
+  var atkCv=document.getElementById('atk'), ag=atkCv.getContext('2d');
+  var ACOL=5, ACH=212;
+  var ACW=(1240-TPAD*(ACOL+1))/ACOL;
+  atkCv.height=TPAD+Math.ceil(ATK.length/ACOL)*(ACH+TPAD);
+  function drawAtk(t){
+    ag.fillStyle='#2a2724'; ag.fillRect(0,0,atkCv.width,atkCv.height);
+    ATK.forEach(function(c,i){
+      var col=i%ACOL, row=(i/ACOL)|0,
+          x=TPAD+col*(ACW+TPAD), y=TPAD+row*(ACH+TPAD);
+      var isWind=/_wind$/.test(c[0]);
+      var p= st.play ? (isWind?0:(t*1.4)%1) : (isWind?0:1);
+      cell(ag,x,y,ACW,ACH,c[1],c[2]||c[0],c[0],p,t,'a'+i);
+    });
+  }
+
+  // ── 三 · 连招与移动（真实帧长）──
+  var hero=document.getElementById('hero'), hg=hero.getContext('2d');
+  var CYCLE={idle:2.6, walk:1.0, run:0.62, observe:3.0, sit:3.2};
+  var COMBO=[['idle',0.55],
+    ['atk1_wind',0.06],['atk1_hit',0.08],['atk1_rec',0.14],
+    ['atk2_wind',0.06],['atk2_hit',0.08],['atk2_rec',0.14],
+    ['atk3_wind',0.10],['atk3_hit',0.08],['atk3_rec',0.22],
+    ['idle',0.5]];
+  var COMBO_T=COMBO.reduce(function(a,b){return a+b[1];},0);
+  var MOVE=[['idle',1.1],['run',1.5],['jump',0.16],['rise',0.34],['fall',0.34],['land',0.26],['idle',0.6]];
+  var MOVE_T=MOVE.reduce(function(a,b){return a+b[1];},0);
+  function at(seq,tt){
+    var acc=0,i;
+    for(i=0;i<seq.length;i++){
+      if(tt<acc+seq[i][1]){
+        var nm=seq[i][0], per=CYCLE[nm];
+        return {n:nm,p:per?((tt%per)/per):((tt-acc)/seq[i][1])};
+      }
+      acc+=seq[i][1];
+    }
+    return {n:'idle',p:0};
+  }
+  function drawHero(t){
+    hg.fillStyle='#2a2724'; hg.fillRect(0,0,hero.width,hero.height);
+    var HW=(1240-TPAD*3)/2;
+    [0,1].forEach(function(side){
+      var x=TPAD+side*(HW+TPAD), h=300-TPAD*2;
+      var s= side===0 ? at(COMBO, st.play?(t%COMBO_T):0.72)
+                      : at(MOVE,  st.play?(t%MOVE_T):1.6);
+      cell(hg,x,TPAD,HW,h,(side?'移动 · ':'连招 · ')+s.n,
+        side?'idle → run → jump → rise → fall → land':'DESIGN §7 的真实帧长',
+        s.n,s.p,t,'h'+side);
+    });
+  }
+
+  // ── 四 · 全部 pose ──
+  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var NAMES=Object.keys(Fg.poses).sort();
+  var COLS=10, PAD=6, CW=(1240-PAD*(COLS+1))/COLS, CH=168;
+  cv.height=PAD+Math.ceil(NAMES.length/COLS)*(CH+PAD);
   function drawGrid(t){
     g.fillStyle='#2a2724'; g.fillRect(0,0,cv.width,cv.height);
     NAMES.forEach(function(nm,i){
@@ -95,86 +244,22 @@
       g.save();
       g.fillStyle=C.paper; g.fillRect(x,y,CW,CH);
       g.save(); g.beginPath(); g.rect(x,y,CW,CH); g.clip();
-      var per=CYCLE[nm]||1.15, p=STATIC?0.55:((t%per)/per);
+      var per=CYCLE[nm]||1.15, p=st.play?((t%per)/per):0.55;
       var fy=y+CH-26, fx=x+CW/2;
       ground(g,fx,fy,CW*0.62);
-      Fg.draw(g,{x:fx,y:fy,facing:st.facing,scale:st.scale,pose:nm,p:p,t:t,
+      Fg.draw(g,{x:fx,y:fy,facing:st.facing,scale:1.25,pose:nm,p:p,t:t,
         weapon:st.weapon,cloth:st.cloth,ribbon:st.ribbon,key:'g'+i,
         vx:nm==='run'?260*st.facing:0, vy:0});
       g.restore();
-      g.fillStyle='#9a8f79'; g.font='11px '+SJ.FONT; g.textAlign='left'; g.textBaseline='alphabetic';
-      g.fillText(nm,x+6,y+CH-7);
+      g.fillStyle='#9a8f79'; g.font='10px '+SJ.FONT; g.textAlign='left'; g.textBaseline='alphabetic';
+      g.fillText(nm,x+5,y+CH-7);
       g.restore();
     });
   }
 
-  // ── 战斗片段：按 DESIGN §7 的真实时长排 ──
-  // 前摇 0.06 / 判定 0.08 / 后摇 0.14(三段 0.22)
-  var COMBO=[['idle',0.55],
-    ['atk1_wind',0.06],['atk1_hit',0.08],['atk1_rec',0.14],
-    ['atk2_wind',0.06],['atk2_hit',0.08],['atk2_rec',0.14],
-    ['atk3_wind',0.10],['atk3_hit',0.08],['atk3_rec',0.22],
-    ['idle',0.5]];
-  var COMBO_T=COMBO.reduce(function(a,b){return a+b[1];},0);
-  function comboAt(tt){
-    var acc=0,i;
-    for(i=0;i<COMBO.length;i++){
-      if(tt<acc+COMBO[i][1]) return {n:COMBO[i][0],p:(tt-acc)/COMBO[i][1]};
-      acc+=COMBO[i][1];
-    }
-    return {n:'idle',p:0};
-  }
-
-  var MOVE=[['idle',1.1],['run',1.5],['jump',0.16],['rise',0.34],['fall',0.34],['land',0.26],['idle',0.6]];
-  var MOVE_T=MOVE.reduce(function(a,b){return a+b[1];},0);
-  function moveAt(tt){
-    var acc=0,i;
-    for(i=0;i<MOVE.length;i++){
-      if(tt<acc+MOVE[i][1]){
-        var nm=MOVE[i][0], per=CYCLE[nm]||MOVE[i][1];
-        return {n:nm,p:(nm==='run'||nm==='idle')?((tt%per)/per):((tt-acc)/MOVE[i][1])};
-      }
-      acc+=MOVE[i][1];
-    }
-    return {n:'idle',p:0};
-  }
-
-  function drawHero(t){
-    hg.fillStyle='#2a2724'; hg.fillRect(0,0,hero.width,hero.height);
-    var HW=(1240-PAD*3)/2;
-    [0,1].forEach(function(side){
-      var x=PAD+side*(HW+PAD);
-      hg.save(); hg.fillStyle=C.paper; hg.fillRect(x,PAD,HW,300-PAD*2);
-      hg.save(); hg.beginPath(); hg.rect(x,PAD,HW,300-PAD*2); hg.clip();
-      var fy=300-PAD-38, fx=x+HW/2, s;
-      ground(hg,fx,fy,HW*0.7);
-      if(side===0){ s=comboAt(STATIC?0.72:(t%COMBO_T)); }
-      else        { s=moveAt(STATIC?1.6:(t%MOVE_T)); }
-      var sc=st.scale*1.5;
-      Fg.draw(hg,{x:fx,y:fy,facing:st.facing,scale:sc,pose:s.n,p:s.p,t:t,
-        weapon:st.weapon,cloth:st.cloth,ribbon:st.ribbon,key:'h'+side,
-        vx:(s.n==='run'?300:s.n==='dashF'?700:0)*st.facing, vy:s.n==='fall'?420:s.n==='rise'?-420:0});
-      // 剑尖标记：验证 Figure.tip 与画出来的剑一致
-      var tp=Fg.tip({x:fx,y:fy,facing:st.facing,scale:sc,pose:s.n,p:s.p,t:t,weapon:st.weapon});
-      hg.beginPath(); hg.arc(tp.x,tp.y,3,0,6.283);
-      hg.strokeStyle=C.cinnabar; hg.lineWidth=1.2; hg.stroke();
-      hg.restore();
-      hg.fillStyle='#9a8f79'; hg.font='11px '+SJ.FONT; hg.textAlign='left';
-      hg.fillText((side?'移动 ':'连招 ')+s.n,x+7,300-PAD-8);
-      hg.restore();
-    });
-  }
-
-  if(GRIDONLY){
-    hero.style.display='none';
-    [].forEach.call(document.querySelectorAll('.bar'),function(b,i){ if(i>=1) b.style.display='none'; });
-    cv.height=PAD+Math.ceil(NAMES.length/COLS)*(CH+PAD);
-    st.scale=1.15;
-  }
   function frame(){
     var t=STATIC?3.0:(performance.now()-T0)/1000;
-    if(!GRIDONLY) drawHero(t);
-    drawGrid(t);
+    drawTech(t); drawAtk(t); drawHero(t); drawGrid(t);
     if(!STATIC) requestAnimationFrame(frame);
   }
   frame();

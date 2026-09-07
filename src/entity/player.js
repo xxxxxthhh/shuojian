@@ -8,7 +8,17 @@
   // ── DESIGN §7 ──────────────────────────────────────────────
   var RUN = 240, ACC = 3000, FRIC = 3200;
   var JUMP = -720, JUMP_SHORT = -420, JUMP2 = -640;
-  var COYOTE = 0.10, JBUF = 0.12;
+  var COYOTE = 0.10;
+  // 缓冲窗口：本意是「约 7 帧」。
+  // input.js 的 buffered 从墙钟换成游戏时间之后（见 notes-T2 §6「已修 1」），
+  // G.time 在 step() 里**先自增、再跑 update**，而 lastPress 是上一帧末尾的 DOM 事件记的，
+  // 于是测出来的间隔天然多含当前这一帧 —— 120ms 的窗口实际只剩 6.2 帧可用。
+  // +1 帧把有效帧数补回原样：这是**保住原行为**，不是调数值。
+  // 实测口径见 dev/input-audit.js：三连第二段回到「按 J 第 2 帧就接得上」，
+  // 跳跃缓冲回到「落地前 ≤7 帧按下都补跳」。
+  var FRAME = 1 / 60;
+  var JBUF = 0.12 + FRAME;          // 跳跃缓冲，有效 7.2 帧
+  var ABUF = 0.12 + FRAME;          // 攻击缓冲，同上（原来两处都写死 120）
   var DASH_V = 780, DASH_T = 0.16, DASH_INV = 0.20, DASH_CD = 0.32, DASH_INK = 12;
   var COMBO_WIN = 0.35;
   var HURT_STUN = 0.22, HURT_INV = 0.60, HURT_KNOCK = 220;
@@ -179,6 +189,7 @@
     if (p.hurtT > 0) {
       p.hurtT -= dt;
       gravity(p, dt);
+      jumpCut(p);
       move(p, dt);
       if (p.hurtT <= 0) p.setState(p.onGround ? 'idle' : 'fall');
       figure(p);
@@ -192,6 +203,7 @@
     if (p.state === 'cast') {
       // 招式由 SJ.Tech.update 驱动位移，这里只跑重力与落地
       if (SJ.Tech.gravityOn(p)) gravity(p, dt);
+      jumpCut(p);
       move(p, dt);
       figure(p);
       return;
@@ -253,7 +265,7 @@
 
     // 攻击
     if (isAtk(p.state)) { atkTick(p, dt); return; }
-    if (I.buffered('attack', 120) && p.dashT <= 0) {
+    if (I.buffered('attack', ABUF * 1000) && p.dashT <= 0) {
       I.consume('attack');
       p.observing = false; p.parryWindow = false;
       startAtk(p, p.comboT > 0 ? p.atkIdx % 3 : 0);
@@ -297,7 +309,7 @@
         SJ.FX.ring(p.cx(), p.footY(), { r: 4, r1: 34, color: SJ.C.inkLight, life: 0.28, w: 1.6 });
       }
     }
-    if (I.released('jump') && p.vy < JUMP_SHORT) p.vy = JUMP_SHORT;
+    jumpCut(p);
 
     // 蹲
     var crouch = I.down('down') && p.onGround && Math.abs(p.vx) < 20;
@@ -309,6 +321,16 @@
     else if (crouch) p.setState('crouch');
     else if (Math.abs(p.vx) > 12) p.setState('run');
     else p.setState('idle');
+  }
+
+  // 可变跳高的截断。**每一条分支都要调**：control() 在 hurt / dash / cast 里根本不跑，
+  // 而 released 的边沿当帧就被 Input.update() 清掉，错过就永远错过。
+  // 后果是「点按起跳 → 两帧内挨打 → 松手」会得到一个你没要的最高跳（实测 114px，
+  // 点按本该只有 52px）。
+  // 位置很讲究：必须在**同一帧的起跳之后**。放在 tick 开头的话，
+  // 同帧按下并松开时截断会先于起跳执行，短跳就永远截不到了。
+  function jumpCut(p) {
+    if (SJ.Input.released('jump') && p.vy < JUMP_SHORT) p.vy = JUMP_SHORT;
   }
 
   function jump(p, v, snd) {
@@ -406,7 +428,7 @@
       if (p.atkT >= a.act) { p.atkPhase = 'rec'; p.atkT = 0; p.atkHb = null; p.comboT = COMBO_WIN; }
     } else {
       // 后摇可被下一段取消 —— 三连打起来的干脆全靠这条
-      if (p.atkIdx < 3 && I.buffered('attack', 120)) {
+      if (p.atkIdx < 3 && I.buffered('attack', ABUF * 1000)) {
         I.consume('attack');
         startAtk(p, p.atkIdx);
         return;

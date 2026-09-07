@@ -43,7 +43,9 @@
       mercy: {},
       flags: {},
       deaths: 0,
-      playtimeSec: 0
+      playtimeSec: 0,
+      // 决议 016：残墨进度 moveId → 0–100。旧档没有这一项，load() 会补 {}。
+      techProgress: {}
     };
   }
 
@@ -67,6 +69,12 @@
         } catch (e) { /* 存档损坏 → 用默认值 */ }
       }
       this.data = d;
+      // 决议 016：进度的真源仍在 Tech，这里只是「载入时读回」的那一下。
+      // load() 会**换掉整个 data 对象**，所以 Tech 不许缓存 data.techProgress 的引用，
+      // 只能每次现取 —— 与 player.js 把 known/slots 做成取值器是同一个坑。
+      // 守卫是必需的：smoke / level-check / script-check 里 save.js 会在没有 tech.js 的
+      // 情况下被加载。
+      if (SJ.Tech && SJ.Tech.adoptProgress) SJ.Tech.adoptProgress(d.techProgress);
       return d;
     },
 
@@ -79,6 +87,7 @@
 
     reset: function () {
       this.data = defaults();
+      if (SJ.Tech && SJ.Tech.adoptProgress) SJ.Tech.adoptProgress(this.data.techProgress);
       mem = null;
       var s = ls();
       if (s) { try { s.removeItem(KEY); } catch (e) {} }

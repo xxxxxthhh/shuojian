@@ -179,6 +179,15 @@
       }
     };
 
+    // 12 招在真 figure.js 里各有自己的 _wind / _hit。替身画不出那些形，
+    // 但也不能让它们静默退回 idle —— 那样试玩台会「看起来正常」，
+    // 只是所有招都长一样，跟这一波要修的问题一模一样。至少接到通用起手/放招上。
+    ['hengyun','liebo','chengtian','guying','wufeng','lianhuan',
+     'poyu','chuanyang','zhenshan','tiyun','fenshu','shuojian'].forEach(function (id) {
+      POSE[id + '_wind'] = POSE.castWind;
+      POSE[id + '_hit'] = POSE.castHit;
+    });
+
     // 三段普攻：wind 蓄、hit 挥、rec 收
     function atk(n) {
       var back = [-70, -86, -104][n], fwd = [64, 74, 92][n], le = [1.0, 1.0, 1.12][n];
@@ -741,7 +750,7 @@
   });
   document.getElementById('bReset').addEventListener('click', function () {
     SJ.Save.reset();
-    SJ.Tech.progress = {};
+    SJ.Tech.resetProgress();          // 决议 016：直接赋 {} 会和存档字段脱钩
     SJ.Game.setScene(scene);
     this.blur(); canvas.focus();
   });

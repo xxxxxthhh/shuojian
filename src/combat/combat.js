@@ -14,21 +14,60 @@
   var uid = 1;
   var lastParry = null;   // {owner,t} 一次挥砍只结算一次格挡奖励
 
-  // 命中反馈分级：hitstop 秒 / 震幅 / 墨点数 / 音效。
-  // 停顿档位对齐 DESIGN §7：普攻 45ms、招式 90ms、破防 140ms。
-  // 三连的一/二/三段走 light/mid/heavy，靠 45→60→90 拉出「第三下明显更重」，
-  // 而不是把第三下拖到 110ms 以上——那会把连段打断成三次独立的挥砍。
+  // ── 命中确认的四档（增强波次 P1-7）──────────────────────────
+  //
+  //   轻击 light   —— 普攻前两段、擦到的杂招
+  //   重击 heavy   —— 招式命中、破防斩
+  //   完美格挡 parry —— 观势读中的那一下
+  //   处决 execute  —— 全场最重的一击（镇山、说剑的重斩、Boss 破防）
+  //
+  // 改造之前这四种反馈是散在三个地方的裸数字（WEIGHT 表、parryFx 里的字面量、
+  // 各招 exec 里自己调的 slowmo），没有「档」的概念，所以谁比谁重说不清楚。
+  // 现在四档收进一张表，**数值一个都没动**：
+  //   45 → 90 → 100 → 140ms，严格递增，每一档都等于改造前的原值（Δ=0ms）。
+  // 这条「不许变粘」的约束由 dev/player-check.js §10 用字面量钉死。
+  // 五个轴全部**严格递增**，一档一档看得出来：
+  //   停顿 45 → 90 → 100 → 140ms       （Δ=0，与改造前逐位相同，手感不许变粘）
+  //   震幅  3 →  7 →  10 →  13         （峰值仍是 13，没有新的最大值）
+  //   墨点  3 →  8 →  12 →  16
+  //   甩速 180 → 320 → 400 → 480       （原来是 200+震幅×20 推出来的，现在显式分档）
+  //   音量 .70 → .85 → .95 → 1.00      （原来是 0.8/1/1/1，四档里三档一个值）
+  // 改造前这四档在震幅/墨点/音量上几乎分不出来：轻击与重击的音量一样响，
+  // 完美格挡的震幅比重击还小。停顿是唯一有层次的轴，而停顿恰恰是最不该动的那个。
+  var TIER = {
+    light: { key: 'light', name: '轻击', stop: 0.045, shake: 3.0, splash: 3, spray: 180, sfx: 'hit', vol: 0.70 },
+    heavy: { key: 'heavy', name: '重击', stop: 0.090, shake: 7.0, splash: 8, spray: 320, sfx: 'hitHeavy', vol: 0.85 },
+    parry: { key: 'parry', name: '完美格挡', stop: 0.100, shake: 10.0, splash: 12, spray: 400, sfx: 'parry', vol: 0.95 },
+    execute: { key: 'execute', name: '处决', stop: 0.140, shake: 13.0, splash: 16, spray: 480, sfx: 'hitHeavy', vol: 1.00 }
+  };
+
+  // 「挡开」：**不是第五档**。四档说的是「这一下有多重」，挡开说的是「这一下不算数」。
+  // 触发条件是 hitbox 命中了一个 invuln 的目标（Boss 换势、身法无敌、受击无敌帧）。
+  // 改造前这条分支是**静默 return**：没停顿、没墨点、没声音，玩家分不清自己是挥空了
+  // 还是被挡开了。Boss 换势有 1.0–1.3s 无敌，一顿砍下去屏幕上什么都不发生。
+  // hitstop 取 **0**：换势期间玩家可能连着砍中七八下，哪怕一帧一次也会糊成一片粘滞。
+  // 不掉血、不进任何进度统计（Tech.gain 在这条分支之后，天然不会走到）。
+  var DEFLECT = { key: 'deflect', name: '挡开', stop: 0, shake: 2.0, sfx: 'block', vol: 0.55 };
+
+  // hitbox 的 weight 是四级细分，落到上面的档上。
+  // mid 是**过渡**不是独立档：它只为三连第二段而存在（45→60→90 让第三下明显更重，
+  // 90 以上会把连段切成三次独立挥砍——notes-E 实测过 110ms，退回来了）。
   var WEIGHT = {
-    light: { stop: 0.045, shake: 3.0, splash: 3, sfx: 'hit', vol: 0.8 },
-    mid: { stop: 0.060, shake: 5.0, splash: 5, sfx: 'hit', vol: 1.0 },
-    heavy: { stop: 0.090, shake: 8.0, splash: 8, sfx: 'hitHeavy', vol: 1.0 },
-    huge: { stop: 0.140, shake: 13.0, splash: 11, sfx: 'hitHeavy', vol: 1.0 }
+    light: TIER.light,
+    mid: { key: 'mid', name: '轻击·中', stop: 0.060, shake: 5.0, splash: 5, spray: 250, sfx: 'hit', vol: 0.78 },
+    heavy: TIER.heavy,
+    huge: TIER.execute
   };
 
   function cx(e) { return e.cx ? e.cx() : e.x + e.w / 2; }
   function cy(e) { return e.cy ? e.cy() : e.y + e.h / 2; }
 
   var Combat = {
+
+    // 命中确认四档（只读；T3 / 测试按 key 取值，别改表里的数）
+    TIER: TIER,
+    // 「挡开」反馈的参数（不是第五档，见上方注释）
+    DEFLECT: DEFLECT,
 
     // 起手式全表，供渲染与 AI 读取
     tgList: tgs,
@@ -89,8 +128,12 @@
 
     // ── telegraph ─────────────────────────────────────────────
     // o = {owner, moveId, dur, path:[[x,y],...]（相对 owner 中心，x 按 facing 镜像）,
-    //      danger:true}
+    //      danger:true, tier:'light'|'heavy'|'grab'}
     // danger:false = 守势型起手式（守阁人）：可被观势读取，但不会打人。
+    //
+    // 决议 014：tier 只管**画法**，不动 path / dur / danger 的语义，
+    // 也不动「这一招能不能格挡」的规则。缺省 'light' = 完全向后兼容。
+    // 拼错的 tier 一律退回 'light'（不报错但也不静默变成别的画法）。
     telegraph: function (o) {
       o = o || {};
       var tg = {
@@ -100,6 +143,7 @@
         dur: o.dur === undefined ? 0.5 : o.dur,
         path: o.path || [],
         danger: o.danger !== false,
+        tier: TIER_STYLE[o.tier] ? o.tier : 'light',
         color: o.color || null,
         t: 0,
         obs: 0,          // 玩家观势累计读取时间
@@ -281,8 +325,19 @@
       return;
     }
 
-    // ② 无敌帧（身法 / 受击后）
-    if (e.invuln > 0) return;
+    // ② 无敌帧（身法 / 受击后 / Boss 换势）—— 不掉血。
+    //
+    // **只在玩家打人时给「挡开」回馈**（`!isPlayer`），玩家自己在受击无敌 0.6s
+    // 或冲刺无敌里被打时保持静默。理由：那不是「挡住了」，那是无敌帧；
+    // 响一声 block 等于告诉玩家「你挡住了」，会把他往错的方向教
+    //（真正的「挡」是观势格挡，有完全不同的一整套反馈），多敌围攻时还吵。
+    //
+    // 反过来玩家砍无敌目标必须给：Boss 换势有 1.0–1.3s 无敌，
+    // 「什么都没发生」和「挥空了」在屏幕上长得一模一样，玩家没法学。
+    if (e.invuln > 0) {
+      if (!isPlayer && !hb.silent) deflectFx(hb, e, px, py, dir);
+      return;
+    }
 
     // ③ 正常受击
     var opt = {
@@ -318,6 +373,7 @@
   }
 
   // 命中三件套：hitstop + 屏幕轻震 + 墨点飞溅。缺一不可。
+  // 四档里的「轻击 / 重击 / 处决」三档从这里出；「完美格挡」走 parryFx。
   function hitFx(hb, e, px, py, dir, dmg) {
     var w = WEIGHT[hb.weight] || (dmg >= 14 ? WEIGHT.heavy : dmg >= 9 ? WEIGHT.mid : WEIGHT.light);
     var stop = hb.hitstop === undefined ? w.stop : hb.hitstop;
@@ -327,7 +383,7 @@
     // groundY 必须传：不传墨点只在半空原地晕开，
     // DESIGN §1 要的「飞出去、落地晕开、留在纸上」就少了三分之一。
     SJ.FX.splash(px, py, sprayAngle(dir), {
-      n: w.splash, color: SJ.C.ink, speed: 200 + w.shake * 20,
+      n: w.splash, color: SJ.C.ink, speed: w.spray,
       groundY: groundLine(px, py, e)
     });
     SJ.FX.slash(px, py, -0.9 * dir, 0.9 * dir, 26 + w.shake * 2.2,
@@ -335,10 +391,28 @@
     SJ.Audio.sfx(w.sfx, { vol: w.vol, pan: SJ.clamp((px - SJ.Camera.x - SJ.W / 2) / (SJ.W / 2), -1, 1) });
   }
 
+  // 「完美格挡」档。数值全部来自 TIER.parry —— 这一档比重击更长（100 > 90ms）
+  // 是有意的：格挡是玩家做对了一件难事，那一下要比他自己砍中更响。
+  // 定格之后再挂半拍 0.25× 慢镜，是格挡独有的「回味」，不属于四档表。
+  // 「挡开」：一圈淡墨环 + 一笔短横 + block 音。没有停顿、没有墨点飞溅
+  //（墨点是「见血」的语言，这一下没见血），不掉血、不给进度。
+  // 单向：只在玩家的攻击被无敌目标吃掉时出现，见调用点的注释。
+  function deflectFx(hb, e, px, py, dir) {
+    var w = DEFLECT;
+    SJ.Game.shake(w.shake, 0.10);
+    SJ.FX.ring(px, py, { r: 5, r1: 34, color: SJ.C.inkLight, life: 0.26, w: 2.0 });
+    SJ.FX.slash(px, py, -0.35 * dir, 0.35 * dir, 18, { color: SJ.C.inkLight, w: 3.0, life: 0.10 });
+    SJ.Audio.sfx(w.sfx, {
+      vol: w.vol, rate: 1.15,
+      pan: SJ.clamp((px - SJ.Camera.x - SJ.W / 2) / (SJ.W / 2), -1, 1)
+    });
+  }
+
   function parryFx(px, py, dir, e) {
-    SJ.Game.slowmo(0, 0.10);
-    SJ.Game.slowmo(0.25, 0.22);          // 定格后再半拍慢镜，格挡的「回味」
-    SJ.Game.shake(7, 0.22);
+    var w = TIER.parry;
+    SJ.Game.slowmo(0, w.stop);
+    SJ.Game.slowmo(0.25, 0.22);
+    SJ.Game.shake(w.shake, 0.22);
     SJ.Game.flash(SJ.C.paper, 0.18, 0.42);
     SJ.FX.ring(px, py, { r: 8, r1: 96, color: SJ.C.cinnabar, life: 0.42, w: 3.4 });
     SJ.FX.burst(px, py, {
@@ -347,25 +421,63 @@
     });
     SJ.FX.slash(px, py, -1.5 * dir, 1.5 * dir, 46, { color: SJ.C.cinnabar, w: 7 });
     SJ.FX.splash(px, py, sprayAngle(dir), {
-      n: 5, color: SJ.C.cinnabar, speed: 300, groundY: groundLine(px, py, e)
+      n: w.splash, color: SJ.C.cinnabar, speed: w.spray, groundY: groundLine(px, py, e)
     });
-    SJ.Audio.sfx('parry', { vol: 1 });
+    SJ.Audio.sfx(w.sfx, { vol: w.vol });
+  }
+
+  // 决议 014（修订版）：三档预警的画法。改颜色/线宽只动这张表，别散到 drawTg 里去。
+  //   light 可格挡的普通招 —— **现状一模一样**：朱砂细线，×1.0，单笔
+  //   heavy superArmor / 不可挡的大招 —— 朱砂 ×1.6 + 路径端点一个实心朱砂「势」点
+  //   grab  突进 / 抓取 —— 朱砂主线 + 外圈淡墨线（双线）
+  //
+  // 分层是往「更重」做，不往「更淡」做：墨线画在墨画的世界里显著性掉一截，
+  // 而玩家已经学会了「红线 = 来招」。把普通招降成墨线是拿可读性换分层，方向反了。
+  // 所以 light 的颜色与线宽必须**逐位等于改造前**——dev/player-check.js §11 钉死了这条。
+  // 端点那个实心「势」点是 heavy 的关键：只靠线宽 1.6 在 0.3s 内是分不出来的。
+  //
+  // 守势型（danger:false，守阁人）不吃 tier，永远是石青细线：它根本不会打人，
+  // 用朱砂加粗或双线去画等于骗玩家躲一记不存在的招。
+  var TIER_STYLE = {
+    light: { mul: 1.0, twin: false, shi: 0 },
+    heavy: { mul: 1.6, twin: false, shi: 1 },
+    grab: { mul: 1.0, twin: true, shi: 0 }
+  };
+
+  function tgStyle(tg) {
+    var st = TIER_STYLE[tg.tier] || TIER_STYLE.light;
+    // 颜色只由 danger 与显式 color 决定，**tier 完全不参与**：
+    // 于是「落点小点跟 danger 走、不随 tier 变」这条自动成立。
+    var col = tg.color || (tg.danger ? SJ.C.cinnabar : SJ.C.stone);
+    return {
+      color: col,
+      mul: tg.danger ? st.mul : 1.0,
+      twin: tg.danger && st.twin,
+      shi: tg.danger ? st.shi : 0
+    };
   }
 
   function drawTg(g, tg, obs) {
     var pts = Combat.tgPoints(tg);
     if (pts.length < 2) return;
     var p = SJ.clamp(tg.t / tg.dur, 0, 1);
-    // 守势型用石青（不会打人）；攻击型用朱砂。颜色本身就是一句话。
-    var col = tg.color || (tg.danger ? SJ.C.cinnabar : SJ.C.stone);
+    var sty = tgStyle(tg);
+    var col = sty.color, mul = sty.mul;
     var end = pts[pts.length - 1];
 
     g.save();
 
     if (obs) {
       // ── 观势：完整、清晰 ──
+      // grab 的外圈淡线先画（垫在主线下面），双线本身就是「这一记要贴上来」的形状
+      if (sty.twin) {
+        SJ.Ink.stroke(g, pts, {
+          w0: 8.2, w1: 3.4, color: SJ.C.ink, alpha: (0.22 + 0.12 * p),
+          seed: tg.id * 7 + 3, wobble: 1.5, hairs: 0
+        });
+      }
       SJ.Ink.stroke(g, pts, {
-        w0: 3.4, w1: 1.2, color: col, alpha: 0.55 + 0.2 * p,
+        w0: 3.4 * mul, w1: 1.2 * mul, color: col, alpha: 0.55 + 0.2 * p,
         seed: tg.id * 7, wobble: 0.6, hairs: 1
       });
       // 光珠：走到轨迹尽头 = 这一招落下的时刻。
@@ -379,12 +491,27 @@
       g.globalAlpha = 0.95;
       g.beginPath(); g.arc(bead.x, bead.y, rr, 0, Math.PI * 2); g.fill();
 
-      // 落点的收束环：闭合即命中
+      // 落点的收束环：闭合即命中。grab 多套一圈，heavy 加粗。
       g.globalAlpha = 0.42 + 0.34 * p;
-      g.lineWidth = 1.4 + 1.2 * p;
+      g.lineWidth = (1.4 + 1.2 * p) * mul;
       g.beginPath();
       g.arc(end[0], end[1], 32 * (1 - p) + 8, 0, Math.PI * 2);
       g.stroke();
+      if (sty.twin) {
+        g.strokeStyle = SJ.C.ink;
+        g.globalAlpha = (0.22 + 0.20 * p);
+        g.lineWidth = 1.2;
+        g.beginPath();
+        g.arc(end[0], end[1], 32 * (1 - p) + 17, 0, Math.PI * 2);
+        g.stroke();
+        g.strokeStyle = col;
+      }
+      // heavy 的「势」点：一个真的墨团（不是几何圆），越临近落下越实。
+      // 这是 heavy 与 light 在 0.3s 内唯一真正拉得开的差别。
+      if (sty.shi) {
+        SJ.Ink.blob(g, end[0], end[1], 4.5 + 5.0 * p, tg.id * 3 + 1,
+          { color: SJ.C.cinnabar, alpha: 0.45 + 0.45 * p });
+      }
       if (tg.danger) {
         g.globalAlpha = 0.20 + 0.42 * p;
         g.beginPath(); g.arc(end[0], end[1], 3.4, 0, Math.PI * 2); g.fill();
@@ -401,14 +528,29 @@
         var jj = (SJ.hash(tg.id + i * 5.1) - 0.5) * 9;
         // 每帧换一次抖动种子：线在原地哆嗦，看得见轮廓但描不出轨迹
         var fz = (SJ.Game.frame >> 2) * 0.37;
+        if (sty.twin) {
+          SJ.Ink.stroke(g, [[a.x + Math.sin(fz + i) * 2.5, a.y + jj - 5],
+                            [b.x - Math.sin(fz + i * 2) * 2.5, b.y - jj - 5]], {
+            w0: 2.0, w1: 0.6, color: SJ.C.ink, alpha: (0.20 + 0.12 * k),
+            seed: tg.id * 13 + i + 91, wobble: 2.8, hairs: 0
+          });
+        }
         SJ.Ink.stroke(g, [[a.x + Math.sin(fz + i) * 2.5, a.y + jj],
                           [b.x - Math.sin(fz + i * 2) * 2.5, b.y - jj]], {
-          w0: 2.8, w1: 0.8, color: col, alpha: 0.30 + 0.16 * k,
+          w0: 2.8 * mul, w1: 0.8 * mul, color: col, alpha: 0.30 + 0.16 * k,
           seed: tg.id * 13 + i, wobble: 2.8, hairs: 0
         });
       }
       // 落点在临出手时透出朱砂：给不观势的玩家一个「要挨打了」的钩子，
       // 但只给「哪里」，不给「什么时候、走哪条线」——那是观势才有的信息。
+      // heavy 的「势」点在不观势时也画：玩家没进观势也得看得出「这一记挡不住」，
+      // 否则「0.3 秒内决定挡还是闪」这个能力在最需要它的时候不存在。
+      if (sty.shi) {
+        SJ.Ink.blob(g, end[0], end[1], 3.6 + 4.4 * p, tg.id * 3 + 1,
+          { color: SJ.C.cinnabar, alpha: 0.30 + 0.42 * p });
+      }
+      // 落点提示只跟 danger 走、不跟 tier 走：它回答的是「哪里要挨打」，
+      // 那是规则；tier 回答的是「什么性质的招」，那是画法。
       if (tg.danger && p > 0.5) {
         var q = (p - 0.5) / 0.5;
         g.fillStyle = col;

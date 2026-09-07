@@ -260,97 +260,378 @@
     },
 
     // ── 三段连 ──────────────────────────────────────────────────
-    // atk1 横斩 / atk2 反撩 / atk3 大劈
+    // 三段必须是**三个方向**，不是三个力度：
+    //   atk1 横 —— 剑与地面平行，从后腰水平贯到身前，肩线不动
+    //   atk2 斜 —— 反撩，从后下贴地撩到前上方，身体由压低到展开
+    //   atk3 竖 —— 过顶大劈，剑尖走一条垂直线，重心从最高砸到最低
+    // 旧版 atk1 与 atk2 的起手都落在「身前偏下」，剪影几乎重合（notes-E 自报）。
+    // 注意 upslash / downslash 是 atk2_hit / atk3_hit 的**引用别名**，
+    // 敌人（enemies.js / bosses.js 共 8 处）跟着一起变；语义仍然成立：
+    // 撩＝向上、劈＝向下，改完只是更贴字面。
 
-    atk1_wind: function (p) {   // p=0 就已经拉满
+    atk1_wind: function (p) {   // p=0 就已经拉满：剑水平收在身后
       return P({
-        hipY: 31.2 - p * 0.3, lean: -0.16 - p * 0.07,
-        spine: -0.09, neck: 0.10, headAng: 0.05,
-        legF: [0.30, -0.14], legB: [-0.28, -0.20],
-        armF: [-0.92 - p * 0.10, 0.92], wristF: -0.52,
-        armB: [0.55, 0.75]
+        hipY: 31.5 - p * 0.3, lean: -0.12 - p * 0.06,
+        spine: -0.05, neck: 0.08, headAng: 0.05,
+        legF: [0.28, -0.30], legB: [-0.30, -0.04],
+        armF: [-1.35 - p * 0.08, 0.15], wristF: -0.38,
+        armB: [0.92, 0.50]
       });
     },
-    atk1_hit: function (p) {
+    atk1_hit: function (p) {    // 水平贯到身前，剑尖走一条平线
       var k = ease(p);
       return P({
-        hipY: lerp(31.0, 30.3, k), lean: lerp(0.06, 0.36, k),
-        spine: 0.11, neck: -0.12, headAng: -0.05,
-        legF: [lerp(0.34, 0.50, k), -0.12], legB: [lerp(-0.30, -0.42, k), -0.30],
-        armF: [lerp(0.10, 1.36, k), lerp(0.70, 0.10, k)], wristF: lerp(-0.30, 0.16, k),
-        armB: [lerp(0.40, -0.55, k), 0.60]
+        hipY: lerp(31.2, 30.6, k), lean: lerp(0.06, 0.34, k),
+        spine: 0.10, neck: -0.10, headAng: -0.04,
+        legF: [lerp(0.32, 0.50, k), lerp(-0.34, -0.52, k)],
+        legB: [lerp(-0.30, -0.44, k), -0.06],
+        armF: [lerp(-0.10, 1.44, k), lerp(0.62, 0.10, k)], wristF: lerp(-0.60, 0.14, k),
+        armB: [lerp(0.55, -0.65, k), 0.60]
       });
     },
     atk1_rec: function (p) {    // p=0 过冲，p≈0.6 收住
       var k = ease(Math.min(1, p / 0.6));
       return P({
-        hipY: lerp(30.1, 31.7, k), lean: lerp(0.44, 0.14, k),
-        spine: lerp(0.14, 0.04, k), neck: -0.08, headAng: -0.03,
-        legF: [lerp(0.56, 0.18, k), -0.12], legB: [lerp(-0.46, -0.18, k), -0.16],
-        armF: [lerp(1.52, 0.62, k), lerp(-0.06, 0.34, k)], wristF: lerp(0.26, -0.18, k),
-        armB: [lerp(-0.62, -0.24, k), 0.48]
+        hipY: lerp(30.4, 31.7, k), lean: lerp(0.42, 0.14, k),
+        spine: lerp(0.12, 0.04, k), neck: -0.08, headAng: -0.03,
+        legF: [lerp(0.56, 0.18, k), lerp(-0.58, -0.12, k)],
+        legB: [lerp(-0.48, -0.18, k), -0.16],
+        armF: [lerp(1.62, 0.62, k), lerp(0.02, 0.34, k)], wristF: lerp(0.26, -0.18, k),
+        armB: [lerp(-0.72, -0.24, k), 0.48]
       });
     },
 
-    atk2_wind: function (p) {   // 剑压到前下方，蓄反撩
+    atk2_wind: function (p) {   // 剑压到后下方贴地，蓄反撩
       return P({
-        hipY: 30.6 - p * 0.2, lean: 0.24 + p * 0.06,
-        spine: 0.10, neck: -0.10, headAng: -0.04,
-        legF: [0.44, -0.20], legB: [-0.34, -0.34],
-        armF: [0.86 + p * 0.08, 0.44], wristF: -0.62,
-        armB: [-0.60, 0.55]
+        hipY: 29.5 - p * 0.2, lean: 0.26 + p * 0.06,
+        spine: 0.10, neck: -0.10, headAng: -0.05,
+        legF: [0.60, -0.60], legB: [-0.55, -0.05],
+        armF: [-0.30 - p * 0.06, 0.55], wristF: -1.20,
+        armB: [-0.55, 0.95]
       });
     },
-    atk2_hit: function (p) {
+    atk2_hit: function (p) {    // 由后下撩到前上，身体展开后仰
       var k = ease(p);
       return P({
-        hipY: lerp(30.4, 31.8, k), lean: lerp(0.24, -0.14, k),
-        spine: lerp(0.08, -0.10, k), neck: 0.08, headAng: 0.06,
-        legF: [lerp(0.42, 0.20, k), -0.16], legB: [lerp(-0.34, -0.26, k), -0.24],
-        armF: [lerp(0.80, 2.36, k), lerp(0.50, 0.12, k)], wristF: lerp(-0.55, 0.22, k),
-        armB: [lerp(-0.55, 0.42, k), 0.62]
+        hipY: lerp(29.5, 32.2, k), lean: lerp(0.26, -0.20, k),
+        spine: lerp(0.08, -0.12, k), neck: 0.10, headAng: 0.08,
+        legF: [lerp(0.55, 0.22, k), lerp(-0.58, -0.24, k)],
+        legB: [lerp(-0.50, -0.24, k), -0.05],
+        armF: [lerp(-0.20, 2.05, k), lerp(0.62, 0.18, k)], wristF: lerp(-1.10, 0.22, k),
+        armB: [lerp(-0.60, 0.50, k), 0.62]
       });
     },
     atk2_rec: function (p) {
       var k = ease(Math.min(1, p / 0.6));
       return P({
-        hipY: lerp(32.0, 31.7, k), lean: lerp(-0.24, 0.10, k),
+        hipY: lerp(32.4, 31.7, k), lean: lerp(-0.30, 0.10, k),
         spine: -0.06, neck: 0.06, headAng: 0.04,
-        legF: [lerp(0.16, 0.16, k), -0.14], legB: [-0.22, -0.18],
-        armF: [lerp(2.62, 0.66, k), lerp(0.06, 0.32, k)], wristF: lerp(0.34, -0.20, k),
-        armB: [lerp(0.55, -0.24, k), 0.50]
+        legF: [lerp(0.18, 0.16, k), -0.16], legB: [-0.22, -0.18],
+        armF: [lerp(2.32, 0.66, k), lerp(0.10, 0.32, k)], wristF: lerp(0.34, -0.20, k),
+        armB: [lerp(0.62, -0.24, k), 0.50]
       });
     },
 
-    atk3_wind: function (p) {   // 举过头顶，重心抬起
+    atk3_wind: function (p) {   // 举过头顶，重心抬到最高
       return P({
-        hipY: 32.6 + p * 0.4, lean: -0.24 - p * 0.06,
-        spine: -0.12, neck: 0.14, headAng: 0.08,
-        legF: [0.22, -0.12], legB: [-0.26, -0.18],
-        armF: [3.32 + p * 0.10, 0.62], wristF: -0.30,
-        armB: [2.85, 0.70]
+        hipY: 33.0 + p * 0.4, lean: -0.26 - p * 0.06,
+        spine: -0.12, neck: 0.16, headAng: 0.09,
+        legF: [0.18, -0.20], legB: [-0.22, -0.02],
+        armF: [3.30 + p * 0.10, 0.55], wristF: -0.42,
+        armB: [2.90, 0.62]
       });
     },
-    atk3_hit: function (p) {
+    atk3_hit: function (p) {    // 竖直劈落，剑尖走一条竖线，重心砸到最低
       var k = ease(p);
       return P({
-        hipY: lerp(32.6, 29.2, k), lean: lerp(-0.20, 0.46, k),
-        spine: lerp(-0.10, 0.16, k), neck: -0.16, headAng: -0.08,
-        legF: [lerp(0.26, 0.56, k), lerp(-0.14, -0.34, k)],
-        legB: [lerp(-0.28, -0.48, k), lerp(-0.18, -0.46, k)],
-        armF: [lerp(3.20, 0.86, k), lerp(0.55, 0.06, k)], wristF: lerp(-0.25, 0.10, k),
-        armB: [lerp(2.70, -0.30, k), 0.66]
+        hipY: lerp(33.0, 27.2, k), lean: lerp(-0.24, 0.54, k),
+        spine: lerp(-0.12, 0.20, k), neck: -0.18, headAng: -0.09,
+        legF: [lerp(0.20, 0.92, k), lerp(-0.22, -0.98, k)],
+        legB: [lerp(-0.22, -0.70, k), lerp(-0.02, -0.10, k)],
+        armF: [lerp(3.24, 0.68, k), lerp(0.55, 0.08, k)], wristF: lerp(-0.40, -0.26, k),
+        armB: [lerp(2.80, -0.30, k), 0.66]
       });
     },
     atk3_rec: function (p) {
       var k = ease(Math.min(1, p / 0.6));
       return P({
-        hipY: lerp(28.8, 31.6, k), lean: lerp(0.56, 0.14, k),
-        spine: lerp(0.20, 0.04, k), neck: -0.10, headAng: -0.04,
-        legF: [lerp(0.62, 0.18, k), lerp(-0.40, -0.12, k)],
-        legB: [lerp(-0.52, -0.18, k), lerp(-0.50, -0.16, k)],
-        armF: [lerp(0.62, 0.58, k), lerp(-0.02, 0.32, k)], wristF: lerp(0.22, -0.22, k),
-        armB: [lerp(-0.40, -0.24, k), 0.50]
+        hipY: lerp(26.8, 31.6, k), lean: lerp(0.64, 0.14, k),
+        spine: lerp(0.24, 0.04, k), neck: -0.10, headAng: -0.04,
+        legF: [lerp(0.98, 0.18, k), lerp(-1.04, -0.12, k)],
+        legB: [lerp(-0.74, -0.18, k), lerp(-0.14, -0.16, k)],
+        armF: [lerp(0.58, 0.58, k), lerp(0.02, 0.32, k)], wristF: lerp(-0.30, -0.22, k),
+        armB: [lerp(-0.42, -0.24, k), 0.50]
+      });
+    },
+
+    // ── 十二招各自的起手与命中 ────────────────────────────────────
+    // 每一招的剪影要能读出它的那个字：
+    //   横 云断 / 裂 帛 / 撑 天 / 孤 影 / 无 锋 / 连 环腿 /
+    //   破 雨 / 穿 杨 / 镇 山 / 踏 云（提）/ 焚 书（分）/ 说 剑
+    // 差别一律做在**大动作**上——重心高低、手臂朝向、腿的开合、剑尖落点——
+    // 而不是手腕角度：游戏里主角 scale 只有 0.86（≈55px 高），细节全糊，只剩轮廓。
+    // 判据钉在 dev/player-check.js §9：任意两招的起手 pose，15 个关节（含剑尖）
+    // 的 RMS 位移必须 ≥ 阈值。castWind / castHit 保留原样不动 —— bosses.js 有 6 处在用。
+
+    // 横云断：一条水平长线。起手把剑水平收到身后胸高，命中时同一条线贯到身前。
+    hengyun_wind: function (p) {
+      return P({
+        hipY: 29.0 - p * 0.4, lean: -0.20 - p * 0.05,
+        spine: -0.06, neck: 0.10, headAng: 0.04,
+        legF: [0.55, -0.83], legB: [-0.60, -0.10],
+        armF: [-1.30, 0.12], wristF: -0.40,
+        armB: [1.15, 0.30]
+      });
+    },
+    hengyun_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(29.0, 31.5, k), lean: lerp(-0.10, 0.46, k),
+        spine: 0.12, neck: -0.14, headAng: -0.05,
+        legF: [lerp(0.55, 0.60, k), lerp(-0.83, -0.66, k)],
+        legB: [lerp(-0.60, -1.00, k), lerp(-0.08, -0.30, k)],
+        armF: [lerp(-0.20, 1.25, k), lerp(0.40, 0.02, k)], wristF: lerp(-0.40, 0.05, k),
+        armB: [lerp(1.15, -1.35, k), 0.35]
+      });
+    },
+
+    // 裂帛：双手在中线抓住，然后向两侧撕开成「V」。
+    liebo_wind: function (p) {
+      return P({
+        hipY: 32.0 - p * 0.3, lean: 0.02, spine: -0.02, neck: 0.03, headAng: 0.02,
+        legF: [0.20, -0.20], legB: [-0.22, -0.06],
+        armF: [1.55, 1.15 + p * 0.08], wristF: 0.35,
+        armB: [1.30, 1.05]
+      });
+    },
+    liebo_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(31.6, 32.6, k), lean: lerp(0.02, -0.10, k),
+        spine: lerp(-0.02, -0.16, k), neck: 0.08, headAng: 0.08,
+        legF: [lerp(0.22, 0.30, k), lerp(-0.22, -0.32, k)],
+        legB: [lerp(-0.24, -0.32, k), -0.02],
+        armF: [lerp(1.62, 2.32, k), lerp(1.10, 0.34, k)], wristF: lerp(0.35, 0.12, k),
+        armB: [lerp(1.30, -1.62, k), lerp(1.05, 0.06, k)]
+      });
+    },
+
+    // 撑天：深弓步压到最低蓄力，命中时剑直指正上，成一条垂直长线。
+    chengtian_wind: function (p) {
+      return P({
+        hipY: 27.0 - p * 0.5, lean: 0.42 + p * 0.05,
+        spine: 0.10, neck: -0.16, headAng: -0.04,
+        legF: [1.00, -1.00], legB: [-0.80, -0.06],
+        armF: [-0.35, 0.55], wristF: -1.05,
+        armB: [-0.55, 0.65]
+      });
+    },
+    chengtian_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(27.5, 33.0, k), lean: lerp(0.40, -0.28, k),
+        spine: lerp(0.08, -0.10, k), neck: 0.16, headAng: 0.10,
+        legF: [lerp(0.96, 0.10, k), lerp(-1.00, -0.10, k)],
+        legB: [lerp(-0.78, -0.18, k), lerp(-0.06, -0.02, k)],
+        armF: [lerp(-0.20, 2.70, k), lerp(0.65, 0.35, k)], wristF: lerp(-1.05, 0.09, k),
+        armB: [lerp(-0.40, 2.45, k), 0.55]
+      });
+    },
+
+    // 孤影：团身收到最小，命中时贴地侧伏、一手撑地 —— 全场最矮最扁的剪影。
+    guying_wind: function (p) {
+      return P({
+        hipY: 18.0 - p * 0.6, lean: 0.62, spine: 0.20, neck: -0.30, headAng: -0.10,
+        legF: [1.10, -1.95], legB: [-0.10, -1.35],
+        armF: [-0.55, 0.20], wristF: -1.20,
+        armB: [0.05, 1.60]
+      });
+    },
+    guying_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(18.0, 12.0, k), lean: lerp(0.70, 1.05, k),
+        spine: 0.15, neck: -0.55, headAng: -0.15,
+        legF: [lerp(1.20, 1.35, k), lerp(-1.90, -2.36, k)],
+        legB: [lerp(-0.60, -1.20, k), lerp(-0.70, 0.03, k)],
+        armF: [lerp(-0.75, -1.05, k), lerp(0.35, 0.25, k)], wristF: -0.30,
+        armB: [lerp(0.20, 0.35, k), lerp(1.10, 0.25, k)]
+      });
+    },
+
+    // 无锋：不砍人。全程中正直立、双脚并拢、剑平托，命中是「推」不是「斩」。
+    wufeng_wind: function (p) {
+      return P({
+        hipY: 33.0, lean: 0.0, spine: 0.0, neck: 0.0, headAng: 0.0,
+        legF: [0.05, -0.05], legB: [-0.05, 0.05],
+        armF: [0.30 + p * 0.05, 0.10], wristF: -0.35,
+        armB: [-0.15, 0.25]
+      });
+    },
+    wufeng_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(33.0, 32.0, k), lean: lerp(0.0, 0.14, k),
+        spine: 0.02, neck: -0.04, headAng: -0.02,
+        legF: [lerp(0.10, 0.34, k), lerp(-0.10, -0.34, k)],
+        legB: [lerp(-0.10, -0.36, k), lerp(0.10, -0.02, k)],
+        armF: [lerp(0.35, 1.52, k), lerp(0.10, 0.05, k)], wristF: lerp(-0.35, 0.02, k),
+        armB: [lerp(-0.15, 1.42, k), lerp(0.25, 0.18, k)]
+      });
+    },
+
+    // 连环腿：腿是主角。起手高提膝，命中时前腿踢过胸口，剑一直收在身后。
+    lianhuan_wind: function (p) {
+      return P({
+        hipY: 33.0, lean: -0.10, spine: 0.04, neck: 0.02, headAng: 0.0,
+        legF: [1.45, -1.55], legB: [-0.05, 0.05],
+        armF: [-0.70, 0.45], wristF: -0.45,
+        armB: [1.75, 1.15]
+      });
+    },
+    lianhuan_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(33.0, 32.0, k), lean: lerp(-0.16, -0.30, k),
+        spine: -0.08, neck: 0.18, headAng: 0.10,
+        legF: [lerp(1.60, 2.05, k), lerp(-1.30, -0.25, k)],
+        legB: [lerp(-0.08, -0.12, k), lerp(0.08, 0.12, k)],
+        armF: [lerp(-0.85, -1.15, k), 0.30], wristF: -0.40,
+        armB: [lerp(1.40, -1.60, k), 0.50]
+      });
+    },
+
+    // 破雨：最短的一刺。起手把肘收到腰侧压紧，命中时手臂与剑拉成一条低的直线。
+    poyu_wind: function (p) {
+      return P({
+        hipY: 28.0 - p * 0.3, lean: 0.34 + p * 0.04,
+        spine: 0.06, neck: -0.08, headAng: -0.04,
+        legF: [0.70, -0.87], legB: [-0.62, -0.05],
+        armF: [0.25, 1.30], wristF: 0.05,
+        armB: [-0.45, 1.05]
+      });
+    },
+    poyu_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(27.5, 22.0, k), lean: lerp(0.38, 0.74, k),
+        spine: 0.12, neck: -0.26, headAng: -0.08,
+        legF: [lerp(0.80, 1.15, k), lerp(-0.94, -1.41, k)],
+        legB: [lerp(-0.70, -1.05, k), -0.05],
+        armF: [lerp(0.60, 1.58, k), lerp(1.00, 0.02, k)], wristF: lerp(0.05, 0.0, k),
+        armB: [lerp(-0.35, -0.25, k), 1.45]
+      });
+    },
+
+    // 穿杨：拉弓。起手后手拉到耳后、前手前伸定住；命中时后手放开甩到身后。
+    chuanyang_wind: function (p) {
+      return P({
+        hipY: 30.0, lean: 0.02, spine: 0.0, neck: 0.02, headAng: 0.02,
+        legF: [0.62, -0.62], legB: [-0.66, -0.04],
+        armF: [1.62, 0.04], wristF: 0.04,
+        armB: [2.05 + p * 0.10, 1.35]
+      });
+    },
+    chuanyang_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(30.0, 32.6, k), lean: lerp(0.02, 0.22, k),
+        spine: lerp(0.04, -0.06, k), neck: -0.10, headAng: -0.04,
+        legF: [lerp(0.62, 0.26, k), lerp(-0.62, -0.28, k)],
+        legB: [lerp(-0.66, -0.30, k), lerp(-0.04, -0.02, k)],
+        armF: [lerp(1.62, 1.74, k), lerp(0.04, 0.02, k)], wristF: lerp(0.04, 0.10, k),
+        armB: [lerp(2.15, -1.95, k), lerp(1.35, 0.30, k)]
+      });
+    },
+
+    // 镇山：起手腾空收腿、双手把剑举到最高；命中时整个人砸成一团，剑尖插进地里。
+    zhenshan_wind: function (p) {
+      return P({
+        hipY: 36.0 + p * 0.5, lean: -0.26, spine: -0.12, neck: 0.18, headAng: 0.10,
+        legF: [0.85, -1.20], legB: [-0.55, -0.80],
+        armF: [3.05, 0.45], wristF: -0.35,
+        armB: [2.85, 0.65]
+      });
+    },
+    zhenshan_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(34.0, 15.0, k), lean: lerp(-0.20, 0.30, k),
+        spine: lerp(-0.10, 0.16, k), neck: -0.35, headAng: -0.12,
+        legF: [lerp(0.90, 1.25, k), lerp(-1.30, -2.15, k)],
+        legB: [lerp(-0.60, -0.95, k), lerp(-0.75, -0.26, k)],
+        armF: [lerp(2.95, 0.85, k), lerp(0.45, 0.05, k)], wristF: lerp(-0.35, -0.35, k),
+        armB: [lerp(2.75, 0.55, k), lerp(0.65, 0.30, k)]
+      });
+    },
+
+    // 踏云：空中再踏一步。起手在空里收拢，命中时一腿向下猛蹬、身体拉成向上的箭头。
+    tiyun_wind: function (p) {
+      return P({
+        hipY: 29.0, lean: -0.08, spine: -0.04, neck: 0.06, headAng: 0.04,
+        legF: [1.28, -1.62], legB: [-0.34, -1.42],
+        armF: [2.15, 0.65], wristF: 0.10,
+        armB: [-2.45, 0.55]
+      });
+    },
+    // 踏云是全表唯一一个「cast 全长 < 0.3s」的招。player.js 的 cast 进度是 p.st / 0.3，
+    // 而踏云总共只有 0.10s，所以 p 最大只到 0.333 ——
+    //   ① 用 ease(p) 的话这一招**永远走不到自己的命中姿势**（只走三分之一）；
+    //   ② 末帧 setState('jump') 时会从「剑举过顶」一帧掉成「手垂下的起跳蹲」。
+    // 实测那一帧的关节跳变 RMS 33.0，而改造前（rise → jump）只有 11.8。
+    // 所以：进度 ×3 提前跑满，收势的手臂朝 jump 的位置靠。
+    tiyun_hit: function (p) {
+      var k = ease(SJ.clamp(p * 3, 0, 1));
+      return P({
+        hipY: lerp(31.0, 33.0, k), lean: lerp(-0.10, -0.06, k),
+        spine: -0.06, neck: 0.10, headAng: 0.06,
+        legF: [lerp(0.80, 0.10, k), lerp(-1.00, -0.06, k)],
+        legB: [lerp(-0.50, -0.78, k), lerp(-1.15, -1.02, k)],
+        armF: [lerp(2.10, 1.05, k), lerp(0.65, 0.44, k)], wristF: lerp(0.10, 0.12, k),
+        armB: [lerp(-2.10, -0.70, k), lerp(0.55, 0.46, k)]
+      });
+    },
+
+    // 焚书：起手双臂环抱聚气（含胸马步），命中时炸开成一个「大」字。
+    fenshu_wind: function (p) {
+      return P({
+        hipY: 26.0 + p * 0.2, lean: 0.05, spine: 0.20, neck: -0.25, headAng: -0.12,
+        legF: [0.95, -0.95], legB: [-0.75, -0.05],
+        armF: [1.55, 2.30], wristF: 1.50,
+        armB: [1.35, 2.45]
+      });
+    },
+    fenshu_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(26.4, 30.0, k), lean: lerp(0.02, -0.05, k),
+        spine: lerp(0.18, -0.05, k), neck: 0.05, headAng: 0.05,
+        legF: [lerp(0.92, 0.62, k), lerp(-0.94, -0.62, k)],
+        legB: [lerp(-0.74, -0.62, k), -0.05],
+        armF: [lerp(1.65, -1.20, k), lerp(2.10, 0.55, k)], wristF: lerp(1.30, -1.95, k),
+        armB: [lerp(1.45, 1.75, k), lerp(2.25, 0.30, k)]
+      });
+    },
+
+    // 说剑：把他讲过的再讲一遍。起手剑斜指前上「引」，后手负于身后；
+    // 命中是全场跨度最大的一记斜劈，从后上切到前下。
+    shuojian_wind: function (p) {
+      return P({
+        hipY: 31.0 + p * 0.3, lean: -0.14, spine: 0.06, neck: 0.04, headAng: 0.06,
+        legF: [0.62, -0.62], legB: [-0.30, -0.05],
+        armF: [1.55, 0.30], wristF: 0.25,
+        armB: [-1.30, 1.75]
+      });
+    },
+    shuojian_hit: function (p) {
+      var k = ease(p);
+      return P({
+        hipY: lerp(31.3, 25.5, k), lean: lerp(-0.20, 0.52, k),
+        spine: lerp(0.04, 0.14, k), neck: -0.18, headAng: -0.07,
+        legF: [lerp(0.55, 1.08, k), lerp(-0.58, -1.20, k)],
+        legB: [lerp(-0.34, -0.88, k), lerp(-0.05, -0.06, k)],
+        armF: [lerp(2.60, 0.92, k), lerp(0.55, 0.26, k)], wristF: lerp(0.10, -0.55, k),
+        armB: [lerp(-1.10, -2.15, k), lerp(1.55, 0.45, k)]
       });
     },
 

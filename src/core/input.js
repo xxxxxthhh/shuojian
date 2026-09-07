@@ -35,7 +35,19 @@
     lastPress[ACTIONS[i]] = -1e9;
   }
 
-  function now() { return Date.now(); }
+  // 【T2 / Lead 授权】缓冲窗口数的必须是**游戏时间**，不是墙钟。
+  //
+  // 用 Date.now() 的后果：hitstop 期间游戏时间是停的、墙钟照走，缓冲窗口被白白烧掉。
+  // 实测「第一段出手后第 N 帧按 J、第二段出不出」——
+  //   挥空 1✗ 2✓ 3✓…   命中(45ms hitstop) 1✗ 2✗ 3✗ 4✓…
+  // **砍中了反而比砍空多吞掉 2 帧输入**，越打中越连不上，方向是反的。
+  //
+  // SJ.Game.time 单调递增、永不重置；hitstop（dt=0）时不前进——这正是要的；
+  // 暂停/对话层照常前进（game.js 的 step 无条件 G.time += dt），
+  // 所以缓冲不会穿过暂停菜单被兑现。
+  // SJ.Game 缺席时返回 0：lastPress 初值是 -1e9，`0 - (-1e9) <= ms` 为假，
+  // 不会误判成「刚按过」。
+  function now() { return (SJ.Game && SJ.Game.time || 0) * 1000; }
 
   function srcPress(src, acts) {
     if (srcDown[src]) return;
@@ -66,6 +78,10 @@
       var a = ACTIONS[i];
       if (held[a] > 0) releaseEdge[a] = true;
       held[a] = 0;
+      // 缓冲一起丢。改用游戏时间之后这条是必需的：切走标签页时 rAF 停摆、
+      // 游戏时间冻结，按下去的键会原样等在那里，切回来当帧兑现。
+      // 墙钟时代它会自己过期，所以以前不需要这一行。
+      lastPress[a] = -1e9;
     }
   }
 

@@ -145,7 +145,7 @@
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
         if (!st.ph) {
-          cast(p, 'castWind'); st.ph = 1; st.t = 0; st.noGravity = false;
+          cast(p, 'hengyun_wind'); st.ph = 1; st.t = 0; st.noGravity = false;
           p.vx *= 0.2;
           SJ.Audio.sfx('draw', { vol: 0.9 });
         }
@@ -153,7 +153,7 @@
           p.vx *= Math.pow(0.02, dt);
           if (st.t >= 0.14) {
             st.ph = 2; st.t = 0; st.noGravity = true;
-            cast(p, 'atk3_hit');
+            cast(p, 'hengyun_hit');
             st.hb = box(p, {
               w: 78, h: 46, ox: 40, oy: -2, dmg: 18, ttl: 0.22, follow: true,
               knock: [330, -140], stun: 0.5, weight: 'heavy', ink: 12,
@@ -171,7 +171,7 @@
             SJ.FX.slash(p.cx() + p.facing * 34, p.cy(), -1.1 * p.facing, 0.9 * p.facing,
               38, { color: SJ.C.ink, w: 6, life: 0.14 });
           }
-          if (st.t >= 0.22) { st.ph = 3; st.t = 0; st.noGravity = false; p.vx *= 0.3; cast(p, 'atk3_rec'); }
+          if (st.t >= 0.22) { st.ph = 3; st.t = 0; st.noGravity = false; p.vx *= 0.3; cast(p, 'atk1_rec'); }
         } else {
           p.vx *= Math.pow(0.05, dt);
           if (st.t >= 0.16) return true;
@@ -184,12 +184,12 @@
       desc: '一道音波剑气破空而去，穿透众敌。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'castWind'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
+        if (!st.ph) { cast(p, 'liebo_wind'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
         if (st.ph === 1) {
           p.vx *= Math.pow(0.05, dt);
           if (st.t >= 0.16) {
             st.ph = 2; st.t = 0;
-            cast(p, 'castHit');
+            cast(p, 'liebo_hit');
             proj(p, { dmg: 12, speed: 660, life: 1.0, moveId: 'liebo', oy: -4 });
             SJ.Audio.sfx('qi', { vol: 1, rate: 1.15 });
             SJ.Game.shake(3, 0.14);
@@ -209,10 +209,11 @@
       desc: '一篙撑天，把人挑上去。挑起后可以接空中连段。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'upslash'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
+        if (!st.ph) { cast(p, 'chengtian_wind'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
         if (st.ph === 1) {
           if (st.t >= 0.10) {
             st.ph = 2; st.t = 0;
+            cast(p, 'chengtian_hit');
             p.vy = -300;
             box(p, {
               w: 74, h: 88, ox: 38, oy: -26, dmg: 12, ttl: 0.14,
@@ -236,7 +237,7 @@
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
         if (!st.ph) {
-          cast(p, 'observe'); st.ph = 1; st.t = 0; st.noGravity = true;
+          cast(p, 'guying_wind'); st.ph = 1; st.t = 0; st.noGravity = true;
           p.vx = 0; p.vy = 0;
           SJ.Audio.sfx('dash', { vol: 0.8, rate: 0.8 });
         }
@@ -262,7 +263,7 @@
               n: 10, color: SJ.C.ink, speed: 180, spread: Math.PI * 2, life: 0.4, size: 2.4
             });
             SJ.Game.slowmo(0, 0.06);
-            cast(p, 'dashF');
+            cast(p, 'guying_hit');
           }
         } else {
           st.noGravity = false;
@@ -276,11 +277,11 @@
       desc: '不伤人。一记无锋，把他架起来的势卸掉。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'thrust'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
+        if (!st.ph) { cast(p, 'wufeng_wind'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
         if (st.ph === 1) {
           if (st.t >= 0.12) {
             st.ph = 2; st.t = 0;
-            cast(p, 'castHit');
+            cast(p, 'wufeng_hit');
             box(p, {
               w: 96, h: 64, ox: 48, oy: -2, dmg: 0, ttl: 0.14,
               knock: [40, 0], stun: 1.2, type: 'qi', weight: 'light',
@@ -312,8 +313,14 @@
       desc: '三连踢，最后一脚把人踢上天。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.n) { st.n = 0; st.next = 0.06; cast(p, 'atk2_wind'); p.vx *= 0.4; }
+        // st.n === undefined 才是「第一帧」。原来写的是 !st.n，st.n===0 时每帧都会
+        // 重跑一次初始化；今天无害（p.vx 下一行就被覆盖、st.next 也是同一个值），
+        // 但它是「循环里反复初始化」的形状，顺手钉死。行为逐位不变。
+        if (st.n === undefined) { st.n = 0; st.next = 0.06; cast(p, 'lianhuan_wind'); p.vx *= 0.4; }
         p.vx = p.facing * (st.n < 3 ? 130 : 40);
+        // 三踢之间把膝收回（lianhuan_wind = 提膝）。不收的话三脚是同一张定格，
+        // 读不出「连」，只看得见一条腿举在那里不动。
+        if (st.n > 0 && st.n < 3 && st.t < st.next - 0.045) cast(p, 'lianhuan_wind');
         if (st.n < 3 && st.t >= st.next) {
           var last = st.n === 2;
           box(p, {
@@ -327,7 +334,7 @@
             (last ? 1.4 : -0.6) * p.facing, (last ? -0.4 : 0.8) * p.facing,
             30, { color: SJ.C.ink, w: 3.6 + st.n, life: 0.11 });
           SJ.Audio.sfx(last ? 'swing3' : 'swing1', { vol: 0.7 + st.n * 0.12, rate: 1.1 + st.n * 0.1 });
-          cast(p, last ? 'atk3_hit' : 'atk2_hit');
+          cast(p, 'lianhuan_hit');
           if (last) { p.vy = -230; SJ.Game.shake(4, 0.16); }
           st.n++;
           st.next = st.t + 0.10;
@@ -341,10 +348,11 @@
       desc: '起手最快的一刺。距离短，但先手永远是你的。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'thrust'); st.ph = 1; st.t = 0; }
+        if (!st.ph) { cast(p, 'poyu_wind'); st.ph = 1; st.t = 0; }
         if (st.ph === 1) {
           if (st.t >= 0.05) {                                 // 前摇极短
             st.ph = 2; st.t = 0; st.noGravity = true;
+            cast(p, 'poyu_hit');
             box(p, {
               w: 72, h: 22, ox: 44, oy: 0, dmg: 10, ttl: 0.12, follow: true,
               knock: [230, -50], stun: 0.3, type: 'thrust',
@@ -369,11 +377,11 @@
       desc: '把射过来的东西原样送回去。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'guard'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
+        if (!st.ph) { cast(p, 'chuanyang_wind'); st.ph = 1; st.t = 0; p.vx *= 0.3; }
         if (st.ph === 1) {
           if (st.t >= 0.08) {
             st.ph = 2; st.t = 0;
-            cast(p, 'castHit');
+            cast(p, 'chuanyang_hit');
             SJ.Audio.sfx('parry', { vol: 0.8, rate: 1.2 });
             box(p, {
               w: 90, h: 76, ox: 46, oy: -4, dmg: 4, ttl: 0.30, follow: true,
@@ -415,7 +423,7 @@
         st.t = (st.t || 0) + dt;
         if (!st.ph) {
           st.ph = p.onGround ? 2 : 1; st.t = 0;
-          cast(p, 'downslash');
+          cast(p, 'zhenshan_wind');
           p.vx *= 0.2;
           if (st.ph === 1) { p.vy = -180; st.noGravity = true; }
         }
@@ -430,6 +438,7 @@
           p.vx *= Math.pow(0.02, dt);
           if (st.t >= (p.onGround ? 0.02 : 0.12)) {
             st.ph = 3; st.t = 0;
+            cast(p, 'zhenshan_hit');
             box(p, {
               w: 260, h: 58, ox: 0, oy: 22, dmg: 16, ttl: 0.12,
               knock: [300, -400], stun: 0.7, type: 'blunt',
@@ -461,11 +470,12 @@
           st.ph = 1;
           p.vy = -640;
           p.onGround = false;
-          cast(p, 'rise');
+          cast(p, 'tiyun_wind');
           SJ.Audio.sfx('jump', { vol: 0.85, rate: 1.2 });
           SJ.FX.ring(p.cx(), p.footY(), { r: 6, r1: 62, color: SJ.C.paperDark, life: 0.4, w: 2.4 });
           SJ.FX.leaf(p.cx(), p.footY(), 6, 'snow');
         }
+        if (st.t >= 0.045) cast(p, 'tiyun_hit');
         if (st.t >= 0.10) { p.setState('jump'); return true; }
         return false;
       } },
@@ -475,7 +485,7 @@
       desc: '周身炸开一团火墨。烧起来的会一直烧。',
       exec: function (p, st, dt) {
         st.t = (st.t || 0) + dt;
-        if (!st.ph) { cast(p, 'castWind'); st.ph = 1; st.t = 0; p.vx *= 0.2; }
+        if (!st.ph) { cast(p, 'fenshu_wind'); st.ph = 1; st.t = 0; p.vx *= 0.2; }
         if (st.ph === 1) {                                    // 蓄 0.20，墨往身上聚
           p.vx *= Math.pow(0.02, dt);
           st.acc = (st.acc || 0) + dt;
@@ -489,7 +499,7 @@
           }
           if (st.t >= 0.20) {
             st.ph = 2; st.t = 0;
-            cast(p, 'castHit');
+            cast(p, 'fenshu_hit');
             box(p, {
               w: 300, h: 170, ox: 0, oy: -8, dmg: 14, ttl: 0.14,
               knock: [280, -300], stun: 0.5, type: 'fire',
@@ -537,12 +547,12 @@
         // 没有可复制的招：退化成一记重斩，不让 40 点墨白花
         st.t = (st.t || 0) + dt;
         if (st.ph === 1) {
-          cast(p, 'atk3_wind'); st.ph = 2; st.t = 0;
+          cast(p, 'shuojian_wind'); st.ph = 2; st.t = 0;
         } else if (st.ph === 2) {
           p.vx *= Math.pow(0.02, dt);
           if (st.t >= 0.16) {
             st.ph = 3; st.t = 0;
-            cast(p, 'atk3_hit');
+            cast(p, 'shuojian_hit');
             box(p, {
               w: 92, h: 62, ox: 46, oy: -4, dmg: 20, ttl: 0.12,
               knock: [340, -220], stun: 0.6, weight: 'huge', ink: 10,
@@ -674,6 +684,20 @@
     };
   }
 
+  // 决议 016：把 Tech.progress 落到存档里。
+  // 每次现取 SJ.Save.data —— Save.load() 会换掉整个 data 对象，缓存引用就会写到
+  // 一份没人读的旧对象上，而且不报错。
+  function persist() {
+    var d = SJ.Save && SJ.Save.data;
+    if (!d) return;
+    var out = {}, k;
+    for (k in Tech.progress) {
+      if (Object.prototype.hasOwnProperty.call(Tech.progress, k)) out[k] = Tech.progress[k];
+    }
+    d.techProgress = out;
+    SJ.Save.save();
+  }
+
   function next() {
     if (learning || !learnQueue.length) return;
     var def = learnQueue.shift();
@@ -771,6 +795,7 @@
       if (was >= 100) return;
       var now = SJ.clamp(was + amount, 0, 100);
       Tech.progress[moveId] = now;
+      persist();                                            // 决议 016：写回存档
 
       if (p && now < 100) {
         // 残墨：一道朱砂顺着身上淌下来
@@ -791,6 +816,8 @@
       if (save.known.indexOf(moveId) >= 0) return;
       save.known.push(moveId);
       Tech.progress[moveId] = 100;
+      save.techProgress = save.techProgress || {};
+      save.techProgress[moveId] = 100;
       for (var i = 0; i < 4; i++) {                          // 自动填进第一个空槽
         if (!save.slots[i]) { save.slots[i] = moveId; break; }
       }
@@ -808,11 +835,28 @@
       for (var k in cds) cds[k] = 0;
     },
 
-    // 开新游戏用：残墨进度只存在内存里（DESIGN §8 的存档里没有这一项），
-    // 不清的话「回标题 → 开新档」会带着上一周目的进度，且不报错。
-    // H 的「始」（新游戏）流程应当调它一次。
+    // 决议 016：载入时从存档读回。Save.load() / Save.reset() 调它，别的地方不要调。
+    // **拷贝而不是别名**：别名的话 resetProgress() 里的 `Tech.progress = {}`
+    // 会让两边悄悄指到不同对象上，之后写进度写的是孤儿。
+    adoptProgress: function (obj) {
+      var out = {}, k;
+      if (obj && typeof obj === 'object') {
+        for (k in obj) {
+          if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+          if (typeof obj[k] === 'number' && isFinite(obj[k])) out[k] = SJ.clamp(obj[k], 0, 100);
+        }
+      }
+      Tech.progress = out;
+      return out;
+    },
+
+    // 开新游戏用。H 的「始」（新游戏）流程应当调它一次。
     resetProgress: function () {
       Tech.progress = {};
+      if (SJ.Save && SJ.Save.data) SJ.Save.data.techProgress = {};
+      // 只在**已经有存档**时才落盘：Save.reset() 刚把 localStorage 里的键删掉，
+      // 这里再 save() 一次会凭空造出一个存档，标题画面的「继」就会亮起来。
+      if (SJ.Save && SJ.Save.exists && SJ.Save.exists()) SJ.Save.save();
       Tech.clear();
     }
   };
