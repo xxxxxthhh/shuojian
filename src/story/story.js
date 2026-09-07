@@ -294,9 +294,12 @@
       showKey(resolve(data.entry));
     },
     update: function () {
-      if (!chain) return;
+      // 防呆（Lead 补）：这一层没有节点可显示时，绝不能静静地留在栈顶——
+      // 它不画东西又吞掉全部输入，玩家看到的就是「画面静止、没有字、走不了」。
+      // 宁可立刻收场，也不要制造一个无声的死局。
+      if (!chain) { SJ.Game.pop(); return; }
       var node = SJ.Script[chain.key];
-      if (!node) return;
+      if (!node) { finishChain(); return; }
       var p = timingToP(chain.timing, SJ.Game.time - chain.revealStart);
       if (SJ.Input.pressed('confirm')) {
         if (p < 1) chain.revealStart = SJ.Game.time - chain.timing.totalTime; // 一键补完这一屏
@@ -306,7 +309,7 @@
     draw: function (g) {
       if (!chain) return;
       var node = SJ.Script[chain.key];
-      if (!node) return;
+      if (!node) return;   // 这一帧无内容可画；update 已负责收场
       drawActiveNode(g, node, timingToP(chain.timing, SJ.Game.time - chain.revealStart));
     },
     exit: function () {}

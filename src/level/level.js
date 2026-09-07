@@ -133,6 +133,30 @@
     SJ.Audio.intensity(0.75);
   }
 
+
+  /* ── 防止敌人掉出世界（Lead 补）───────────────────────────────────
+   * 实测：Boss 被击退到地图边缘外会一直下落（y 到过 88 万），hp 不减、
+   * 波次永远清不掉 → 门两侧都锁死 → 玩家前后都走不了，画面上还什么都没有。
+   * 这是会毁掉一次通关的软锁，且不报任何错。
+   * 处理：把所有敌人水平夹回地图内；掉到世界底下的，捞回最近的地面。 */
+  function rescueFoes() {
+    var def = R.def;
+    if (!def) return;
+    var foes = SJ.Ent.by('foe'), maxY = (def.h || SJ.H) + 260;
+    for (var i = 0; i < foes.length; i++) {
+      var e = foes[i];
+      if (!e || e.dead) continue;
+      if (e.x < 8) { e.x = 8; if (e.vx < 0) e.vx = 0; }
+      if (e.x + e.w > def.w - 8) { e.x = def.w - 8 - e.w; if (e.vx > 0) e.vx = 0; }
+      if (e.y > maxY) {
+        var gy = SJ.World.groundAt(e.cx(), 0);
+        if (gy === null && SJ.player) gy = SJ.World.groundAt(SJ.player.cx(), 0);
+        if (gy !== null) { e.y = gy - e.h; e.vy = 0; e.onGround = true; }
+        else if (SJ.player) { e.x = SJ.player.x; e.y = SJ.player.y; e.vy = 0; }
+      }
+    }
+  }
+
   function updateWaves() {
     var p = SJ.player;
     if (R.active) {
@@ -385,6 +409,7 @@
       updateRafts(dt);
       updateFire(dt);
       updateHazards(dt);
+      rescueFoes();
       updateWaves();
       updatePickups(dt);
       updateTriggers();
