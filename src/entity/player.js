@@ -171,29 +171,33 @@
     p.landT = Math.max(0, p.landT - dt);
     p.dmgMul = p.ink <= 0 ? 0.6 : 1;      // 枯墨攻击力 -40%
 
-    if (p.state === 'dead') { physics(p, dt, true); figure(p); return; }
+    if (p.state === 'dead') { gravity(p, dt); move(p, dt); figure(p); return; }
 
     if (p.hurtT > 0) {
       p.hurtT -= dt;
-      physics(p, dt, true);
+      gravity(p, dt);
+      move(p, dt);
       if (p.hurtT <= 0) p.setState(p.onGround ? 'idle' : 'fall');
       figure(p);
       return;
     }
 
-    if (p.dashT > 0) { dash(p, dt); figure(p); return; }
+    if (p.dashT > 0) { dash(p, dt); figure(p); return; }   // 身法不吃重力
 
     inkUpkeep(p, dt);
 
     if (p.state === 'cast') {
-      // 招式由 SJ.Tech.update 驱动位移，这里只跑物理与落地
-      physics(p, dt, SJ.Tech.gravityOn(p));
+      // 招式由 SJ.Tech.update 驱动位移，这里只跑重力与落地
+      if (SJ.Tech.gravityOn(p)) gravity(p, dt);
+      move(p, dt);
       figure(p);
       return;
     }
 
+    // 顺序即手感：重力 → 土狼/缓冲/起跳/可变跳高（都在 control 里）→ 位移
+    gravity(p, dt);
     control(p, dt);
-    physics(p, dt, true);
+    move(p, dt);
     figure(p);
   }
 
@@ -341,7 +345,7 @@
       figure(p);                       // 残影读的是 figOpts（决议 001 §4）
       SJ.FX.trail(p, { life: 0.26, alpha: 0.30, color: SJ.C.ink });
     }
-    physics(p, dt, false);
+    move(p, dt);
     if (p.dashT <= 0) {
       p.vx *= 0.42;
       p.setState(p.onGround ? 'idle' : 'fall');
@@ -412,17 +416,23 @@
   }
 
   // ── 物理 ───────────────────────────────────────────────────
-  function physics(p, dt, gravity) {
+  // 重力必须在「起跳」之前结算（notes-A §4）：
+  //   重力 → 土狼/缓冲 → 起跳 → 可变跳高截断 → moveX → moveY
+  // 反过来的话，起跳设的 vy=-720 会当帧被扣掉一帧重力变成 -680，
+  // 顶点从 114px 掉到 102px —— 数字照抄了 DESIGN §7 但手感不对，且极难反查。
+  function gravity(p, dt) {
+    if (dt <= 0) return;
+    p.vy += SJ.GRAVITY * dt;
+    if (p.vy > SJ.MAXFALL) p.vy = SJ.MAXFALL;
+  }
+
+  function move(p, dt) {
     // 环境力（风、水流…）：无论这一帧走不走时间都要清掉，
     // 否则 hitstop 期间 G 累加的风会攒起来，解冻那一帧把人吹飞。
     var eax = p.envAx, eay = p.envAy;
     p.envAx = 0; p.envAy = 0;
 
     if (dt <= 0) return;
-    if (gravity) {
-      p.vy += SJ.GRAVITY * dt;
-      if (p.vy > SJ.MAXFALL) p.vy = SJ.MAXFALL;
-    }
 
     // 环境速度单独存，不并进 p.vx：
     // 走路的摩擦是 3200，任何小于它的风都会被当帧抹平，

@@ -642,15 +642,18 @@
           g.restore();
         }
 
-        // 来处：每一招都来自一个具体的人
-        if (t > 0.62) {
-          var sp = SJ.ease.out(SJ.clamp((t - 0.62) / 0.34, 0, 1));
+        // 来处：每一招都来自一个具体的人。
+        // 决议 012 路径二 —— 这是把「挨打 → 学会」这条因果关系变可见的唯一时刻。
+        // 玩家得看见「这一招是从他身上来的」，才会开始盯着敌人出招看。
+        // 所以它必须读得清，不能是一行淡到看不见的注脚。
+        if (t > 0.55) {
+          var sp = SJ.ease.out(SJ.clamp((t - 0.55) / 0.34, 0, 1));
           var colH = def.name.length * size * 1.14;
           SJ.Ink.line(g, cx - size * 0.80, top - size * 0.4,
             cx - size * 0.80, top - size * 0.4 + colH * sp, 1.8,
-            { color: SJ.C.inkLight, alpha: a * sp * 0.42 });
-          SJ.Ink.vtext(g, def.from, cx - size * 1.12, top + size * 0.1, 22,
-            { color: SJ.C.inkLight, alpha: a * sp * 0.88, seed: 17 });
+            { color: SJ.C.inkLight, alpha: a * sp * 0.5 });
+          SJ.Ink.vtext(g, def.from, cx - size * 1.16, top + size * 0.06, 27,
+            { color: SJ.C.ink2, alpha: a * sp, seed: 17 });
         }
 
         // 朱砂印：落在招名末尾

@@ -18,7 +18,7 @@
   var F = SJ.Figure = {};
 
   // 骨骼长度（单位）
-  var THIGH = 16, SHIN = 16, SPINE = 21, NECK = 5.5, HEADR = 4.6,
+  var THIGH = 16, SHIN = 16, SPINE = 21, NECK = 6.6, HEADR = 4.6,
     UARM = 12, FARM = 11.5;
 
   var WLEN = { jian: 26, dao: 24, qiang: 52, gong: 17, di: 13, gan: 56 };
@@ -554,19 +554,20 @@
 
     // 每一节单独一笔：大腿和小腿画成一笔的话，Catmull-Rom 会把膝盖
     // 磨圆，人就变成面条。分开画，关节才有折角，也才凑得出 12 段笔画。
-    function seg(pA, pB, wa, wb, alp, sd) {
+    // tip=true 时末端收锋（小腿、前臂这些肢体末梢），否则平接下一节
+    function seg(pA, pB, wa, wb, alp, sd, tip) {
       SJ.Ink.stroke(g, [pA, pB], {
         w0: wa * ls, w1: wb * ls, color: col, alpha: alp,
-        taper: false, hairs: 0, seed: sd, core: false
+        taper: !!tip, hairs: 0, seed: sd, core: wa * ls > 4.2
       });
     }
 
     // ── 后侧肢体（1-4）──
-    seg(r.hip, r.knB, 3.0, 2.4, alB, 11);
-    seg(r.knB, r.ftB, 2.4, 1.5, alB, 12);
+    seg(r.hip, r.knB, 5.0, 3.2, alB, 11);
+    seg(r.knB, r.ftB, 3.2, 1.8, alB, 12, true);
     seg(r.ftB, add(r.ftB, dv(1.30 + (pose.legB[0] + pose.legB[1]) * 0.22), 3.7), 1.7, 1.0, alB, 25);
-    seg(r.sh, r.elB, 2.3, 1.9, alB, 13);
-    seg(r.elB, r.haB, 1.9, 1.2, alB, 14);
+    seg(r.sh, r.elB, 4.1, 2.9, alB, 13);
+    seg(r.elB, r.haB, 2.9, 2.0, alB, 14, true);
 
     // ── 衣摆：跟着躯干速度甩，比躯干晚一点 ──
     if (cloth > 0) {
@@ -585,32 +586,36 @@
     }
 
     // ── 躯干（5）：一笔，胯窄胸宽，这一笔决定这个人有没有「体量」──
+    // w0 在胯（腰窄），w1 在颈（胸宽）。wobble 让边缘不匀，别填成一根黑柱。
     SJ.Ink.stroke(g, [r.hip, r.mid, r.neck], {
-      w0: 4.4 * ls, w1: 6.0 * ls, color: col, alpha: al,
-      taper: false, hairs: 0, seed: 15, wobble: 0.22
+      w0: 4.5 * ls, w1: 6.8 * ls, color: col, alpha: al,
+      taper: false, hairs: 0, seed: 15, wobble: 0.55
     });
 
     // ── 前侧腿（6-7）──
-    seg(r.hip, r.knF, 3.2, 2.6, al, 16);
-    seg(r.knF, r.ftF, 2.6, 1.6, al, 17);
+    seg(r.hip, r.knF, 5.5, 3.5, al, 16);
+    seg(r.knF, r.ftF, 3.5, 2.0, al, 17, true);
     // 脚：很短的一笔，但没有它人就站不住
     seg(r.ftF, add(r.ftF, dv(1.30 + (pose.legF[0] + pose.legF[1]) * 0.22), 4.0), 1.9, 1.1, al, 24);
 
     // ── 脖子与头（8-9）──
-    seg(r.neck, r.headBase, 2.0, 1.9, al, 18);
-    // 头是一个短促的墨点（圆头笔），不是圆圈也不是方块
-    SJ.Ink.stroke(g, [r.headBase, r.headTop], {
-      w0: HEADR * 1.80 * ls, w1: HEADR * 1.52 * ls, color: col, alpha: al,
-      taper: false, hairs: 0, seed: 19, core: true
+    seg(r.neck, r.headBase, 2.2, 1.7, al, 18);
+    // 头：一个「点」。从头顶往下颌落笔，末端收锋接到脖子那一笔上，
+    // 所以路径是 headTop → headBase，不是反过来。
+    SJ.Ink.stroke(g, [r.headTop, r.headBase], {
+      w0: HEADR * 1.44 * ls, w1: HEADR * 1.15 * ls, color: col, alpha: al,
+      taper: true, hairs: 0, seed: 19, core: true
     });
 
     // ── 发带：朱砂。唯一的彩色，默认关，主角才开 ──
     if (o.ribbon) {
       // 起点在后脑偏下，不是头顶，否则像犄角
-      var hc = [(r.headBase[0] + r.headTop[0]) * 0.5, (r.headBase[1] + r.headTop[1]) * 0.5],
+      // 锚在后脑偏下（靠近颈根），并且往头里收一点，让它是「长出来的」不是「飘着的」
+      var hc = [SJ.lerp(r.headTop[0], r.headBase[0], 0.72),
+                SJ.lerp(r.headTop[1], r.headBase[1], 0.72)],
         ang = pose.lean + pose.spine + pose.neck + pose.headAng,
         bk = dv(ang + Math.PI * 0.5),
-        p1 = [hc[0] - bk[0] * HEADR * 1.05, hc[1] - bk[1] * HEADR * 1.05 - 1.0],
+        p1 = [hc[0] - bk[0] * HEADR * 0.55, hc[1] - bk[1] * HEADR * 0.55],
         rs = Math.sin(t * 4.1) * 1.4 + Math.sin(t * 2.3) * 0.85, rj;
       // 两条：一长一短，长的带明显的弧，才像飘带不像刺
       for (rj = 0; rj < 2; rj++) {
@@ -628,8 +633,8 @@
     }
 
     // ── 前侧手臂 + 武器（手腕独立于肘，剑尖轨迹才好看）──
-    seg(r.sh, r.elF, 2.5, 2.0, al, 22);   // （10-11）
-    seg(r.elF, r.haF, 2.0, 1.2, al, 23);
+    seg(r.sh, r.elF, 4.5, 3.2, al, 22);   // （10-11）
+    seg(r.elF, r.haF, 3.2, 2.2, al, 23, true);
     drawWeapon(g, r, o.weapon, pose.weaponLen, col, al, ls);
 
     g.restore();

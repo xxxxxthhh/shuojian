@@ -234,8 +234,8 @@
         var nx = t.cx() - t.facing * 54;
         var gy = SJ.World.groundAt(nx, t.y);
         if (gy !== null && gy - t.y < 200) {
-          e.x = nx - e.w / 2; e.y = gy - e.h;
-          e.vx = 0; e.vy = 0; e.onGround = true;
+          // 落点可能在墙里 —— 必须走 AI.blink 回退取点，直接写 x/y 会把他卡死
+          if (AI.blink(e, nx - e.w / 2, gy - e.h)) e.onGround = true;
         }
         AI.face(e, t);
       }
@@ -384,7 +384,7 @@
         if (!t || !AI.sees(e, t) || AI.dist(e, t) > 460) { AI.brake(e, dt); return; }
         var d = AI.dist(e, t);
         if (AI.beat(e, dt, 0.22, 0.55)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
           // 打不到就调整距离：一半概率后撤，读起来像在找机会
           e.mem.back = (d < 70 && Math.random() < 0.5) ? 0.45 : 0;
@@ -414,7 +414,7 @@
           return;
         }
         if (AI.beat(e, dt, 0.35, 0.8) && AI.sees(e, t)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         space(e, t, 300, 90, dt);
@@ -430,7 +430,7 @@
       think: function (e, dt, t) {
         if (!t || !AI.sees(e, t) || AI.dist(e, t) > 520) { AI.brake(e, dt); return; }
         if (AI.beat(e, dt, 0.3, 0.7)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         space(e, t, 130, 34, dt);
@@ -447,7 +447,7 @@
       think: function (e, dt, t) {
         if (!t || AI.dist(e, t) > 560) { AI.brake(e, dt); return; }
         if (AI.beat(e, dt, 0.3, 0.7)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         space(e, t, 70, 26, dt);
@@ -521,7 +521,7 @@
       think: function (e, dt, t) {
         if (!t) { AI.brake(e, dt); return; }
         if (AI.beat(e, dt, 0.25, 0.55)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         // 不贴脸，绕着走
@@ -550,7 +550,7 @@
           return;
         }
         if (AI.beat(e, dt, 0.35, 0.8)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         space(e, t, 76, 26, dt);

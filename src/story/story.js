@@ -48,19 +48,21 @@
 
   // ══ 逐字书写节奏 ════════════════════════════════════════════════
   // 把 lines（每条是竖排的一「列」）拆成字符累计时长表：
-  // 基础每字 0.125–0.195s（随机但确定性），标点后多顿 0.24s，换列多顿 0.30s。
-  // 「像人在写字」——brushReveal 仍是纯 p=0..1 的渲染器，这里只是把
-  // p 的推进速度按字符而非线性时间来算。
+  // 基础每字 0.085–0.12s（随机但确定性），标点后多顿 0.14s，换列多顿 0.16s。
+  // 「像人在写字」是节奏要求，不是慢的借口（Lead：第五回 c5_book 九屏连播
+  // 翻页必须快）——brushReveal 仍是纯 p=0..1 的渲染器，这里只是把
+  // p 的推进速度按字符而非线性时间来算。玩家永远可以按一下确认瞬间补完本屏，
+  // 这张时间表只决定「不催的时候」自然写出的速度。
   function buildTiming(lines) {
     var cum = [], t = 0, ci, i, ch, base, prevCh, idx = 0, col;
     for (ci = 0; ci < lines.length; ci++) {
       col = lines[ci];
       for (i = 0; i < col.length; i++) {
         ch = col.charAt(i);
-        base = 0.125 + SJ.hash(ci * 31.7 + i * 5.3 + 0.5) * 0.07;
+        base = 0.085 + SJ.hash(ci * 31.7 + i * 5.3 + 0.5) * 0.035;
         prevCh = (i > 0) ? col.charAt(i - 1) : (ci > 0 ? lines[ci - 1].slice(-1) : null);
-        if (prevCh && PUNCT.indexOf(prevCh) >= 0) base += 0.24;
-        if (i === 0 && ci > 0) base += 0.30;
+        if (prevCh && PUNCT.indexOf(prevCh) >= 0) base += 0.14;
+        if (i === 0 && ci > 0) base += 0.16;
         t += base;
         cum.push(t);
         idx++;

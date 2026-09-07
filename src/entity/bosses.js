@@ -163,7 +163,7 @@
         var nx = t.cx() - t.facing * 58;
         var gy = SJ.World.groundAt(nx, t.y);
         if (gy !== null && gy - t.y < 220) {
-          e.x = nx - e.w / 2; e.y = gy - e.h; e.vx = 0; e.vy = 0; e.onGround = true;
+          if (AI.blink(e, nx - e.w / 2, gy - e.h)) e.onGround = true;
         }
         AI.face(e, t);
       }
@@ -622,7 +622,7 @@
       var set = e.def.sets[Math.min(e.phase, e.def.sets.length) - 1];
       if (beat(e, dt, o.lo || 0.22, o.hi || 0.6)) {
         if (o.before && o.before(e, dt, t)) return;
-        var m = AI.pick(e, t, set);
+        var m = AI.pick(e, t, AI.moveset(e, set));
         if (m) { AI.start(e, m); return; }
       }
       var want = o.want || 100;
@@ -729,7 +729,7 @@
         // 会把画面变成一堆朱砂虚线，观势就读不出东西了。
         var busy = SJ.Bosses.clones(e.host).some(function (c) { return c !== e && c.mv; });
         if (!busy && beat(e, dt, 0.3, 0.9)) {
-          var m = AI.pick(e, t, e.def.moves);
+          var m = AI.pick(e, t, AI.moveset(e, e.def.moves));
           if (m) { AI.start(e, m); return; }
         }
         space(e, t, 110, 40, dt);
@@ -751,13 +751,14 @@
         ['b_shou', 'b_tuibu', 'b_zhenjiao'],
         ['b_shou', 'b_tuibu', 'b_zhenjiao', 'b_heshi']
       ],
-      init: function (e) { e.openT = 0; e.mem.lastHurt = -99; },
+      init: function (e) { e.openT = 0; e.mem.lastHurt = -99; e.mem.since = SJ.Game.time; },
       onPhase: function (e, n) { if (n >= 2) e.windMul = 0.85; },
       // 只认无锋。普攻第三段的 guardBreak 在他身上不管用 —— 僧人是提示，他是墙。
       block: function (e, dmg, src, opt) {
         if (e.openT > 0) return dmg;
         if (opt.moveId === 'wufeng') {
           e.openT = 2.6;
+          e.mem.since = SJ.Game.time;      // 读懂了，线索退回常态
           AI.interrupt(e);
           e.stunT = Math.max(e.stunT, 0.8);
           e.act = 'stun';
@@ -780,18 +781,49 @@
         return true;
       },
       onHurt: function (e) { e.mem.lastHurt = SJ.Game.time; },
+      // 决议 008 §3：僵持久了要**把线索变清楚**，不是把伤害变高。
+      // 这是不做教程的游戏里唯一正当的引导手段 ——
+      // 玩家不会觉得被教了，只会觉得自己终于看见了。
+      // 0 级 常态 / 1 级 40s 起 / 2 级 70s 起：守势起手式越留越久，
+      // 身上浮起藤黄（本作里「领悟」的颜色），把眼睛引到他身上。
+      // 用 SJ.Game.time 而不是在 think 里累加 —— 他大部分时间都在守势这个「招」里，
+      // think 根本不跑，累加出来的时间只有真实的三成。
+      // 观势期间 Game.time 走 0.35×，所以**正在观势的玩家不会被催**：
+      // 他做的正是对的事，二十来秒就能读满。
+      esc: function (e) {
+        var st = SJ.Game.time - (e.mem.since || 0);
+        return st > 70 ? 2 : st > 40 ? 1 : 0;
+      },
       think: function (e, dt, t) {
         e.openT = Math.max(0, e.openT - dt);
         if (!t) { AI.brake(e, dt); e.act = 'guard'; return; }
         AI.face(e, t);
-        // 被撬开的三秒是唯一的输出窗口：他手垂着，不架防
+        // 被撬开的两秒多是唯一的输出窗口：他手垂着，不架防
         if (e.openT > 0) { AI.brake(e, dt); e.act = 'idle'; return; }
         if (beat(e, dt, 0.2, 0.5)) {
-          var m = AI.pick(e, t, e.def.sets[Math.min(e.phase, 3) - 1]);
-          if (m) { AI.start(e, m); return; }
+          var m = AI.pick(e, t, AI.moveset(e, e.def.sets[Math.min(e.phase, 3) - 1]));
+          if (m) {
+            var k = e.def.esc(e);
+            AI.start(e, m, m.id === 'b_shou' && k
+              ? { wind: 1.2 * (1 + k * 0.42) } : null);
+            if (k) e.cds.b_shou = 0.35;      // 线索也要来得更密
+            return;
+          }
         }
         AI.brake(e, dt);
         e.act = 'guard';
+      },
+      draw: function (g, e) {
+        var k = e.def.esc(e);
+        if (k && e.act !== 'down') {
+          var pu = 0.5 + 0.5 * Math.sin(SJ.Game.time * 2.2);
+          g.save();
+          g.globalAlpha = (0.10 + 0.07 * k) * (0.55 + 0.45 * pu);
+          SJ.Ink.blob(g, e.cx(), e.cy(), 46 + k * 10 + pu * 4, 31,
+            { color: C.gamboge, alpha: 1 });
+          g.restore();
+        }
+        AI.draw(g, e);
       }
     },
 
@@ -812,16 +844,17 @@
       init: function (e) { e.mem.copyCd = 0; },
       onPhase: function (e, n) { e.windMul = n === 3 ? 0.86 : n === 2 ? 0.92 : 1; },
       think: function (e, dt, t) {
-        SJ.Bosses.watchPlayer();
         e.mem.copyCd -= dt;
         if (!t) { AI.brake(e, dt); return; }
 
         // P3：现学。你使一次，他就见过一次。
+        // 决议 008 §1：唯一的来源是 combat.js 的 SJ.Combat.lastPlayerMove
+        //（创建 hitbox 时即记录，所以挥空也算「他见过」）。
         if (e.phase >= 3 && e.mem.copyCd <= 0) {
-          var id = AI.lastPlayerMove, m = id && AI.moves[id];
+          var id = SJ.Combat.lastPlayerMove, m = id && AI.moves[id];
           if (m && AI.dist(e, t) < 460 && !AI.playerBusy()) {
             e.mem.copyCd = 5.5;
-            AI.lastPlayerMove = null;
+            SJ.Combat.lastPlayerMove = null;
             SJ.FX.word(e.cx(), e.cy() - 62, m.name, { color: C.cinnabar, life: 1.0, size: 17 });
             SJ.Audio.sfx('learn', { vol: 0.55 });
             AI.start(e, m, { moveId: 'shuojian' });
@@ -830,7 +863,7 @@
         }
 
         if (beat(e, dt, 0.2, 0.5)) {
-          var mv = AI.pick(e, t, e.def.sets[Math.min(e.phase, 3) - 1]);
+          var mv = AI.pick(e, t, AI.moveset(e, e.def.sets[Math.min(e.phase, 3) - 1]));
           if (mv) { AI.start(e, mv); return; }
         }
         space(e, t, 115, 36, dt);
@@ -854,8 +887,10 @@
 
     clone: function (owner, x) {
       var gy = SJ.World.groundAt(x, owner.y);
-      var c = AI.make(defs.baiyi_ying, x, gy === null ? owner.y + owner.h : gy,
+      // 先在本体身上生出来，再 blink 到目标位置 —— 直接按坐标 make 有可能生在墙里
+      var c = AI.make(defs.baiyi_ying, owner.cx(), owner.y + owner.h,
         { facing: owner.facing });
+      AI.blink(c, x - c.w / 2, (gy === null ? owner.y + owner.h : gy) - c.h);
       c.host = owner;
       c.mimic = 0;
       SJ.FX.burst(x, c.cy(), {
@@ -878,14 +913,6 @@
       for (i = 0; i < cs.length; i++) cs[i].def.onDown(cs[i]);
     },
 
-    // 玩家用过的招 —— 挥空也算「我见过一次」。
-    // combat.js 的 lastFoeMove 记的是反方向（敌→玩家），不能拿来用。
-    watchPlayer: function () {
-      var H = SJ.Combat.hitList, i;
-      for (i = 0; i < H.length; i++) {
-        if (H[i].team === 'player' && H[i].moveId) AI.lastPlayerMove = H[i].moveId;
-      }
-    }
   };
 
 })(window.SJ = window.SJ || {});

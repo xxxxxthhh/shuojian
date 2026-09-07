@@ -205,7 +205,17 @@
   };
 
   // ══ 常驻底层场景：兼当「HUD 预览」与「narration/talk 背后的世界」 ══
-  var fakePlayer = { hp: 100, maxHp: 100, ink: 80, known: [], slots: [null,null,null,null] };
+  var fakePlayer = { hp: 100, maxHp: 100, ink: 80, known: [], slots: [null,null,null,null], onGround: true, x: 0, cx: function(){return this.x;} };
+  SJ.player = fakePlayer;
+  // 决议 007 §1：换招的唯一写入者，menus.js 按这个签名调用
+  SJ.Player = SJ.Player || {};
+  SJ.Player.setSlot = function (i, moveId) {
+    fakePlayer.slots[i] = moveId;
+    SJ.Save.data.slots[i] = moveId;
+    SJ.Save.save();
+  };
+  // 决议 007 §2：占位，G 未交付
+  SJ.Level.restartFromCheckpoint = function () { log('SJ.Level.restartFromCheckpoint() — 占位，G 未交付'); };
 
   var worldScene = {
     enter: function () {}, exit: function () {},

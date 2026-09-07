@@ -16,10 +16,6 @@
   // 起手式下限（DESIGN §3.2）。低于它玩家来不及反应，一律夹上去并告警。
   var MIN_WIND = 0.35;
 
-  // 玩家最近一次用出的招（师兄 P3 现学它）。
-  // combat.js 的 lastFoeMove 记的是反方向（敌→玩家），不能用。
-  AI.lastPlayerMove = null;
-
   // 全局招式注册表：id -> 招式定义。师兄复制玩家的招就是在这里查表。
   AI.moves = {};
 
@@ -109,6 +105,34 @@
     return true;
   };
 
+  function inSolid(b) {
+    var S = SJ.World.solids, i, s;
+    for (i = 0; i < S.length; i++) {
+      s = S[i];
+      if (s.gone || s.oneway) continue;
+      if (b.x < s.x + s.w && b.x + b.w > s.x && b.y < s.y + s.h && b.y + b.h > s.y) return true;
+    }
+    return false;
+  }
+
+  // 瞬移。**不要直接写 e.x/e.y** —— World.moveX/moveY 只在「移动过程中」推出，
+  // 已经和墙重叠了是推不出来的，实体会被永久卡死（notes-E §6，E 在 tech.js 里踩过同一个坑）。
+  // 沿「原点 → 落点」回退 6 档，取第一个不重叠的位置；全都不行就原地不动。
+  AI.blink = function (e, tx, ty) {
+    var ox = e.x, oy = e.y, i, k;
+    for (i = 0; i <= 6; i++) {
+      k = 1 - i / 6;
+      e.x = ox + (tx - ox) * k;
+      e.y = oy + (ty - oy) * k;
+      if (!inSolid(e)) {
+        e.vx = 0; e.vy = 0;
+        return i === 0;                    // true = 落到了想去的地方
+      }
+    }
+    e.x = ox; e.y = oy;
+    return false;
+  };
+
   AI.hop = function (e, vy, vx) {
     if (!e.onGround) return false;
     e.vy = vy === undefined ? -520 : vy;
@@ -133,9 +157,16 @@
   AI.cool = function (e, id, sec) { e.cds[id] = sec; };
   AI.ready = function (e, id) { return !(e.cds[id] > 0); };
 
-  // 从 ids 里挑一个现在能用的招（冷却好 / 距离对 / 玩家读得到）
+  // 这个敌人这一刻的招表。opts.only 可以把它钉死成一个子集 ——
+  // 决议 012：第一回的第一个刀客是全游戏的教具，只准出「破雨」，反复出。
+  AI.moveset = function (e, fallback) {
+    return e.only || fallback;
+  };
+
+  // 从 ids 里挑一个现在能用的招（冷却好 / 距离对 / 玩家读得到 / 上一招过去够久）
   AI.pick = function (e, t, ids) {
     var ok = [], tot = 0, i, m, d = t ? AI.dist(e, t) : 1e9;
+    if (e.gcd > 0) return null;          // 上一招刚完，先把 0.9s 的反击窗口留给玩家
     var lock = AI.playerLock();
     var crowded = AI.attackers() >= AI.maxAttackers;
     for (i = 0; i < ids.length; i++) {
@@ -169,7 +200,9 @@
     if (typeof m === 'string') m = AI.moves[m];
     if (!m) return false;
 
-    var wind = m.wind === undefined ? 0.6 : m.wind;
+    data = data || {};
+    var wind = data.wind !== undefined ? data.wind
+             : (m.wind === undefined ? 0.6 : m.wind);
     if (m.danger !== false && wind < MIN_WIND) {
       console.warn('[F] 起手式短于 0.35s，已夹紧：', m.id, wind);
       wind = MIN_WIND;
@@ -178,7 +211,7 @@
 
     var s = e.mv = {
       d: m, ph: 'wind', t: 0, wind: wind, tg: null, n: 0,
-      data: data || {}
+      data: data
     };
     e.act = 'move';
     e.at = 0;
@@ -208,6 +241,7 @@
     if (e.mv) {
       if (e.mv.d.onEnd) e.mv.d.onEnd(e, e.mv, true);
       e.cds[e.mv.d.id] = (e.mv.d.cd || 1) * 0.6;
+      e.gcd = Math.max(e.gcd, e.gap * 0.5);
       e.mv = null;
     }
   };
@@ -217,6 +251,10 @@
     if (!s) return;
     if (s.d.onEnd) s.d.onEnd(e, s, false);
     e.cds[s.d.id] = s.d.cd === undefined ? 1.2 : s.d.cd;
+    // 两次起手式之间的全局空档。完美观势给敌人 0.9s 硬直，
+    // 而玩家三连全程 0.62s —— 空档小于 0.9s，格挡成功就换不来一套连段，
+    // 「做对了却没有奖励」是最伤的一种设计（notes-E §5）。
+    if (s.d.danger !== false) e.gcd = e.gap;
     e.mv = null;
     e.act = 'idle';
     e.at = 0;
@@ -351,6 +389,8 @@
       windMul: opts.windMul || def.windMul || 1,
 
       onGround: false, invuln: 0, stunT: 0, flash: 0,
+      gcd: 0, gap: def.gap === undefined ? 0.9 : def.gap,
+      only: opts.only || null,
       act: 'idle', at: 0, anim: 0, runPhase: 0,
       seed: SJ.rand(0, 10),
       figKey: 'f' + (uid++),
@@ -423,9 +463,6 @@
       return;
     }
 
-    // 玩家用过的招 —— 师兄 P3 要现学（combat 的 lastFoeMove 是反方向的）
-    if (src === SJ.player && opt.moveId) AI.lastPlayerMove = opt.moveId;
-
     // ② 格挡型敌人（僧人 / 守阁人）。
     //    不能用 dmg>0 当门槛 —— 「无锋」本身就是 0 伤害，
     //    正是它要来撬这道门的（tech.js 里 wufeng 的 hitbox dmg=0）。
@@ -495,6 +532,7 @@
     e.invuln = Math.max(0, e.invuln - dt);
     e.flash = Math.max(0, e.flash - dt);
     e.armorT = Math.max(0, e.armorT - dt);
+    e.gcd = Math.max(0, e.gcd - dt);
     if (e.armorT === 0 && e.staggers > 0 && !e.mv) e.staggers = Math.max(0, e.staggers - dt * 0.5);
     for (var k in e.cds) if (e.cds[k] > 0) e.cds[k] -= dt;
 

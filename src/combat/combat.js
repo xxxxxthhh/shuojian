@@ -37,6 +37,10 @@
     // 最近一次「对玩家生效」的敌方招式 id（被打中或被格挡都算）。说剑靠它复制。
     lastFoeMove: null,
 
+    // 最近一次玩家「使出」的招式 id（决议 008 §1，师兄 P3 现学现用靠它）。
+    // 注意是创建 hitbox 时就记，不是命中时 —— 你挥空了他也看见了。
+    lastPlayerMove: null,
+
     // 调试开关，dev/player.html 用
     debug: { hitbox: false, tgAlways: false },
 
@@ -75,6 +79,9 @@
         n: 0,
         dead: false
       };
+      // 决议 008 §1：玩家用出一招的唯一记录点（创建即记录，挥空也算）
+      if (hb.team === 'player' && hb.moveId) Combat.lastPlayerMove = hb.moveId;
+
       if (hb.follow) place(hb);
       hits.push(hb);
       return hb;
@@ -198,6 +205,7 @@
       burns.length = 0;
       lastParry = null;
       Combat.lastFoeMove = null;
+      Combat.lastPlayerMove = null;
     },
 
     // ── 起手式渲染（世界坐标，由 Level.draw 在 camera 变换内调用）─────

@@ -422,9 +422,9 @@
   // band = 山脊往下渐隐的高度。远山绝不能填到屏幕底部：
   // 底下那片纸白就是构图的一半。
   var MT = [
-    { par: 0.20, alpha: 0.185, amp: 58, base: 0.60, w: 5.0, band: 150 },
-    { par: 0.12, alpha: 0.135, amp: 76, base: 0.54, w: 6.0, band: 195 },
-    { par: 0.06, alpha: 0.10, amp: 94, base: 0.46, w: 7.0, band: 245 }
+    { par: 0.20, alpha: 0.205, amp: 58, base: 0.60, w: 5.0, band: 150 },
+    { par: 0.12, alpha: 0.128, amp: 76, base: 0.54, w: 6.0, band: 195 },
+    { par: 0.06, alpha: 0.078, amp: 94, base: 0.46, w: 7.0, band: 245 }
   ];
 
   Ink.mountains = function (g, camX, depth, o) {

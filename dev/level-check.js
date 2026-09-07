@@ -15,6 +15,7 @@
  *   9  positional trigger 必须与某块站得住的地面的「玩家站立盒」相交（否则永远触发不了）
  *  10  波次自洽：gate 包含触发点与全部 spawn；spawn 引用的 wave 号存在
  *  11  flag=2（会消失）的平台下方必须还有一层不会消失的地面
+ *  16  决议 012：第一回 c1_t_watch 必须在 w1 之后、与教具刀客同屏、且玩家绕不过他
  *  15  STORY §4.2.1 指名断言：c5_book / c5_t_page 不得可错过（割点 + 同层拦路）
  *  13  blocker 的 flag 必须由位于它之前的 trigger 设上（否则死锁）
  *  14  全关通路可达性：起点走得到每个检查点 / 波次 / trigger / Boss 场地 / exitX
@@ -478,6 +479,37 @@ L.forEach(function (lv) {
     }
   });
   console.log('  [c5] §4.2.1 不得可错过 ✓ c5_book（走过即播·割点）/ c5_t_page（interact + 同层拦路 + 割点）');
+})();
+
+/* ══ 16. 决议 012 —— 第一回要承担「观势」的可发现性 ═══════════════
+ * 全项目最大的风险：没有任何一个像素在说「长按 K」，而 12 招里 10 招要靠观势学。
+ * 第一回那个刀客是全游戏的教具，c1_t_watch 是唯一一句指向它的话。三条都得成立：
+ *   A 顺序：w1 的触发线必须在 c1_t_watch **之前** —— 先刷出刀客、让他起手，旁白再落下。
+ *     反了的话玩家会对着一屏空竹林读「招已经画在空里了」，这条线索当场断掉。
+ *   B 同框：读到这句时刀客要在屏内（960 宽，留点余量按 900 判）。
+ *   C 绕不过去：w1 必须有 gate 且把刀客圈在里面 —— 他是教具，玩家必须打上照面。 */
+(function () {
+  var lv = L.filter(function (l) { return l.id === 'c1'; })[0];
+  if (!lv) return E('决议 012: 找不到第一回');
+  var t = lv.triggers.filter(function (t) { return t.event && t.event.play === 'c1_t_watch'; })[0];
+  var w1 = lv.waves.filter(function (w) { return w.id === 1; })[0];
+  if (!t) return E('决议 012: 第一回没有 c1_t_watch');
+  if (!w1) return E('决议 012: 第一回没有 wave1');
+  if (!(w1.x + w1.w <= t.x))
+    E('决议 012 A: w1 触发线 @' + w1.x + '-' + (w1.x + w1.w) + ' 没有排在 c1_t_watch @' + t.x +
+      ' 之前 —— 玩家会对着空竹林读「招已经画在空里了」');
+  var foes = lv.spawns.filter(function (s) { return s.wave === 1; });
+  if (!foes.length) return E('决议 012: w1 没有敌人');
+  var near = Math.min.apply(null, foes.map(function (s) { return Math.abs(s.x - t.x); }));
+  if (near > 900)
+    E('决议 012 B: c1_t_watch @' + t.x + ' 离最近的刀客 ' + near + 'px，读到这句时他不在屏内');
+  if (!w1.gate) E('决议 012 C: w1 没有 gate，玩家可以直接跑过教具刀客');
+  else {
+    var out = foes.filter(function (s) { return s.x < w1.gate[0] || s.x > w1.gate[1]; });
+    if (out.length) E('决议 012 C: w1 的刀客在 gate 之外，玩家绕得过去');
+    else console.log('  [c1] 决议 012 ✓ w1@' + w1.x + ' 先于 c1_t_watch@' + t.x +
+                     '，最近的刀客 ' + near + 'px（同屏），gate [' + w1.gate + '] 圈住了他');
+  }
 })();
 
 /* ══ 3b. 总预算 ═════════════════════════════════════════════════════ */

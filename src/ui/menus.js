@@ -2,13 +2,16 @@
  * 全部菜单场景。硬约束（Lead 指派 + 决议）：标题画面只有「始／继／音」三项，
  * 任何菜单都不出现按键说明／教程／玩法介绍页。
  *
- * 三处跨模块假设（已同步 team-lead，等 E/G 落地后如有出入以对方实现为准，
- * 详见 _spec/notes-H.md「待确认」一节）：
- *   1. 换招 SJ.Menu.slots() 直接读写 SJ.Save.data.known / SJ.Save.data.slots，
- *      不经过 SJ.Player——假设 E 的 SJ.Player.create 让 p.slots 与这个数组同引用。
- *   2. SJ.Menu.gameover() 确认后调用 SJ.Level.load(SJ.Save.data.chapter, true)
- *      回到本章最近检查点（checkpoint 参数按契约 SJ.Level.load(idx, checkpoint) 的形状假设为真值）。
- *   3. 「始」= SJ.Save.reset() + SJ.Level.load(0)；「继」= SJ.Level.load(SJ.Save.data.chapter)。
+ * 决议 006/007（Lead 裁定，已落地，不再是假设）：
+ *   1. 换招走 SJ.Player.setSlot(i, moveId)（E 实现，唯一写入者），
+ *      可选招式读 SJ.player.known——不读 SJ.Save.data.slots 的共享引用
+ *      （读档会换掉整个 data 对象，别名会静默断开）。
+ *   2. 死亡确认后调用 SJ.Level.restartFromCheckpoint()（G 实现，不用关心检查点怎么编码）。
+ *   3. 「始」＝二次确认（无存档一次到位；有存档需再按一次，靠字变朱砂提示）
+ *      → SJ.Save.reset() + SJ.Level.load(0)；
+ *      「继」＝ SJ.Level.load(SJ.Save.data.chapter)，无存档时变暗、不可选但仍显示。
+ *   4. 标题／暂停／换招／结算四个 scene 设 countsPlaytime=false
+ *      （playtimeSec 由 Game 用 rawDt 累加，挂在菜单里不算游玩时间）。
  */
 (function (SJ) {
   'use strict';
@@ -56,38 +59,76 @@
   }
 
   // ══ 标题：始／继／音——仅此三项，硬性要求 ═══════════════════════════
+  // 「始」在已有存档时需二次确认（决议 007 §3）：第一次按确认只把它「点亮」
+  // （armed=true，字变朱砂、心跳加速），第二次按确认才真的清档重开。
+  // 选别的项、或超过 ARM_TIMEOUT 没再按，armed 自动解除。
   var titleSel = 0;
   var TITLE_ITEMS = ['始', '继', '音'];
+  var startArmed = false, startArmedT = 0;
+  var ARM_TIMEOUT = 2.5;
 
   var titleScene = {
+    countsPlaytime: false,
     enter: function () {
       armAudioUnlock();
       titleSel = 0;
+      startArmed = false;
     },
-    update: function () {
-      if (SJ.Input.pressed('left') || SJ.Input.pressed('up')) titleSel = (titleSel + 2) % 3;
-      if (SJ.Input.pressed('right') || SJ.Input.pressed('down')) titleSel = (titleSel + 1) % 3;
+    update: function (dt) {
+      var hasSave = SJ.Save.exists();
+      if (startArmed) {
+        startArmedT += dt;
+        if (startArmedT > ARM_TIMEOUT) startArmed = false;
+      }
+      if (SJ.Input.pressed('left') || SJ.Input.pressed('up')) {
+        titleSel = (titleSel + 2) % 3;
+        if (titleSel === 1 && !hasSave) titleSel = 0; // 「继」无存档时不可选，跳过
+        if (titleSel !== 0) startArmed = false;
+      }
+      if (SJ.Input.pressed('right') || SJ.Input.pressed('down')) {
+        titleSel = (titleSel + 1) % 3;
+        if (titleSel === 1 && !hasSave) titleSel = 2;
+        if (titleSel !== 0) startArmed = false;
+      }
       if (SJ.Input.pressed('confirm')) {
-        if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
-        if (titleSel === 0) { SJ.Save.reset(); SJ.Level.load(0); }
-        else if (titleSel === 1) { SJ.Level.load(SJ.Save.data.chapter); }
-        else { SJ.Audio.setMute(!SJ.Audio.muted); }
+        if (titleSel === 0) {
+          if (hasSave && !startArmed) {
+            startArmed = true; startArmedT = 0;
+            if (SJ.Audio.ready) SJ.Audio.sfx('ui');
+          } else {
+            if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
+            SJ.Save.reset();
+            SJ.Level.load(0);
+          }
+        } else if (titleSel === 1) {
+          if (hasSave) { if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm'); SJ.Level.load(SJ.Save.data.chapter); }
+        } else {
+          if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
+          SJ.Audio.setMute(!SJ.Audio.muted);
+        }
       }
     },
     draw: function (g) {
       drawBackdrop(g);
-      var W = SJ.W;
+      var W = SJ.W, hasSave = SJ.Save.exists();
       SJ.Ink.vtext(g, '说剑', W / 2 + 36, 68, 82, { color: SJ.C.ink, alpha: 0.92 });
 
       var gap = 92, x0 = W / 2 - gap, i;
       for (i = 0; i < 3; i++) {
         var x = x0 + i * gap, sel = (i === titleSel);
         var muted = (i === 2 && SJ.Audio.muted);
+        var disabled = (i === 1 && !hasSave);
+        var armed = (i === 0 && startArmed);
+        var col = (sel || armed) ? SJ.C.cinnabar : SJ.C.ink;
         g.save();
-        g.globalAlpha = muted ? 0.40 : (sel ? 0.96 : 0.55);
-        SJ.Ink.vtext(g, TITLE_ITEMS[i], x, 372, 34, { color: sel ? SJ.C.cinnabar : SJ.C.ink, alpha: 1 });
+        g.globalAlpha = disabled ? 0.22 : (muted ? 0.40 : (armed ? 1 : (sel ? 0.96 : 0.55)));
+        SJ.Ink.vtext(g, TITLE_ITEMS[i], x, 372, 34, { color: col, alpha: 1 });
         g.restore();
-        if (sel) {
+        if (armed) {
+          // 二次确认的心跳：比普通选中标记更急促、更满，提醒「再按一次就真的执行」
+          var hb = 0.5 + 0.5 * Math.sin(SJ.Game.time * 9);
+          SJ.Ink.blob(g, x, 372 - 14, 3.4 + hb * 1.4, 95, { color: SJ.C.cinnabar, alpha: 0.55 + hb * 0.4, rough: 0.34 });
+        } else if (sel && !disabled) {
           var mk = 0.5 + 0.5 * Math.sin(SJ.Game.time * 3);
           SJ.Ink.blob(g, x, 372 + 34 * 1.14 + 14, 2.6, 60 + i, { color: SJ.C.cinnabar, alpha: 0.5 + mk * 0.4, rough: 0.3 });
         }
@@ -106,6 +147,7 @@
   var PAUSE_ITEMS = ['继续', '换招', '音', '出'];
 
   var pauseScene = {
+    countsPlaytime: false,
     enter: function () { pauseSel = 0; },
     update: function () {
       if (SJ.Input.pressed('left')) pauseSel = (pauseSel + 3) % 4;
@@ -142,10 +184,11 @@
   var slotsCur = 0;
 
   var slotsScene = {
+    countsPlaytime: false,
     enter: function () { slotsCur = 0; },
     update: function () {
-      var known = SJ.Save.data.known || [];
-      var slots = SJ.Save.data.slots || (SJ.Save.data.slots = [null, null, null, null]);
+      var known = SJ.player.known || [];
+      var slots = SJ.player.slots || [];
       if (SJ.Input.pressed('left')) slotsCur = (slotsCur + 3) % 4;
       if (SJ.Input.pressed('right')) slotsCur = (slotsCur + 1) % 4;
       if (SJ.Input.pressed('up') || SJ.Input.pressed('down')) {
@@ -160,8 +203,7 @@
           tries++;
         } while (tries <= options.length && cand !== null &&
                  slots.indexOf(cand) !== -1 && slots.indexOf(cand) !== slotsCur);
-        slots[slotsCur] = cand;
-        SJ.Save.save();
+        SJ.Player.setSlot(slotsCur, cand);   // 唯一写入者（决议 007 §1）
         if (SJ.Audio.ready) SJ.Audio.sfx('ui');
       }
       if (SJ.Input.pressed('pause') || SJ.Input.pressed('confirm')) {
@@ -172,8 +214,8 @@
     draw: function (g) {
       var W = SJ.W, H = SJ.H;
       dim(g, 0.32);
-      var known = SJ.Save.data.known || [];
-      var slots = SJ.Save.data.slots || [];
+      var known = SJ.player.known || [];
+      var slots = SJ.player.slots || [];
       var i, def, ch;
 
       // 已学招式一览（顶部小字，已在槽里的压暗）
@@ -225,7 +267,7 @@
       if (el < 0.5) return;
       if (SJ.Input.pressed('confirm')) {
         SJ.Game.pop();
-        SJ.Level.load(SJ.Save.data.chapter, true);
+        SJ.Level.restartFromCheckpoint();   // 决议 007 §2：G 实现，H 不用管检查点怎么编码
       }
     },
     draw: function (g) {
@@ -240,6 +282,7 @@
   var endingKind = 'mid';
 
   var endingScene = {
+    countsPlaytime: false,
     enter: function (data) { endingKind = (data && data.kind) || 'mid'; },
     update: function () {
       if (SJ.Input.pressed('confirm')) {

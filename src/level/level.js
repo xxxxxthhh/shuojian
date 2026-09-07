@@ -205,6 +205,11 @@
         if (d.interact && !SJ.Input.pressed('interact')) continue;
       }
       t.fired = true;
+      // 搬开挡路物的那一下：木头擦过地面 + 一点尘。不写字（决议 011 / DESIGN §0 铁律 3）
+      if (d.event.flag && (R.def.blockers || []).some(function (b) { return b.flag === d.event.flag[0]; })) {
+        SJ.Audio.sfx('door', { vol: 0.8, rate: 0.85 });
+        SJ.FX.dust(d.x + d.w / 2, d.y + d.h, 0);
+      }
       (function (ev) {
         runEvent(ev, function () {
           // Boss 的开场白播完才把人放出来（决议 003 的时序从这里起算）
@@ -517,6 +522,23 @@
           SJ.Ink.line(g, d.x - 13, d.y - 62, d.x + 13, d.y - 62, 2.4, { color: C.ink, alpha: 0.7 });
           break;
         case 'shelf':
+          if (d.fallen) {
+            // ★ 决议 011：倒下的一架，横躺在路上。玩家的动作是「搬」，不是「读」——
+            //   所以它画成一个**障碍**（横着、挡住去路），搬开之后就不在了。
+            //   这里不画任何提示字：没有「阅读」「查看」，也没有按键提示（DESIGN §0 铁律 3）。
+            if (SJ.Story.get('c5_page')) break;
+            SJ.Ink.wash(g, d.x - 54, d.y - 40, 108, 40, { color: C.ink, alpha: 0.24 });
+            for (var q = 0; q < 3; q++) {
+              SJ.Ink.line(g, d.x - 54, d.y - 34 + q * 13, d.x + 54, d.y - 34 + q * 13, 2.0,
+                { color: C.ink, alpha: 0.5, taper: true, seed: q * 5 + 1 });
+            }
+            // 散出来的册页，压在架子下面
+            for (var q2 = 0; q2 < 4; q2++) {
+              SJ.Ink.blob(g, d.x - 40 + q2 * 26, d.y - 6, 7, q2 * 9 + 2,
+                { color: C.ink, alpha: 0.30, rough: 0.35, squash: 0.4 });
+            }
+            break;
+          }
           SJ.Ink.wash(g, d.x - 30, d.y - 96, 60, 96, { color: C.ink, alpha: 0.20 });
           for (var r = 1; r < 4; r++) {
             SJ.Ink.line(g, d.x - 30, d.y - 96 + r * 24, d.x + 30, d.y - 96 + r * 24, 1.8,
