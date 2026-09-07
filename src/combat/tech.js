@@ -580,6 +580,10 @@
         SJ.Audio.duck(1.6);
         SJ.Game.flash(SJ.C.gamboge, 0.55, 0.62);
       },
+      // 谁把这一屏拿下去都算数：Game.pop 与 Game.setScene 都会调 exit。
+      // 不在这里解锁的话，学招过程中一旦切场景（Level.load 会 setScene），
+      // learning 会永远卡在 true —— 之后所有的「悟」都不再显示，且不报错。
+      exit: function () { learning = false; },
       update: function () {
         this.t += SJ.Game.rawDt;                  // 走真实时间：同帧的 hitstop 不能把它冻住
         // 跳过只认「这一帧按下」，不能用 SJ.Input.any()（那是「按住」）：
@@ -588,8 +592,7 @@
         var skip = SJ.Input.pressed('confirm') || SJ.Input.pressed('attack') ||
                    SJ.Input.pressed('jump') || SJ.Input.pressed('pause');
         if (this.t >= DUR || (this.t > 1.05 && skip)) {
-          learning = false;
-          SJ.Game.pop();
+          SJ.Game.pop();     // pop 会调 exit()，learning 在那里解锁
           next();
         }
       },
@@ -797,11 +800,20 @@
       return d;
     },
 
+    // 关卡切换用：只清运行期状态，**不动残墨进度**（进度要跨关累积）
     clear: function () {
       running.length = 0;
       learnQueue.length = 0;
       learning = false;
       for (var k in cds) cds[k] = 0;
+    },
+
+    // 开新游戏用：残墨进度只存在内存里（DESIGN §8 的存档里没有这一项），
+    // 不清的话「回标题 → 开新档」会带着上一周目的进度，且不报错。
+    // H 的「始」（新游戏）流程应当调它一次。
+    resetProgress: function () {
+      Tech.progress = {};
+      Tech.clear();
     }
   };
 

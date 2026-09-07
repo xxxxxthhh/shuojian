@@ -554,20 +554,30 @@
 
     // 每一节单独一笔：大腿和小腿画成一笔的话，Catmull-Rom 会把膝盖
     // 磨圆，人就变成面条。分开画，关节才有折角，也才凑得出 12 段笔画。
-    // tip=true 时末端收锋（小腿、前臂这些肢体末梢），否则平接下一节
+    // 短笔（脚、脖子）。core 一律关掉：关节处两笔重叠时，
+    // core 那层 26% 的内芯会叠出一个更黑的圆盘，就是「木偶关节」的来源。
     function seg(pA, pB, wa, wb, alp, sd, tip) {
       SJ.Ink.stroke(g, [pA, pB], {
         w0: wa * ls, w1: wb * ls, color: col, alpha: alp,
-        taper: !!tip, hairs: 0, seed: sd, core: wa * ls > 4.2
+        taper: !!tip, hairs: 0, seed: sd, core: false
+      });
+    }
+
+    // 整条肢体一笔画完（hip→knee→foot），只填充一次，所以关节不会叠深；
+    // sharp:true 用折线插值保住折角，宽度沿路径连续收细。
+    // hairs + wobble 让边不是数学直线。
+    function limb(pA, pB, pC, wa, wc, alp, sd) {
+      SJ.Ink.stroke(g, [pA, pB, pC], {
+        w0: wa * ls, w1: wc * ls, color: col, alpha: alp,
+        taper: true, hairs: 1, seed: sd, core: false,
+        sharp: true, wobble: 0.30
       });
     }
 
     // ── 后侧肢体（1-4）──
-    seg(r.hip, r.knB, 5.0, 3.2, alB, 11);
-    seg(r.knB, r.ftB, 3.2, 1.8, alB, 12, true);
+    limb(r.hip, r.knB, r.ftB, 5.0, 1.8, alB, 11);
     seg(r.ftB, add(r.ftB, dv(1.30 + (pose.legB[0] + pose.legB[1]) * 0.22), 3.7), 1.7, 1.0, alB, 25);
-    seg(r.sh, r.elB, 4.1, 2.9, alB, 13);
-    seg(r.elB, r.haB, 2.9, 2.0, alB, 14, true);
+    limb(r.sh, r.elB, r.haB, 4.1, 2.0, alB, 13);
 
     // ── 衣摆：跟着躯干速度甩，比躯干晚一点 ──
     if (cloth > 0) {
@@ -614,13 +624,14 @@
     });
 
     // ── 前侧腿（6-7）──
-    seg(r.hip, r.knF, 5.5, 3.5, al, 16);
-    seg(r.knF, r.ftF, 3.5, 2.0, al, 17, true);
+    limb(r.hip, r.knF, r.ftF, 5.5, 2.0, al, 16);
     // 脚：很短的一笔，但没有它人就站不住
     seg(r.ftF, add(r.ftF, dv(1.30 + (pose.legF[0] + pose.legF[1]) * 0.22), 4.0), 1.9, 1.1, al, 24);
 
     // ── 脖子与头（8-9）──
-    seg(r.neck, r.headBase, 2.2, 1.7, al, 18);
+    // 末端插进头墨点内部（0.30），端对端相接会露出接缝
+    seg(r.neck, [SJ.lerp(r.headBase[0], r.headTop[0], 0.30),
+                 SJ.lerp(r.headBase[1], r.headTop[1], 0.30)], 2.2, 1.8, al, 18);
     // 头：一个「点」。从头顶往下颌落笔，末端收锋接到脖子那一笔上，
     // 所以路径是 headTop → headBase，不是反过来。
     SJ.Ink.stroke(g, [r.headTop, r.headBase], {
@@ -654,8 +665,7 @@
     }
 
     // ── 前侧手臂 + 武器（手腕独立于肘，剑尖轨迹才好看）──
-    seg(r.sh, r.elF, 4.5, 3.2, al, 22);   // （10-11）
-    seg(r.elF, r.haF, 3.2, 2.2, al, 23, true);
+    limb(r.sh, r.elF, r.haF, 4.5, 2.2, al, 22);   // （10）
     drawWeapon(g, r, o.weapon, pose.weaponLen, col, al, ls);
 
     g.restore();

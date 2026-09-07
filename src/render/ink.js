@@ -39,15 +39,23 @@
 
   // 把控制点细分成密采样折线。采样密度随长度自适应，
   // 但所有形状量（宽度/抖动）都是归一化 t 的函数，所以密度变化不会抖。
-  function resample(pts) {
+  // sharp=true 时用折线插值，不做样条 —— 这样一条路径能一笔画完整条肢体
+  // （只有一次填充，关节不会叠出黑盘），而膝、肘的折角又不会被磨圆。
+  function resample(pts, sharp) {
     var n = pts.length, out = [], i, j, sub, segLen, a, b, p0, p3;
     if (n < 2) return pts.slice();
     for (i = 0; i < n - 1; i++) {
       a = pts[i]; b = pts[i + 1];
-      p0 = pts[i - 1] || a; p3 = pts[i + 2] || b;
       segLen = Math.hypot(b.x - a.x, b.y - a.y);
       sub = Math.max(2, Math.min(10, Math.round(segLen / 8)));
-      for (j = 0; j < sub; j++) out.push(cr(p0, a, b, p3, j / sub));
+      if (sharp) {
+        for (j = 0; j < sub; j++) {
+          out.push({ x: a.x + (b.x - a.x) * j / sub, y: a.y + (b.y - a.y) * j / sub });
+        }
+      } else {
+        p0 = pts[i - 1] || a; p3 = pts[i + 2] || b;
+        for (j = 0; j < sub; j++) out.push(cr(p0, a, b, p3, j / sub));
+      }
     }
     out.push(pts[n - 1]);
     return out;
@@ -151,7 +159,7 @@
       return;
     }
 
-    var sp = resample(p), L = pathLen(sp);
+    var sp = resample(p, o.sharp), L = pathLen(sp);
     if (L < 0.4) {
       g.save(); g.globalAlpha = alpha; g.fillStyle = color;
       g.beginPath(); g.arc(p[0].x, p[0].y, w0 * 0.5, 0, TAU); g.fill();
