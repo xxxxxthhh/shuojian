@@ -103,6 +103,24 @@ c4_outro_end  （无 cond）             next → null
 
 ## 4. Key 索引
 
+### 4.0 入口 key 全表（**权威清单** —— CONTRACTS 决议 002 §3 指向此处）
+
+G 只能引用下列 93 个 key。契约里的 `cN_t1 / cN_t2` 是形状示意，**不要照抄**；
+trigger 一律语义命名。`dev/script-check.js` 双向校验此表：
+表里的 key 必须在 script.js 存在，script.js 的入口也必须在此表出现，**不允许漂移**。
+
+- **楔子**（8）：`p_intro` `p_outro` `p_door` `p_sit` `p_chake` `p_kelao` `p_kelao_b` `p_child`
+- **通用**（2）：`learn_ink` `learn_hurt`
+- **第一回**（8）：`c1_intro` `c1_outro` `c1_boss_pre` `c1_boss_down` `c1_t_ink` `c1_t_watch` `c1_t_dash` `c1_t_rain`
+- **第二回**（8）：`c2_intro` `c2_outro` `c2_boss_pre` `c2_boss_mid` `c2_boss_down` `c2_t_up` `c2_t_lantern` `c2_t_multi`
+- **第三回**（9）：`c3_intro` `c3_outro` `c3_boss_pre` `c3_boss_mid` `c3_boss_down` `c3_t_yan` `c3_t_gong` `c3_t_raft` `c3_t_wind`
+- **第四回**（11）：`c4_intro` `c4_outro` `c4_boss_pre` `c4_boss_mid` `c4_boss_down` `c4_t_ink` `c4_t_tiyun` `c4_t_deng` `c4_t_lost` `c4_t_men` `c4_mid`
+- **第五回**（12）：`c5_intro` `c5_outro` `c5_boss_pre` `c5_boss_mid` `c5_boss_down` `c5_t_fire` `c5_t_fenshu` `c5_t_seng` `c5_t_shelf` `c5_t_burn` `c5_t_page` `c5_book`
+- **第六回**（17）：`c6_intro` `c6_outro` `c6_boss_pre` `c6_boss_p2` `c6_boss_p3` `c6_boss_down` `c6_t_all` `c6_t_ghost` `c6_t_moon` `c6_t_last` `c6_t_climb` `c6_t_wave1` `c6_t_mix` `c6_t_wave2` `c6_t_flag` `c6_t_wave3` `c6_t_see`
+- **终回**（6）：`f_intro` `f_reveal` `f_end` `f_t_rain` `f_t_seat` `f_t_chake`
+
+用途逐条见 §4 下面各表；第五回摆位约束见 §4.2，第六回节拍顺序见 §4.1。
+
 `【入】`＝ levels.js / level.js 可直接 `play()` 的入口（无 cond）。其余为链内节点。
 
 ### 楔子
@@ -225,6 +243,7 @@ c4_outro_end  （无 cond）             next → null
 | 视野受限 | `c4_t_lost` | 「看不见的东西还在那里。」 |
 | 提灯人会照亮 | `c4_t_deng` | 「借个光？」 |
 | **白衣分身：砍中的可能不是本体** | `c4_boss_pre_c` / `c4_boss_mid` | 「快到你看见的时候，我已经走了。」／「你砍的那个不是我。」 |
+| 一楼皆同一本书的抄本（题眼铺垫） | `c5_t_shelf` | 「一座楼，抄的是同一本书。」 |
 | **火烧纸＝地形消失** | `c5_t_fire` / `c5_t_burn` | 「没有故事的地方，站不住人。」 |
 | **焚书：被火燎到才学得会** | `c5_t_fenshu` | 「他没有拍。火就成了他的了。」（配 §9.2 演出） |
 | **只格挡的敌人砍不开** | `c5_t_seng` / `c5_boss_mid` | 「空的东西，砍不开。」／「是你那一剑，书上没写。」 |

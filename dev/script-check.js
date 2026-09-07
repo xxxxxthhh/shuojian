@@ -195,6 +195,18 @@ var mdRefs = 0, mdBad = [];
   });
 })();
 
+/* ── 4d. 反向同步：每个入口 key 都必须在 STORY.md 里出现 ────────
+ * 决议 002 §3 已把 STORY.md §4 定为 G 的权威清单，
+ * 漏记 = G 永远不知道这个 key 存在。故双向校验。
+ */
+var mdMissing = [];
+(function () {
+  var md = fs.readFileSync(path.join(ROOT, '_spec/STORY.md'), 'utf8');
+  ENTRIES.forEach(function (k) {
+    if (md.indexOf('`' + k + '`') < 0) { mdMissing.push(k); E('入口 key 未记入 STORY.md: ' + k); }
+  });
+})();
+
 /* ── 5. 总量 ─────────────────────────────────────────────────── */
 // 字数按中文习惯计（含标点）；目标区间 3500–6000
 if (allch < 3500) E('总字数 ' + allch + ' < 3500');
@@ -210,7 +222,8 @@ console.log('叙事语义      : 一至三回一致 3 条 / 四回起矛盾 5 �
             (semErrs ? '✗ ' + semErrs + ' 条断言失败' : '全部通过'));
 console.log('入口 key      : ' + ENTRIES.length);
 console.log('STORY.md 同步 : 引用 ' + mdRefs + ' 个 key，' +
-            (mdBad.length ? '✗ ' + mdBad.length + ' 个不存在' : '全部存在'));
+            (mdBad.length ? '✗ ' + mdBad.length + ' 个不存在' : '全部存在') + '；入口反向 ' +
+            (mdMissing.length ? '✗ 漏记 ' + mdMissing.length + ' 个' : '全部记入'));
 warns.forEach(function (w) { console.log('WARN  ' + w); });
 errs.forEach(function (e) { console.log('ERROR ' + e); });
 console.log(errs.length ? '\n✗ ' + errs.length + ' 个错误' : '\n✓ 全部通过');
