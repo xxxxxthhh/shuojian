@@ -139,7 +139,32 @@
     g.restore();
   }
 
+  /* ── 卡住提示（Lead 补）─────────────────────────────────────────
+   * 决议 008 §3 的原则：玩家卡住时让**线索变清楚**，而不是降低难度。
+   * 朝着障碍推了 3.5 秒还没动 → 头顶浮起一道朱砂的向上笔锋。
+   * 无字、无框、一跳就消失。它不教按键，只说「这里是往上的」。 */
+  var stuckX = null, stuckT = 0;
+  function drawStuckCue(g, p) {
+    var I = SJ.Input, pushing = I.down('left') || I.down('right');
+    if (!pushing || !p.onGround || p.hp <= 0) { stuckT = 0; stuckX = p.x; return; }
+    if (stuckX !== null && Math.abs(p.x - stuckX) < 0.5) stuckT += SJ.Game.rawDt || 1 / 60;
+    else stuckT = 0;
+    stuckX = p.x;
+    if (stuckT < 3.5) return;
+
+    var a = SJ.clamp((stuckT - 3.5) / 0.8, 0, 1) * (0.55 + 0.25 * Math.sin(SJ.Game.time * 3.4));
+    var sx = p.cx() - SJ.Camera.x, sy = p.y - SJ.Camera.y - 26;
+    var pts = [], i, k;
+    for (i = 0; i <= 8; i++) {          // 一道上扬的弧，像一撇
+      k = i / 8;
+      pts.push([sx - 13 + 26 * k, sy - Math.sin(k * Math.PI) * 11]);
+    }
+    SJ.Ink.stroke(g, pts, { w0: 3.2, w1: 0.6, color: SJ.C.cinnabar, alpha: a, seed: 77, hairs: 1 });
+  }
+
+
   SJ.HUD = {
+
     draw: function (g, p) {
       if (!p) return;
       drawHearts(g, p);
@@ -147,6 +172,7 @@
       drawProgressRing(g);
       drawSlots(g, p);
       drawNotice(g);
+      drawStuckCue(g, p);
     },
 
     notice: function (str) {

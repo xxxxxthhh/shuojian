@@ -186,8 +186,10 @@ if (only === null) {
     const id = SJ.Levels[i].id;
     try { SJ.Level.load(i); } catch (e) { fail(`猴子: 第${i}关 load 抛异常 ${e.message}`); continue; }
     for (const k in held) delete held[k];
-    let err = null;
+    let err = null, xMin = Infinity, xMax = -Infinity;
     for (let f = 0; f < MFRAMES && !err; f++) {
+      const pp = SJ.player;
+      if (pp) { if (pp.x < xMin) xMin = pp.x; if (pp.x > xMax) xMax = pp.x; }
       for (const a of ACTS) { edge[a] = false; }
       if (f % 3 === 0) {
         const a = ACTS[(rnd() * ACTS.length) | 0];
@@ -198,7 +200,12 @@ if (only === null) {
       catch (e) { err = `f${f}: ${e.message}`; }
     }
     if (err) { fail(`猴子: 第${i}关(${id}) @${err}`); monkeyErr++; }
-    else console.log(`  猴子 第${i}关 ${id.padEnd(4)} ${MFRAMES} 帧(${(MFRAMES/60)|0}s) 随机操作 ✓`);
+    else if (xMax - xMin < 120) {
+      // 关键：没抛异常 ≠ 在运行。玩家全程几乎没动，说明画面是冻的。
+      fail(`猴子: 第${i}关(${id}) 玩家全程只移动了 ${(xMax-xMin).toFixed(0)}px —— 游戏可能是冻的`);
+      monkeyErr++;
+    }
+    else console.log(`  猴子 第${i}关 ${id.padEnd(4)} ${MFRAMES} 帧(${(MFRAMES/60)|0}s) 随机操作 ✓  玩家位移跨度 ${(xMax-xMin)|0}px`);
   }
   if (!monkeyErr) console.log('猴子测试：八关全部无异常');
 }
