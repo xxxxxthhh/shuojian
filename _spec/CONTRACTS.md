@@ -387,14 +387,23 @@ D 在 script.js 顶部的 `spared(save,id)` helper 是唯一读取入口，其�
 **wave 3 集成测试必须覆盖**：留手一个 Boss 后 `mercy[id] === true`，且第四回旁白确实出现与行为矛盾的版本。
 
 ### 3. 剧本入口 key 清单（G 写 levels.js 时直接引用）
+
+> **权威清单是 `_spec/STORY.md` §4（86 个入口，已做机器校验）。**
+> 下表只是形状说明，**不要照抄示意名**。
+
 ```
-楔子   p_intro   p_outro
-第一至六回  c1_intro c1_outro … c6_intro c6_outro
-终回   f_intro   f_end
-Boss   cN_boss_pre / cN_boss_down   (N=1..6)
-关卡内 cN_t1 / cN_t2 / …            (mode:'narration')
-墙上题字 wall_cN_a / wall_cN_b …    (mode:'narration'，单屏)
+楔子     p_intro  p_outro  p_door  p_sit  p_chake  p_kelao  p_kelao_b  p_child
+第一至六回  cN_intro / cN_outro                     (N=1..6)
+Boss     cN_boss_pre / cN_boss_mid / cN_boss_down  (第六回另有 c6_boss_p2 / c6_boss_p3)
+关卡内   cN_t_*   语义命名，如 c1_t_ink / c1_t_watch / c3_t_yan / c5_t_page
+         另有成链的 c4_mid（第四回关卡内矛盾）、c5_book（题眼，9 屏）
+墙上题字 wall_cN_a / wall_cN_b                      (mode:'narration'，单屏)
+通用     learn_ink / learn_hurt
+终回     f_intro / f_end / f_t_rain / f_t_seat / f_t_chake
 ```
+**trigger 一律语义命名，不用 `cN_t1` 这种序号名**——G 要按「哪句台词教哪个玩法」来摆位置，
+`c1_t_ink`（教墨会枯）比 `c1_t1` 可用得多；STORY.md §5 的教学对照表整张按语义名索引。
+
 `SJ.Story.ending()` 直接 `play('f_end')` 即可，**分支全在 script.js 内部用 cond 解决**，H 不要自己判结局分支。
 
 ---
@@ -425,3 +434,25 @@ Boss 倒地 → SJ.Story.mercyChoice(id, cb) → cb 里已经能读到最新的 
 `node dev/script-check.js` 退出码 0；181 key / 452 屏行 / 最长行 16 汉字（≤18 ✓）；
 mode 分布 tea 54 / narration 73 / talk 45 / card 9；玩法术语黑名单 grep 干净；
 71552 次链式遍历无断链、无环、必终止。
+
+---
+
+## 决议 004 — 关卡摆位约束（G 必须遵守，D 提出，Lead 批准）
+
+### 1. 第六回节拍不可打乱分类
+第六回 11 拍旁白按用途分三类（完整表见 `_spec/STORY.md` §4.1）：
+- **教学拍**：`c6_t_mix`（威胁在组合不在单体）、`c6_t_all`（招式槽只有四格，带不动的放下）
+  → **位置不可挪、不可省**，必须紧贴它们要教的那波遭遇。
+- **叙事拍**：`c6_t_wave1`、`c6_t_wave2`、`c6_t_see` → 顺序不可换。
+  `c6_t_wave2` 必须在**遭遇密度最高的那一波进行中**播，不是波前波后。
+- **场景拍**：`c6_t_climb`、`c6_t_moon`、`c6_t_flag` → 位置可随关卡实际长度微调。
+
+### 2. `c5_t_page` 必须与 `c5_book` 空间隔离（第五回题眼的成立条件）
+- **不许**把 `c5_t_page` 挂在 `c5_book` 链尾一起播 —— 那会让物证降格成题眼的注脚。
+- 两者之间必须隔着**实际的走动与至少一场战斗**，`c5_t_page` 挂在一个玩家要自己走到的书架 trigger 上。
+- 玩家必须是**自己翻到那一页**的。这一屏是全剧唯一的物证，它的力量来自「我自己找到的」。
+
+### 3. 同理约束 H
+`c5_t_page` / `c4_mid` 都是 `mode:'narration'` + `speaker:'说书人'`，
+**渲染成关卡内画外音，绝不能切茶馆插画**（决议 003 §3）。
+切成过场 = 说书人在解说；保持画外音 = 无名在读。差别是整段戏的成败。

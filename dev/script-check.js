@@ -79,7 +79,8 @@ var ENTRIES = [
   'c5_t_fire','c5_t_fenshu','c5_t_seng','c5_t_shelf','c5_t_burn','c5_t_page',
   'wall_c5_a','wall_c5_b','c5_book',
   'c6_intro','c6_outro','c6_boss_pre','c6_boss_p2','c6_boss_p3','c6_boss_down',
-  'c6_t_all','c6_t_ghost','c6_t_moon','c6_t_last','wall_c6_a','wall_c6_b',
+  'c6_t_all','c6_t_ghost','c6_t_moon','c6_t_last','c6_t_climb','c6_t_wave1',
+  'c6_t_mix','c6_t_wave2','c6_t_flag','c6_t_wave3','c6_t_see','wall_c6_a','wall_c6_b',
   'f_intro','f_reveal','f_end','f_t_rain','f_t_seat','f_t_chake'];
 ENTRIES.forEach(function (k) {
   if (!S[k]) return E('入口 key 缺失: ' + k);
@@ -179,10 +180,20 @@ SEM.forEach(function (r) {
     if (txt.indexOf(other) >= 0)
       E('语义 ' + entry + (isSpared ? ' [留手]' : ' [杀]') + ': 混入了另一变体的「' + other + '」');
   });
-  // 记录该链的矛盾属性，供下面汇总
-  r.push(inverted);
 });
-console.log('叙事语义      : 一至三回一致 3 条，四回起矛盾 5 条，全部断言通过');
+var semErrs = errs.filter(function (e) { return e.indexOf('语义 ') === 0; }).length;
+
+/* ── 4c. 文档同步：_spec/STORY.md 引用的 key 必须真实存在 ──────── */
+var mdRefs = 0, mdBad = [];
+(function () {
+  var md = fs.readFileSync(path.join(ROOT, '_spec/STORY.md'), 'utf8');
+  var seen = {}, m, re = /`((?:p_|c[1-6]_|f_|wall_|learn_)[a-z0-9_]+)`/g;
+  while ((m = re.exec(md))) { seen[m[1]] = 1; }
+  Object.keys(seen).forEach(function (k) {
+    mdRefs++;
+    if (!S[k]) { mdBad.push(k); E('STORY.md 引用了不存在的 key: ' + k); }
+  });
+})();
 
 /* ── 5. 总量 ─────────────────────────────────────────────────── */
 // 字数按中文习惯计（含标点）；目标区间 3500–6000
@@ -195,7 +206,11 @@ console.log('总字数(含标点): ' + allch + '  （纯汉字 ' + cjk + '）');
 console.log('无名节点/行   : ' + wumingNodes + ' 节点, ' + wumingLines + ' 行 (含「……」)');
 console.log('无名实际台词  : ' + wumingSpoken + ' 句 (不含纯「……」)');
 console.log('链式遍历      : ' + walks + ' 次');
+console.log('叙事语义      : 一至三回一致 3 条 / 四回起矛盾 5 条 —— ' +
+            (semErrs ? '✗ ' + semErrs + ' 条断言失败' : '全部通过'));
 console.log('入口 key      : ' + ENTRIES.length);
+console.log('STORY.md 同步 : 引用 ' + mdRefs + ' 个 key，' +
+            (mdBad.length ? '✗ ' + mdBad.length + ' 个不存在' : '全部存在'));
 warns.forEach(function (w) { console.log('WARN  ' + w); });
 errs.forEach(function (e) { console.log('ERROR ' + e); });
 console.log(errs.length ? '\n✗ ' + errs.length + ' 个错误' : '\n✓ 全部通过');

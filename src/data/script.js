@@ -681,15 +681,57 @@
     '一路上遇见的人，这里都有。',
     '带不动的，就得放下。'
   ]},
+  // ── 第六回关卡内节拍：按遭遇战的接缝铺，不是按长度铺 ──
+  // 上城，第一波之前：点明这城是空的（这些敌人不是守军，是这故事的角色）
+  c6_t_climb: { speaker:'', mode:'narration', next:null, lines:[
+    '城墙上风大，旗都朝一个方向。',
+    '底下没有兵，也没有百姓。',
+    '这座城空了很久了。'
+  ]},
   c6_t_ghost: { speaker:'说书人', mode:'narration', next:null, lines:[
     '城上这些人，他一个个都见过。',
     '有的在竹林，有的在楼上，',
     '有的在河边。',
     '他们不认得他。'
   ]},
+  // 第一波（刀客）清完：说书人自己说漏嘴——这批人是回收的
+  c6_t_wave1: { speaker:'说书人', mode:'narration', next:null, lines:[
+    '第一拨是刀客。',
+    '他和竹林里那个是一路的。',
+    '——不，就是那个。'
+  ]},
   c6_t_moon: { speaker:'说书人', mode:'narration', next:null, lines:[
     '月亮很大，把影子拉得很长。',
     '影子比人先到。'
+  ]},
+  // 教：僧人＋刺客混编，威胁在组合而不在单体
+  c6_t_mix: { speaker:'说书人', mode:'narration', next:null, lines:[
+    '僧人只挡，刺客只等。',
+    '一个不还手，一个不露面。',
+    '两个凑在一处，就难办了。'
+  ]},
+  // 密度最高那波进行中：说书人加快语速，因为讲慢了不好看
+  c6_t_wave2: { speaker:'说书人', mode:'narration', next:null, lines:[
+    '弓在上头，枪在下头。',
+    '力士堵着门洞。',
+    '这一段我讲快些。',
+    '讲慢了，诸位会觉得他撑不住。'
+  ]},
+  // 中点地标
+  c6_t_flag: { speaker:'', mode:'narration', next:null, lines:[
+    '旗是新的。',
+    '城里没有人，旗却有人换。'
+  ]},
+  // 最后一波之前，与 c6_t_all（换招）相邻：一个讲战术，一个讲压力
+  c6_t_wave3: { speaker:'说书人', mode:'narration', next:null, lines:[
+    '到这里，该会的他都会了。',
+    '再往前，会的就不够用了。'
+  ]},
+  // 望见师兄
+  c6_t_see: { speaker:'', mode:'narration', next:null, lines:[
+    '城墙尽头有个人影，一直没动。',
+    '走近一点，还是没动。',
+    '他在等这一段讲完。'
   ]},
   c6_t_last: { speaker:'', mode:'narration', next:null, lines:[
     '再往前就没有路了。',
