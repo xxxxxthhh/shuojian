@@ -123,20 +123,23 @@
 </div>
 
 <!-- ══ 真实模块（按 index.html 顺序，只加载我这次会用到的） ══════════ -->
-<script src="../src/core/const.js"></script>
-<script src="../src/core/input.js"></script>
-<script src="../src/core/camera.js"></script>
-<script src="../src/core/world.js"></script>
-<script src="../src/core/ent.js"></script>
-<script src="../src/core/save.js"></script>
-<script src="../src/core/game.js"></script>
-<script src="../src/render/ink.js"></script>
-<script src="../src/render/figure.js" onerror="window.__noFigure=true"></script>
-<script src="../src/audio/audio.js"></script>
-<script src="../src/data/script.js"></script>
-<script src="../src/story/story.js"></script>
-<script src="../src/ui/hud.js"></script>
-<script src="../src/ui/menus.js"></script>
+<!-- ?v= 是纯本地开发用的缓存破坏参数：Python SimpleHTTPServer 不发 Cache-Control，
+     浏览器会按 Last-Modified 走启发式缓存，编辑后同 URL 重新 navigate 有时读到旧文件。
+     每次编辑这几个文件后手动把数字加一即可强制拿到最新版。 -->
+<script src="../src/core/const.js?v=4"></script>
+<script src="../src/core/input.js?v=4"></script>
+<script src="../src/core/camera.js?v=4"></script>
+<script src="../src/core/world.js?v=4"></script>
+<script src="../src/core/ent.js?v=4"></script>
+<script src="../src/core/save.js?v=4"></script>
+<script src="../src/core/game.js?v=4"></script>
+<script src="../src/render/ink.js?v=4"></script>
+<script src="../src/render/figure.js?v=4" onerror="window.__noFigure=true"></script>
+<script src="../src/audio/audio.js?v=4"></script>
+<script src="../src/data/script.js?v=4"></script>
+<script src="../src/story/story.js?v=4"></script>
+<script src="../src/ui/hud.js?v=4"></script>
+<script src="../src/ui/menus.js?v=4"></script>
 
 <script>
 (function () {

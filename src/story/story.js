@@ -219,15 +219,19 @@
   }
 
   // 单行 card：空白宣纸 + 落款式小字 + 朱砂印（印文读 node.seal）
+  // 锚点按「印章底边必须留在 H 以内」反推（实测发现原来的 y=372 会让印顶到画布
+  // 底边外 6px，截图对照才看出来）——的的确确不能只算不看。
+  var COLOPHON_SEAL_SIZE = 54, COLOPHON_GAP = 14;
   function drawColophon(g, node, p) {
     var text = node.lines[0] || '';
-    var size = 22, x = 792, y = 372;
+    var size = 22, x = 792;
+    var y = SJ.H - COLOPHON_SEAL_SIZE - COLOPHON_GAP - text.length * size * 1.14 - 40;
     SJ.Ink.brushReveal(g, text, x, y, size, p, { color: SJ.C.ink, alpha: 0.82 });
     if (node.seal) {
       var sealAlpha = SJ.clamp((p - 0.45) * 2, 0, 1);
       g.save();
       g.globalAlpha = sealAlpha;
-      SJ.Ink.seal(g, x - 32, y + text.length * size * 1.14 + 20, 54, node.seal);
+      SJ.Ink.seal(g, x - 32, y + text.length * size * 1.14 + COLOPHON_GAP, COLOPHON_SEAL_SIZE, node.seal);
       g.restore();
     }
   }
@@ -235,9 +239,19 @@
   // ══ mode:'narration' / 'talk' —— 世界不替换，侧边纸色读字面板 ══════
   // 两者共用同一渲染：narration 永不带具名标签（无论 speaker 是 '' 还是
   // '说书人'——决议 003/004 的核心要求）；talk 带一个小小的朱砂名牌。
+  //
+  // 实测发现（截图对照，不是猜的）：关卡世界本身 90% 也是纸色（DESIGN §1），
+  // 单纯叠一层同色的纸色 wash 在纸色背景上几乎看不见——面板「浮」不起来。
+  // 改用 paperDark 提高辨识度，并在接缝处加一道极淡的焦墨阴影 + 一道细线，
+  // 让这块面板在任何背景（纸色的白天场景、也包括更暗的雪山/藏经阁）上都读得出
+  // 「这是叠在世界上方的一层」，而不是靠色相差异这一条腿走路。
   function drawSidePanel(g, node, p, speakerName) {
     var W = SJ.W, H = SJ.H, panelW = 340, panelX = W - panelW;
-    SJ.Ink.wash(g, panelX, 0, panelW, H, { color: SJ.C.paper, alpha: 0.60, dir: 'h', flip: true });
+    SJ.Ink.wash(g, panelX - 34, 0, 34, H, { color: SJ.C.ink, alpha: 0.10, dir: 'h', flip: true });
+    SJ.Ink.wash(g, panelX, 0, panelW, H, { color: SJ.C.paperDark, alpha: 0.74, dir: 'h', flip: true });
+    SJ.Ink.stroke(g, [[panelX + 1, 8], [panelX + 1, H - 8]], {
+      w0: 1.1, w1: 0.8, color: SJ.C.ink, alpha: 0.14, seed: 8, hairs: 0, taper: false
+    });
     var x = W - 42, size = 21;
     if (speakerName) {
       SJ.Ink.vtext(g, speakerName, x, 46, 16, { color: SJ.C.cinnabar, alpha: 0.85, seed: 2 });
