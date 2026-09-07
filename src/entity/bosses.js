@@ -284,6 +284,12 @@
       var t = AI.target();
       var d = t ? SJ.clamp((t.cx() - e.cx()) * e.facing, 60, 260) : 160;
       e.vy = -640; e.vx = e.facing * d * 1.4; e.onGround = false;
+      // 起跳只结束了「他要跳」这句话，落地砸还没发生。
+      // 再登记一道跟着他走的起手式，落点就是他脚下 —— 不然落地那一下没有前摇。
+      SJ.Combat.telegraph({
+        owner: e, moveId: s.moveId, dur: 0.52, danger: true,
+        path: [[0, -60], [0, -10], [0, 26], [78, 28]]
+      });
       s.data.hb = AI.hit(e, {
         follow: e, ox: 16, oy: 6, w: 74, h: 74, dmg: 11, ttl: 0.85,
         knock: [240, -180], stun: 0.26, type: 'slash', weight: 'mid'
@@ -502,6 +508,9 @@
     path: function () { return [[-30, -52], [22, -46], [92, -14], [140, 6]]; },
     onStart: function (e, s) {
       var cs = SJ.Bosses.clones(e), i;
+      // 遍照是白衣的「必须观势」招，也是学孤影最好的一次机会：
+      // 让它按孤影记进度（招式本身不叫孤影，所以要显式指定）
+      s.data.moveId = 'guying';
       s.data.fake = [];
       for (i = 0; i < cs.length; i++) {
         s.data.fake.push(SJ.Combat.telegraph({

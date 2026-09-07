@@ -58,6 +58,19 @@
            p.state === 'hurt' || p.state === 'cast' || p.dashT > 0;
   };
 
+  // 玩家还要被自己的动作锁多久（观势进不去的那段）。
+  // 敌人拿它决定「现在出这一招还留不留得出反应空间」。
+  AI.playerLock = function () {
+    var p = SJ.player;
+    if (!p) return 0;
+    if (p.dashT > 0) return p.dashT + 0.06;
+    if (p.hurtT > 0) return p.hurtT;
+    if (p.state === 'cast') return 0.34;
+    if (p.state === 'atk1' || p.state === 'atk2') return 0.26;
+    if (p.state === 'atk3') return 0.36;
+    return 0;
+  };
+
   AI.attackers = function () {
     var n = 0, L = SJ.Ent.list, i;
     for (i = 0; i < L.length; i++) {
@@ -120,7 +133,7 @@
   // 从 ids 里挑一个现在能用的招（冷却好 / 距离对 / 玩家读得到）
   AI.pick = function (e, t, ids) {
     var ok = [], tot = 0, i, m, d = t ? AI.dist(e, t) : 1e9;
-    var busy = AI.playerBusy();
+    var lock = AI.playerLock();
     var crowded = AI.attackers() >= AI.maxAttackers;
     for (i = 0; i < ids.length; i++) {
       m = AI.moves[ids[i]];
@@ -128,8 +141,13 @@
       if (e.cds[m.id] > 0) continue;
       if (m.range && (d < m.range[0] || d > m.range[1])) continue;
       if (m.ground !== false && !e.onGround) continue;
-      // 快招不在玩家读不到的时候出手 —— 这是「公平」的主开关
-      if (busy && (m.wind || 1) < 0.55) continue;
+      // 「公平」的主开关。玩家被自己的动作锁住时（普攻/招式/身法/受击）
+      // 观势进不去 —— 起手式再明显也读不到。所以要求：
+      //     起手式时长 − 玩家剩余锁定 ≥ 0.22s
+      // 玩家自由时 lock=0，什么招都能出；玩家在挥剑时，只有大招敢起手。
+      // （实测：一刀切成「busy 时禁止 <0.70s 的招」会让白衣 50s 里只出 5 招，
+      //   人物性格直接没了；按剩余时间算才既公平又不温吞。）
+      if (lock > 0 && (m.wind || 1) * (e.windMul || 1) - lock < 0.22) continue;
       if (crowded && m.danger !== false && !m.priority) continue;
       if (m.can && !m.can(e, t)) continue;
       ok.push(m); tot += (m.weight || 1);

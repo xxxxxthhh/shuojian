@@ -14,6 +14,7 @@
   var HURT_STUN = 0.22, HURT_INV = 0.60, HURT_KNOCK = 220;
   var OBS_SCALE = 0.35, OBS_INK = 12, INK_FLOOR = 20;
   var PARRY_INK = 18, PARRY_STUN = 0.9;
+  var ENV_DRAG = 5;            // 环境速度的自衰减：稳态速度 = envForce 的 ax / 5
 
   // 普攻三连。第三下明显更重：更长前摇、更长 hitstop、更大震屏、更响。
   var ATK = [
@@ -47,6 +48,7 @@
       dryAcc: 0, dmgMul: 1,
       inkDrainMul: 1,              // 决议 009：G 每帧可设，乘在被动墨耗上（雪山）
       envAx: 0, envAy: 0,          // 决议 009：外部环境加速度，physics 消费后清零
+      envVx: 0, envVy: 0,          // 环境速度：与 p.vx 分开积分，不吃走路摩擦
       animT: 0, runPhase: 0, landT: 0,
       dead: false,
       figOpts: null
@@ -143,6 +145,8 @@
       this.dead = false;
       this.invuln = 1.0;
       this.hurtT = 0; this.dashT = 0; this.dashCd = 0;
+      this.envAx = 0; this.envAy = 0; this.envVx = 0; this.envVy = 0;
+      this.inkDrainMul = 1;
       this.observing = false; this.parryWindow = false;
       this.atkHb = null; this.cast = null; this.castPose = null;
       this.airJumps = this.maxAirJumps;
@@ -419,12 +423,23 @@
       p.vy += SJ.GRAVITY * dt;
       if (p.vy > SJ.MAXFALL) p.vy = SJ.MAXFALL;
     }
-    if (eax) p.vx += eax * dt;
-    if (eay) p.vy += eay * dt;
+
+    // 环境速度单独存，不并进 p.vx：
+    // 走路的摩擦是 3200，任何小于它的风都会被当帧抹平，
+    // 于是 3200 以下毫无反应、以上直接失控 —— 那不是旋钮，是悬崖。
+    // 分开积分后风是线性可调的：稳态速度 = ax / ENV_DRAG。
+    p.envVx += eax * dt;
+    p.envVy += eay * dt;
+    var ed = Math.exp(-ENV_DRAG * dt);
+    p.envVx *= ed;
+    p.envVy *= ed;
+    if (Math.abs(p.envVx) < 0.5) p.envVx = 0;
+    if (Math.abs(p.envVy) < 0.5) p.envVy = 0;
+
     p.wasGround = p.onGround;
-    SJ.World.moveX(p, p.vx * dt);
+    SJ.World.moveX(p, (p.vx + p.envVx) * dt);
     var fell = p.vy;
-    SJ.World.moveY(p, p.vy * dt);
+    SJ.World.moveY(p, (p.vy + p.envVy) * dt);
 
     if (p.onGround && !p.wasGround) {
       p.airJumps = p.maxAirJumps + p.bonusJumps;

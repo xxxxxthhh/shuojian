@@ -132,7 +132,8 @@ D 的三条理由成立：① 反过来会把 `c5_book_d`「这本书写的是�
 | `trigger.when` 字符串枚举 | `wave:N` / `afterWave:N` / `firstInk` / `firstHurt` / `burn`。决议 004 §1 的「波中/波后」是硬约束，必须能被机器读 |
 | `trigger.interact` | DESIGN §9.4 的互动键；题壁与书架都要玩家自己按 |
 | `bossScript{pre,mid,down,p2,p3}` | 契约的 `boss:null\|id` 装不下五个剧本 key；写死在 level.js 里检查器就看不见了 |
-| `bossArena` / `bossMusic` | 战斗区间与 boss/final 曲目 |
+| `bossArena` / `bossY` / `bossMusic` | 战斗区间、Boss 站的那层地面 y、boss/final 曲目 |
+| `blockers[{x,w,flag,note}]` | 挡路物：flag 为真前玩家过不去。用来让 `c5_t_page` 保留 `interact` 又不可错过（STORY §4.2.1）|
 | `solids[5] = burnAt` | `flag=2` 说了会消失，没说什么时候消失 |
 | `waves[i] = {id,x,w,gate,sec,note}` | `gate` 是清完前把玩家夹住的 x 区间；`sec` 是预算里给这一波的秒数 |
 | `env{windAx, inkDrainMul}` | 第四回专用，见 §7 待裁定 |
@@ -215,7 +216,16 @@ x 严格单调；教学拍与叙事拍位置一格没挪。
 　（高差 ≤190 = 满跳 114 + 二段跳 ≈85；水平 ≤150 = 满跳滞空 144）
 13 `blocker` 的 flag 必须由一个**位于它之前**的 trigger 设上（否则玩家永远过不去）
 14 **全关通路可达性**：从起点做全图表面 BFS，所有检查点 / 波次触发点与 spawn /
-　位置型 trigger / Boss 场地 / `exitX` 都必须走得到。浮筏算路，风口（updraft）算连接器
+　位置型 trigger / Boss 场地 / `exitX` 都必须走得到。浮筏算路，风口（updraft）算连接器。
+　Boss 可达性按 `(bossArena[0], bossY)` 判 —— 只看 x 会把「站在 Boss 楼下的一层」误判成可达
+15 **STORY §4.2.1 指名断言：`c5_book` / `c5_t_page` 不得可错过。**
+　13/14 是通用规则，证明得了「走得通」，**证明不了「玩家一定会看到」**。这条按 key 指名，
+　用两个真能证明「必经」的性质：
+　**A 割点**——把承载这一屏的那块地面从可达图里删掉，Boss 就走不到了 ⇒ 绕不过去；
+　**B 同层拦路**——`interact` 可以走过去不按，所以还要求它与 Boss 之间有一道 blocker，
+　且该 blocker 的 flag **只**由这一屏设、并与它**踩在同一块地面上**
+　（同一块＝不是「跳上侧龛去读」，是「走到跟前非读不可」）。
+　四个变异全部会炸，含 lead 点名的那个失败模式（把 `c5_t_page` 放回三层侧龛）
 
 变异测试逐条验证过这 12 条**真的会炸**（不是空跑）。它在写的过程中抓出了 4 个真 bug：
 - 第一回一个刀客被埋在岩石里；
