@@ -106,6 +106,7 @@ const need = {
   'SJ.Figure': ['draw','pose','blend','tip'],
   'SJ.FX': ['burst','splash','slash','ring','word','dust','update','draw','drawScreen','clear'],
   'SJ.Audio': ['init','sfx','music','intensity','duck','setMute'],
+  'SJ.Scenery': ['draw'],
   'SJ.Combat': ['hit','telegraph','update','draw','clear','TIER:obj'],
   'SJ.Tech': ['can','use','update','gain','learn'],
   'SJ.Player': ['create','setSlot','envForce','inkTint'],
