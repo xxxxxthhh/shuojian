@@ -240,7 +240,7 @@
         k.taken = true; k.hitT = 0;
         p.addInk(k.ink);
         SJ.Audio.sfx('hit', { vol: 0.5, rate: 1.25 });
-        SJ.FX.splash(k.x, k.y - 16, p.facing, { n: 10 });
+        SJ.FX.splash(k.x, k.y - 16, p.facing > 0 ? -0.6 : -(Math.PI - 0.6), { n: 10, groundY: k.y });
         SJ.FX.word(k.x, k.y - 40, '墨', { color: C.ink, screen: false });
       }
     }
@@ -753,8 +753,8 @@
           if (killed) {
             SJ.Audio.sfx('hitHeavy', { vol: 1 });
             SJ.Game.shake(7, 0.35);
-            if (R.boss) SJ.FX.splash(R.boss.cx(), R.boss.cy(), 1,
-              { n: 16, color: C.cinnabar, speed: 240 });
+            if (R.boss) SJ.FX.splash(R.boss.cx(), R.boss.cy(), -0.6,
+              { n: 16, color: C.cinnabar, speed: 240, groundY: R.boss.y + R.boss.h });
           } else {
             SJ.Audio.sfx('sheathe', { vol: 0.9 });
           }

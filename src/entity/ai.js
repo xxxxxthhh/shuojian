@@ -513,7 +513,9 @@
     e.stunT = 0;
     e.vx = -e.facing * (e.boss ? 90 : 150);
     e.vy = -220;
-    SJ.FX.splash(e.cx(), e.cy(), -e.facing, { n: e.boss ? 14 : 8, color: SJ.C.ink, speed: 280 });
+    // 决议 013：第三参是弧度角，不是 ±1。传 ±1 会让左右两侧的墨点甩向同一边。
+    SJ.FX.splash(e.cx(), e.cy(), -e.facing > 0 ? -0.6 : -(Math.PI - 0.6),
+      { n: e.boss ? 14 : 8, color: SJ.C.ink, speed: 280, groundY: e.y + e.h });
     SJ.Audio.sfx('enemyDeath', { vol: e.boss ? 1 : 0.8 });
     SJ.Game.shake(e.boss ? 10 : 4, 0.3);
     if (e.boss) {

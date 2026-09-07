@@ -131,6 +131,7 @@
 <script src="../src/core/save.js"></script>
 <script src="../src/core/game.js"></script>
 <script src="../src/render/ink.js"></script>
+<script src="../src/render/figure.js" onerror="window.__noFigure=true"></script>
 <script src="../src/audio/audio.js"></script>
 <script src="../src/data/script.js"></script>
 <script src="../src/story/story.js"></script>
@@ -170,7 +171,9 @@
     return i === -1 ? true : !fakeUnusable[i];
   }};
 
-  SJ.Figure = {
+  // F 的 src/render/figure.js 现已交付并在上面 <script> 加载；
+  // 只有加载失败（404/onerror）时才退回这个占位剪影。
+  SJ.Figure = SJ.Figure || {
     pose: function (name, p, t) { return { name: name, p: p, t: t }; },
     blend: function (a, b, k) { return a; },
     tip: function (o) { return { x: o.x, y: o.y }; },
