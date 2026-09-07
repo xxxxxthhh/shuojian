@@ -36,6 +36,8 @@
 })(window.SJ = window.SJ || {});
 </script>
 <script src="../src/render/ink.js"></script>
+<script src="../src/render/figure.js"></script>
+<script src="../src/render/fx.js"></script>
 <script>
 (function(){
   var cv=document.getElementById('cv'), g=cv.getContext('2d');
@@ -43,6 +45,7 @@
   var C=SJ.C, Ink=SJ.Ink, T0=performance.now();
 
   var COLS=4, PAD=8, CW=(1240-PAD*(COLS+1))/COLS, CH=196, cells=[];
+  // CW 在 only=fx 模式下会被改小
   function cell(title,fn,anim){ cells.push({t:title,f:fn,a:!!anim}); }
 
   // ── 笔触 ──
@@ -118,6 +121,46 @@
     g.fillText(c.t,x+7,y+CH-7);
     g.restore();
   }
+  // ── FX：先造粒子，再步进 n 帧，画出中途的那一瞬 ──
+  function fxStep(spawn,frames){
+    SJ.FX.clear(); spawn();
+    for(var i=0;i<frames;i++) SJ.FX.update(1/60);
+  }
+  cell('FX.slash 挥毫弧',function(g,w,h){
+    fxStep(function(){
+      SJ.FX.slash(w*0.5,h*0.62,-Math.PI*0.95,-Math.PI*0.12,62,{w:15});
+    },2);
+    SJ.FX.draw(g);
+  });
+  cell('FX.splash 墨溅 + 落地墨点',function(g,w,h){
+    fxStep(function(){
+      SJ.FX.splash(w*0.40,h*0.34,-0.5,{n:8,speed:150,groundY:h*0.80});
+      SJ.FX.splash(w*0.40,h*0.34,-2.4,{n:6,speed:150,groundY:h*0.80});
+    },20);
+    SJ.FX.draw(g);
+    SJ.Ink.stroke(g,[[14,h*0.78],[w-14,h*0.78]],
+      {w0:2,w1:1.4,color:C.ink,alpha:.22,taper:false,hairs:0,seed:5,core:false});
+  });
+  cell('FX.word 浮字 / ring / dust',function(g,w,h){
+    fxStep(function(){
+      SJ.FX.word(w*0.30,h*0.52,'八',{size:20});
+      SJ.FX.word(w*0.66,h*0.46,'悟',{size:30,color:C.gamboge,life:1.6});
+      SJ.FX.ring(w*0.5,h*0.72,{r1:44});
+      SJ.FX.dust(w*0.22,h*0.84,1);
+    },5);
+    SJ.FX.draw(g);
+  });
+  cell('FX.leaf 竹叶 / 纸屑 / trail 残影',function(g,w,h){
+    fxStep(function(){
+      SJ.FX.leaf(w*0.30,h*0.34,7,'bamboo');
+      SJ.FX.leaf(w*0.66,h*0.30,7,'paper');
+      for(var i=0;i<3;i++)
+        SJ.FX.trail({x:w*0.30+i*26,y:h*0.90,facing:1,scale:1.0,
+          pose:'dashF',p:0,t:0,weapon:'jian'},{alpha:0.30-i*0.07});
+    },7);
+    SJ.FX.draw(g);
+  });
+
   function drawGrid(){
     g.fillStyle='#2a2724'; g.fillRect(0,0,cv.width,cv.height);
     cells.forEach(drawCell);
@@ -142,6 +185,16 @@
     Ink.rain(sg,camX,t,0.7,-0.34);
     Ink.vtext(sg,'竹林听雨',SJ.W-44,38,21,{seed:4,alpha:.86});
     Ink.seal(sg,SJ.W-62,152,32,'说剑');
+  }
+
+  // ?only=fx 只画 FX 单元（放在页首，免得截图要滚动）
+  if (/only=fx/.test(location.search)) {
+    document.getElementById('sc').style.display='none';
+    document.querySelectorAll('.bar')[1].style.display='none';
+    cells = cells.filter(function(c){ return /^FX/.test(c.t); });
+    cv.width = 1040; CW = (1040-PAD*(COLS+1))/COLS;
+    cv.height = PAD*2 + CH;
+    drawGrid(); return;
   }
 
   // ?scene=1 只画构图（放在页首，免得截图要滚动）

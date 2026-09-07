@@ -13,11 +13,14 @@
   var burns = [];     // 点燃 DoT（fenshu / type:'fire'）
   var uid = 1;
 
-  // 命中反馈分级：hitstop 秒 / 震幅 / 墨点数 / 音效
+  // 命中反馈分级：hitstop 秒 / 震幅 / 墨点数 / 音效。
+  // 停顿档位对齐 DESIGN §7：普攻 45ms、招式 90ms、破防 140ms。
+  // 三连的一/二/三段走 light/mid/heavy，靠 45→60→90 拉出「第三下明显更重」，
+  // 而不是把第三下拖到 110ms 以上——那会把连段打断成三次独立的挥砍。
   var WEIGHT = {
     light: { stop: 0.045, shake: 3.0, splash: 3, sfx: 'hit', vol: 0.8 },
-    mid: { stop: 0.070, shake: 5.5, splash: 5, sfx: 'hit', vol: 1.0 },
-    heavy: { stop: 0.110, shake: 9.0, splash: 8, sfx: 'hitHeavy', vol: 1.0 },
+    mid: { stop: 0.060, shake: 5.0, splash: 5, sfx: 'hit', vol: 1.0 },
+    heavy: { stop: 0.090, shake: 8.0, splash: 8, sfx: 'hitHeavy', vol: 1.0 },
     huge: { stop: 0.140, shake: 13.0, splash: 11, sfx: 'hitHeavy', vol: 1.0 }
   };
 
@@ -322,43 +325,54 @@
         w0: 3.4, w1: 1.2, color: col, alpha: 0.55 + 0.2 * p,
         seed: tg.id * 7, wobble: 0.6, hairs: 1
       });
-      // 光珠：走到轨迹尽头 = 这一招落下的时刻
+      // 光珠：走到轨迹尽头 = 这一招落下的时刻。
+      // 这里要的是「一颗准确的珠子」，不是墨团——所以用干净的圆，不用 Ink.blob。
       var bead = along(pts, p);
-      var rr = 4 + 5 * SJ.ease.in(p);
-      g.globalAlpha = 0.9;
-      SJ.Ink.blob(g, bead.x, bead.y, rr, tg.id, { color: col, alpha: 0.9 });
-      g.globalAlpha = 0.30 * (0.4 + 0.6 * p);
-      SJ.Ink.blob(g, bead.x, bead.y, rr * 2.6, tg.id + 3, { color: col, alpha: 0.30 });
+      var rr = 3.2 + 3.4 * SJ.ease.in(p);
+      g.fillStyle = col;
+      g.strokeStyle = col;
+      g.globalAlpha = 0.22 * (0.4 + 0.6 * p);
+      g.beginPath(); g.arc(bead.x, bead.y, rr * 2.5, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 0.95;
+      g.beginPath(); g.arc(bead.x, bead.y, rr, 0, Math.PI * 2); g.fill();
 
       // 落点的收束环：闭合即命中
-      g.globalAlpha = 0.5;
-      g.strokeStyle = col;
-      g.lineWidth = 1.6;
+      g.globalAlpha = 0.42 + 0.34 * p;
+      g.lineWidth = 1.4 + 1.2 * p;
       g.beginPath();
-      g.arc(end[0], end[1], 34 * (1 - p) + 9, 0, Math.PI * 2);
+      g.arc(end[0], end[1], 32 * (1 - p) + 8, 0, Math.PI * 2);
       g.stroke();
       if (tg.danger) {
-        g.globalAlpha = 0.16 + 0.30 * p;
-        SJ.Ink.blob(g, end[0], end[1], 13, tg.id + 11, { color: col, alpha: 0.34 });
+        g.globalAlpha = 0.20 + 0.42 * p;
+        g.beginPath(); g.arc(end[0], end[1], 3.4, 0, Math.PI * 2); g.fill();
       }
     } else {
-      // ── 不观势：断续、模糊，读不出来 ──
+      // ── 不观势：断续、模糊、抖 ──
+      // 必须「看得见但读不懂」：完全看不见就钩不起好奇心，观势永远没人发现。
       var CH = 7, i, a, b, k;
       for (i = 0; i < CH; i++) {
         k = SJ.hash(tg.id * 3.7 + i);
-        if (k < 0.42) continue;                     // 随机缺段
+        if (k < 0.40) continue;                     // 随机缺段
         a = along(pts, i / CH);
         b = along(pts, (i + 0.62) / CH);
-        var jj = (SJ.hash(tg.id + i * 5.1) - 0.5) * 7;
-        SJ.Ink.stroke(g, [[a.x, a.y + jj], [b.x, b.y - jj]], {
-          w0: 2.0, w1: 0.7, color: col, alpha: 0.13 + 0.10 * k,
-          seed: tg.id * 13 + i, wobble: 2.6, hairs: 0
+        var jj = (SJ.hash(tg.id + i * 5.1) - 0.5) * 9;
+        // 每帧换一次抖动种子：线在原地哆嗦，看得见轮廓但描不出轨迹
+        var fz = (SJ.Game.frame >> 2) * 0.37;
+        SJ.Ink.stroke(g, [[a.x + Math.sin(fz + i) * 2.5, a.y + jj],
+                          [b.x - Math.sin(fz + i * 2) * 2.5, b.y - jj]], {
+          w0: 2.8, w1: 0.8, color: col, alpha: 0.30 + 0.16 * k,
+          seed: tg.id * 13 + i, wobble: 2.8, hairs: 0
         });
       }
-      // 只有落点在临出手时透出一点点朱砂：给不观势的玩家一个「有事发生」的钩子
-      if (tg.danger && p > 0.55) {
-        g.globalAlpha = (p - 0.55) / 0.45 * 0.30;
-        SJ.Ink.blob(g, end[0], end[1], 9, tg.id + 11, { color: col, alpha: 0.30 });
+      // 落点在临出手时透出朱砂：给不观势的玩家一个「要挨打了」的钩子，
+      // 但只给「哪里」，不给「什么时候、走哪条线」——那是观势才有的信息。
+      if (tg.danger && p > 0.5) {
+        var q = (p - 0.5) / 0.5;
+        g.fillStyle = col;
+        g.globalAlpha = q * 0.5;
+        g.beginPath(); g.arc(end[0], end[1], 2.6 + q * 2.4, 0, Math.PI * 2); g.fill();
+        g.globalAlpha = q * 0.16;
+        g.beginPath(); g.arc(end[0], end[1], 9 + q * 8, 0, Math.PI * 2); g.fill();
       }
     }
 

@@ -585,6 +585,7 @@
     },
 
     update: function (dt) {
+      if (window.__PAUSE) return;             // 定帧看图用；__DRV.step 会临时解除
       if (dev.slow) SJ.Game.slowmo(0.5, 0.034);
       var p = SJ.player;
       if (dev.ink && p) p.ink = p.maxInk;
@@ -762,8 +763,17 @@
   // MCP 标签页是 document.hidden 的，rAF 不跑。用 A 暴露的 _step/_render
   // 逐帧推进，反而能把「第几帧出判定」这种事量准。
   var film = document.getElementById('film');
+  window.__PAUSE = false;
   window.__DRV = {
-    step: function (n) { for (var i = 0; i < (n || 1); i++) SJ.Game._step(); SJ.Game._render(); },
+    pause: function () { window.__PAUSE = true; return 'paused'; },
+    play: function () { window.__PAUSE = false; return 'playing'; },
+    step: function (n) {
+      var was = window.__PAUSE;
+      window.__PAUSE = false;
+      for (var i = 0; i < (n || 1); i++) SJ.Game._step();
+      window.__PAUSE = was;
+      SJ.Game._render();
+    },
     down: function (c) { window.dispatchEvent(new KeyboardEvent('keydown', { code: c, bubbles: true })); },
     up: function (c) { window.dispatchEvent(new KeyboardEvent('keyup', { code: c, bubbles: true })); },
     tap: function (c, f) { this.down(c); this.step(f || 1); this.up(c); },

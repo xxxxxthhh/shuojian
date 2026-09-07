@@ -84,7 +84,8 @@
       {w0:2.2,w1:1.2,color:C.ink,alpha:.28,taper:false,hairs:0,seed:99,core:false});
   }
 
-  var COLS=6, PAD=6, CW=(1240-PAD*(COLS+1))/COLS, CH=224;
+  var GRIDONLY=/grid/.test(location.search);
+  var COLS=GRIDONLY?10:6, PAD=6, CW=(1240-PAD*(COLS+1))/COLS, CH=GRIDONLY?168:224;
 
   function drawGrid(t){
     g.fillStyle='#2a2724'; g.fillRect(0,0,cv.width,cv.height);
@@ -95,7 +96,7 @@
       g.fillStyle=C.paper; g.fillRect(x,y,CW,CH);
       g.save(); g.beginPath(); g.rect(x,y,CW,CH); g.clip();
       var per=CYCLE[nm]||1.15, p=STATIC?0.55:((t%per)/per);
-      var fy=y+CH-30, fx=x+CW/2;
+      var fy=y+CH-26, fx=x+CW/2;
       ground(g,fx,fy,CW*0.62);
       Fg.draw(g,{x:fx,y:fy,facing:st.facing,scale:st.scale,pose:nm,p:p,t:t,
         weapon:st.weapon,cloth:st.cloth,ribbon:st.ribbon,key:'g'+i,
@@ -164,9 +165,16 @@
     });
   }
 
+  if(GRIDONLY){
+    hero.style.display='none';
+    [].forEach.call(document.querySelectorAll('.bar'),function(b,i){ if(i>=1) b.style.display='none'; });
+    cv.height=PAD+Math.ceil(NAMES.length/COLS)*(CH+PAD);
+    st.scale=1.15;
+  }
   function frame(){
     var t=STATIC?3.0:(performance.now()-T0)/1000;
-    drawHero(t); drawGrid(t);
+    if(!GRIDONLY) drawHero(t);
+    drawGrid(t);
     if(!STATIC) requestAnimationFrame(frame);
   }
   frame();

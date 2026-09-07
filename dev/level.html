@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<title>说剑 · 关卡预览台</title>
+<style>
+  :root{--paper:#efe7d8;--paperDark:#e2d7c1;--ink:#1b1a17;--ink2:#35322c;
+        --inkLight:#6f6a60;--cinnabar:#b03a2b;--stone:#4a6f7c;--gamboge:#c8a55b;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--paper);color:var(--ink);
+            font:13px/1.6 "Songti SC","STSong","Kaiti SC",serif;}
+  #wrap{display:flex;height:100%}
+  #side{width:310px;flex:none;overflow:auto;padding:14px 16px;border-right:1px solid rgba(27,26,23,.18);
+        background:var(--paperDark)}
+  #main{flex:1;display:flex;flex-direction:column;min-width:0}
+  h1{font-size:19px;margin:0 0 2px;letter-spacing:.22em}
+  .sub{color:var(--inkLight);font-size:11px;letter-spacing:.1em;margin-bottom:14px}
+  .tab{display:block;width:100%;text-align:left;padding:7px 10px;margin:0 0 4px;cursor:pointer;
+       background:transparent;border:1px solid rgba(27,26,23,.14);border-radius:2px;
+       font:inherit;color:var(--ink);transition:background .12s}
+  .tab:hover{background:rgba(27,26,23,.06)}
+  .tab.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .tab i{font-style:normal;color:var(--inkLight);float:right;font-size:11px}
+  .tab.on i{color:rgba(239,231,216,.65)}
+  h2{font-size:12px;letter-spacing:.2em;color:var(--inkLight);margin:18px 0 6px;font-weight:normal}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  td{padding:2px 0;vertical-align:top}
+  td.k{color:var(--inkLight);white-space:nowrap;padding-right:8px}
+  td.v{text-align:right;font-variant-numeric:tabular-nums}
+  .note{color:var(--inkLight);font-size:11px;line-height:1.55;margin-top:6px}
+  #bar{padding:9px 16px;border-bottom:1px solid rgba(27,26,23,.18);display:flex;
+       gap:16px;align-items:center;flex-wrap:wrap;font-size:12px}
+  #bar label{cursor:pointer;color:var(--ink2);user-select:none}
+  #bar input{vertical-align:-2px;margin-right:3px}
+  #cv{flex:1;min-height:0;display:block;width:100%}
+  #foot{padding:7px 16px;border-top:1px solid rgba(27,26,23,.18);font-size:11.5px;
+        color:var(--inkLight);display:flex;gap:22px;flex-wrap:wrap}
+  #foot b{color:var(--ink);font-weight:normal}
+  .sw{display:inline-block;width:9px;height:9px;margin-right:4px;vertical-align:-1px;border-radius:1px}
+  .bad{color:var(--cinnabar)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="side">
+    <h1>说剑</h1>
+    <div class="sub">关卡预览台 · G</div>
+    <div id="tabs"></div>
+    <h2>时长预算</h2>
+    <table id="budget"></table>
+    <div class="note" id="bnote"></div>
+    <h2>教学与剧情</h2>
+    <table id="teach"></table>
+  </div>
+  <div id="main">
+    <div id="bar">
+      <label><input type="checkbox" id="tSolid" checked>地形</label>
+      <label><input type="checkbox" id="tHaz" checked>hazard</label>
+      <label><input type="checkbox" id="tPick" checked>回墨/石砚</label>
+      <label><input type="checkbox" id="tSpawn" checked>敌人</label>
+      <label><input type="checkbox" id="tWave" checked>波次 gate</label>
+      <label><input type="checkbox" id="tTrig" checked>trigger</label>
+      <label><input type="checkbox" id="tCp" checked>检查点</label>
+      <label><input type="checkbox" id="tGrid" checked>600px 栅格</label>
+      <span style="flex:1"></span>
+      <span id="hint" style="color:var(--inkLight)"></span>
+    </div>
+    <canvas id="cv"></canvas>
+    <div id="foot"></div>
+  </div>
+</div>
+
+<script src="../src/core/const.js"></script>
+<script src="../src/data/script.js"></script>
+<script src="../src/data/levels.js"></script>
+<script>
+(function () {
+  'use strict';
+  var L = SJ.Levels, S = SJ.Script, cur = 0;
+  var cv = document.getElementById('cv'), g = cv.getContext('2d');
+  var mouse = { x: -1e9, y: -1e9, in: false };
+
+  var C = { paper:'#efe7d8', paperDark:'#e2d7c1', ink:'#1b1a17', ink2:'#35322c',
+            inkLight:'#6f6a60', cinnabar:'#b03a2b', stone:'#4a6f7c', gamboge:'#c8a55b' };
+  var FOE = { daoke:'刀', gongshou:'弓', qiangbing:'枪', lishi:'力',
+              sengren:'僧', cike:'刺', denglong:'灯' };
+
+  // 中性存档下一条剧本链会显示几屏
+  function screens(key) {
+    var save = { mercy:{}, known:[], flags:{} }, n = 0, gd = 0, seen = {}, k = key;
+    while (k && S[k] && !seen[k] && ++gd < 200) {
+      seen[k] = 1;
+      if (!S[k].cond || S[k].cond(save)) n++;
+      k = S[k].next;
+    }
+    return n;
+  }
+  function levelScreens(lv) {
+    var n = screens(lv.intro) + screens(lv.outro);
+    lv.triggers.forEach(function (t) { if (t.event && t.event.play) n += screens(t.event.play); });
+    if (lv.bossScript) ['pre','mid','down','p2','p3'].forEach(function (f) {
+      if (lv.bossScript[f]) n += screens(lv.bossScript[f]);
+    });
+    return n;
+  }
+  function inkGap(lv) {
+    var xs = lv.deco.filter(function (d) { return d.ink; }).map(function (d) { return d.x; })
+                    .sort(function (a, b) { return a - b; });
+    if (!xs.length) return null;
+    var prev = 0, worst = 0;
+    xs.concat([lv.w]).forEach(function (x) { if (x - prev > worst) worst = x - prev; prev = x; });
+    return worst;
+  }
+
+  /* ── 侧栏 ─────────────────────────────────────────────── */
+  var tabs = document.getElementById('tabs');
+  L.forEach(function (lv, i) {
+    var b = document.createElement('button');
+    b.className = 'tab'; b.innerHTML = lv.title + '<i>' + lv.expectedSec + 's</i>';
+    b.onclick = function () { cur = i; sync(); };
+    tabs.appendChild(b);
+  });
+  var tot = L.reduce(function (a, l) { return a + l.expectedSec; }, 0);
+  var all = document.createElement('div');
+  all.className = 'note';
+  all.style.cssText = 'margin-top:10px;border-top:1px solid rgba(27,26,23,.18);padding-top:8px';
+  all.innerHTML = 'Σ expectedSec <b style="color:var(--ink)">' + tot + 's</b>（' +
+    (tot / 60).toFixed(1) + ' 分）　下限 1800 ' +
+    (tot >= 1800 ? '✓' : '<span class="bad">✗</span>');
+  tabs.appendChild(all);
+
+  function sync() {
+    var lv = L[cur];
+    [].forEach.call(tabs.querySelectorAll('.tab'), function (b, i) {
+      b.classList.toggle('on', i === cur);
+    });
+
+    var b = lv.budget || {}, rows = [
+      ['关卡宽 × 高', lv.w + ' × ' + lv.h],
+      ['遭遇', lv.encounters + ' 场（' + lv.waves.length + ' 波' + (lv.boss ? ' + Boss' : '') + '）'],
+      ['—', ''],
+      ['走路', b.walk + 's'],
+      ['遭遇战', b.waves + 's'],
+      ['Boss', b.boss + 's'],
+      ['剧情（' + levelScreens(lv) + ' 屏 × 3.4s）', b.story + 's'],
+      ['其余/取整', b.other + 's'],
+      ['<b>expectedSec</b>', '<b>' + lv.expectedSec + 's</b>']
+    ];
+    document.getElementById('budget').innerHTML = rows.map(function (r) {
+      return r[0] === '—' ? '<tr><td colspan="2" style="border-top:1px solid rgba(27,26,23,.14);height:6px"></td></tr>'
+        : '<tr><td class="k">' + r[0] + '</td><td class="v">' + r[1] + '</td></tr>';
+    }).join('');
+    document.getElementById('bnote').textContent = b.note || '';
+
+    var tr = [];
+    lv.triggers.forEach(function (t) {
+      var k = t.event.play || '', extra = [];
+      if (t.event.gain) extra.push('学 ' + t.event.gain[0]);
+      if (t.event.fireStart) extra.push('起火');
+      if (t.interact) extra.push('互动');
+      if (t.when) extra.push(t.when);
+      tr.push('<tr><td class="k">' + (k || '(无台词)') +
+        (extra.length ? ' <span style="color:var(--cinnabar)">' + extra.join('·') + '</span>' : '') +
+        '</td><td class="v">' + (t.x !== undefined ? 'x' + t.x : '—') +
+        (k ? ' · ' + screens(k) + '屏' : '') + '</td></tr>');
+    });
+    if (lv.boss) tr.push('<tr><td class="k" style="color:var(--cinnabar)">Boss ' + lv.boss +
+      '</td><td class="v">x' + lv.bossArena[0] + '–' + lv.bossArena[1] + '</td></tr>');
+    document.getElementById('teach').innerHTML = tr.join('');
+
+    var gap = inkGap(lv), yan = lv.deco.filter(function (d) { return d.refill; }).length;
+    var need = lv.id === 'c3' || lv.id === 'c5';
+    document.getElementById('foot').innerHTML =
+      '<span><span class="sw" style="background:' + C.ink + '"></span>实心</span>' +
+      '<span><span class="sw" style="background:' + C.inkLight + '"></span>单向</span>' +
+      '<span><span class="sw" style="background:' + C.cinnabar + '"></span>会消失 / trigger</span>' +
+      '<span><span class="sw" style="background:' + C.stone + '"></span>hazard</span>' +
+      '<span><span class="sw" style="background:' + C.gamboge + '"></span>回墨物件</span>' +
+      '<span>回墨最大间距 <b' + (need && gap > 600 ? ' class="bad"' : '') + '>' +
+        (gap === null ? '—' : gap + 'px') + '</b>' + (need ? '（须 ≤600）' : '') + '</span>' +
+      '<span>石砚 <b' + (need && (yan < 2 || yan > 3) ? ' class="bad"' : '') + '>' + yan + '</b>' +
+        (need ? '（须 2–3）' : '') + '</span>' +
+      '<span>music <b>' + lv.music + '</b> · bg <b>' + lv.bg + '</b> · ' + lv.weather + '</span>';
+    draw();
+  }
+
+  /* ── 俯瞰全图 ─────────────────────────────────────────── */
+  function resize() {
+    var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
+    g.setTransform(d, 0, 0, d, 0, 0);
+    draw();
+  }
+  function on(id) { return document.getElementById(id).checked; }
+
+  function draw() {
+    var lv = L[cur], W = cv.width / (window.devicePixelRatio || 1),
+        H = cv.height / (window.devicePixelRatio || 1);
+    g.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    g.fillStyle = C.paper; g.fillRect(0, 0, W, H);
+
+    var padX = 60, padT = 130, padB = 78;
+    var s = Math.min((W - padX * 2) / lv.w, (H - padT - padB) / lv.h);
+    var ox = (W - lv.w * s) / 2, oy = padT + (H - padT - padB - lv.h * s) / 2;
+    function X(x) { return ox + x * s; }
+    function Y(y) { return oy + y * s; }
+
+    // 关卡外框
+    g.strokeStyle = 'rgba(27,26,23,.28)'; g.lineWidth = 1;
+    g.strokeRect(X(0) + .5, Y(0) + .5, lv.w * s, lv.h * s);
+
+    // 600px 栅格（墨保底的尺子）
+    if (on('tGrid')) {
+      g.strokeStyle = 'rgba(27,26,23,.09)'; g.lineWidth = 1;
+      for (var gx = 600; gx < lv.w; gx += 600) {
+        g.beginPath(); g.moveTo(X(gx) + .5, Y(0)); g.lineTo(X(gx) + .5, Y(lv.h)); g.stroke();
+      }
+      g.fillStyle = 'rgba(27,26,23,.30)'; g.font = '9px system-ui';
+      for (gx = 600; gx < lv.w; gx += 1200) g.fillText(gx, X(gx) + 3, Y(lv.h) + 11);
+    }
+
+    // 波次 gate
+    // 每一波占一条横向泳道：gate 是那条泳道上的括号，触发点是泳道上的实心点。
+    // 不再整屏铺色——5 个 gate 叠在一起会把地形糊掉。
+    var LANE = 13, laneTop = Y(0) - 6 - lv.waves.length * LANE;
+    if (on('tWave')) lv.waves.forEach(function (w, i) {
+      var ly = laneTop + i * LANE;
+      g.strokeStyle = 'rgba(176,58,43,.55)'; g.lineWidth = 1;
+      if (w.gate) {
+        g.beginPath();
+        g.moveTo(X(w.gate[0]) + .5, ly - 3); g.lineTo(X(w.gate[0]) + .5, ly + 3);
+        g.moveTo(X(w.gate[0]), ly); g.lineTo(X(w.gate[1]), ly);
+        g.moveTo(X(w.gate[1]) - .5, ly - 3); g.lineTo(X(w.gate[1]) - .5, ly + 3);
+        g.stroke();
+        // gate 边界在地形上的投影（很淡，只为对位）
+        g.strokeStyle = 'rgba(176,58,43,.13)'; g.setLineDash([2, 4]);
+        g.beginPath(); g.moveTo(X(w.gate[0]) + .5, ly); g.lineTo(X(w.gate[0]) + .5, Y(lv.h));
+        g.moveTo(X(w.gate[1]) + .5, ly); g.lineTo(X(w.gate[1]) + .5, Y(lv.h)); g.stroke();
+        g.setLineDash([]);
+      } else {
+        g.strokeStyle = 'rgba(176,58,43,.22)'; g.setLineDash([2, 3]);
+        g.beginPath(); g.moveTo(X(0), ly); g.lineTo(X(lv.w), ly); g.stroke(); g.setLineDash([]);
+      }
+      g.fillStyle = C.cinnabar;
+      g.beginPath(); g.arc(X(w.x), ly, 2.6, 0, 7); g.fill();
+      g.font = '9.5px system-ui';
+      var lbl = 'w' + w.id + ' ' + w.sec + 's · ' +
+                lv.spawns.filter(function (sp) { return sp.wave === w.id; }).length + '敌' +
+                (w.gate ? '' : ' · 不锁');
+      g.fillText(lbl, X(w.gate ? w.gate[1] : lv.w) + 6, ly + 3.5);
+    });
+    if (on('tWave') && lv.spawns.some(function (sp) { return sp.wave === 0; })) {
+      g.fillStyle = 'rgba(27,26,23,.45)'; g.font = '9.5px system-ui';
+      g.fillText('游荡（wave 0）· ' + lv.spawns.filter(function (sp) { return sp.wave === 0; }).length + '敌',
+                 X(0), laneTop - 6);
+    }
+
+    // hazards
+    if (on('tHaz')) lv.hazards.forEach(function (h) {
+      g.fillStyle = h.kind === 'fire' ? 'rgba(176,58,43,.30)'
+                  : h.kind === 'updraft' ? 'rgba(200,165,91,.30)' : 'rgba(74,111,124,.34)';
+      g.fillRect(X(h.x), Y(h.y), h.w * s, h.h * s);
+      g.fillStyle = C.stone; g.font = '9px system-ui';
+      g.fillText(h.kind, X(h.x) + 2, Y(h.y) - 2);
+    });
+
+    // 地形
+    if (on('tSolid')) lv.solids.forEach(function (q) {
+      var f = q[4];
+      if (f === 0) { g.fillStyle = 'rgba(27,26,23,.82)'; g.fillRect(X(q[0]), Y(q[1]), q[2] * s, q[3] * s); }
+      else if (f === 1) {
+        g.strokeStyle = C.inkLight; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(X(q[0]), Y(q[1])); g.lineTo(X(q[0] + q[2]), Y(q[1])); g.stroke();
+      } else {
+        g.strokeStyle = C.cinnabar; g.lineWidth = 2; g.setLineDash([4, 3]);
+        g.beginPath(); g.moveTo(X(q[0]), Y(q[1])); g.lineTo(X(q[0] + q[2]), Y(q[1])); g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = C.cinnabar; g.font = '9px system-ui';
+        g.fillText(q[5] + 's', X(q[0]) + 2, Y(q[1]) - 3);
+      }
+    });
+
+    // 浮筏
+    lv.deco.forEach(function (d) {
+      if (d.kind !== 'raft') return;
+      g.strokeStyle = C.ink2; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(X(d.ax), Y(d.y)); g.lineTo(X(d.ax + d.w), Y(d.y)); g.stroke();
+      g.strokeStyle = 'rgba(27,26,23,.25)'; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(X(d.ax), Y(d.y)); g.lineTo(X(d.bx + d.w), Y(d.y)); g.stroke();
+      g.setLineDash([]);
+    });
+
+    // 回墨物件 / 石砚
+    if (on('tPick')) lv.deco.forEach(function (d) {
+      if (d.ink) {
+        g.fillStyle = C.gamboge;
+        g.beginPath(); g.arc(X(d.x), Y(d.y) - 4, 3.2, 0, 7); g.fill();
+      } else if (d.refill) {
+        g.fillStyle = C.stone; g.fillRect(X(d.x) - 4, Y(d.y) - 9, 8, 8);
+        g.fillStyle = C.stone; g.font = '9px system-ui'; g.fillText('砚', X(d.x) - 4, Y(d.y) - 12);
+      }
+    });
+
+    // 检查点
+    if (on('tCp')) lv.checkpoints.forEach(function (c, i) {
+      g.strokeStyle = C.stone; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(X(c[0]) + .5, Y(c[1])); g.lineTo(X(c[0]) + .5, Y(c[1]) - 18); g.stroke();
+      g.fillStyle = C.stone; g.fillRect(X(c[0]) + 1, Y(c[1]) - 18, 9, 6);
+      g.fillStyle = C.stone; g.font = '9px system-ui'; g.fillText(i + 1, X(c[0]) + 12, Y(c[1]) - 12);
+    });
+
+    // 敌人
+    if (on('tSpawn')) lv.spawns.forEach(function (sp) {
+      g.fillStyle = sp.wave === 0 ? 'rgba(27,26,23,.42)' : C.ink;
+      g.beginPath(); g.arc(X(sp.x), Y(sp.y) - 6, 5, 0, 7); g.fill();
+      g.fillStyle = C.paper; g.font = '8px "Songti SC",serif'; g.textAlign = 'center';
+      g.fillText(FOE[sp.type] || '?', X(sp.x), Y(sp.y) - 3);
+      g.textAlign = 'left';
+    });
+
+    // Boss
+    if (lv.boss) {
+      g.fillStyle = 'rgba(176,58,43,.10)';
+      g.fillRect(X(lv.bossArena[0]), Y(0), (lv.bossArena[1] - lv.bossArena[0]) * s, lv.h * s);
+      g.fillStyle = C.cinnabar; g.font = '11px "Songti SC",serif';
+      g.fillText(lv.boss, X(lv.bossArena[0]) + 5, Y(lv.h) - 6);
+    }
+
+    // trigger（标签交错排布，避免叠字）
+    if (on('tTrig')) {
+      var lane = 0;
+      lv.triggers.slice().sort(function (a, b) { return (a.x || 0) - (b.x || 0); }).forEach(function (t) {
+        if (t.x === undefined) return;
+        g.strokeStyle = t.event.gain ? C.gamboge : C.cinnabar;
+        g.lineWidth = 1; g.setLineDash([2, 2]);
+        g.strokeRect(X(t.x) + .5, Y(t.y) + .5, t.w * s, t.h * s);
+        g.setLineDash([]);
+        var ly = Y(t.y) - 8 - (lane % 4) * 12;
+        g.strokeStyle = 'rgba(27,26,23,.22)';
+        g.beginPath(); g.moveTo(X(t.x) + 1, Y(t.y)); g.lineTo(X(t.x) + 1, ly + 2); g.stroke();
+        g.fillStyle = t.event.gain ? '#8a6f28' : C.ink2;
+        g.font = '9.5px system-ui';
+        g.fillText((t.event.play || '?') + (t.interact ? '⌂' : '') + (t.when ? '@' + t.when : ''),
+                   X(t.x) + 3, ly);
+        lane++;
+      });
+      // 无位置的 trigger（firstInk / firstHurt / burn）
+      var np = lv.triggers.filter(function (t) { return t.x === undefined; });
+      if (np.length) {
+        g.fillStyle = C.inkLight; g.font = '10px system-ui';
+        np.forEach(function (t, i) {
+          g.fillText('◇ ' + t.event.play + ' @' + t.when +
+                     (t.event.gain ? ' → 学 ' + t.event.gain[0] : ''), X(0) + 4, Y(lv.h) + 26 + i * 13);
+        });
+      }
+    }
+
+    // 出口
+    g.strokeStyle = C.ink2; g.setLineDash([5, 4]); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(X(lv.exitX) + .5, Y(0)); g.lineTo(X(lv.exitX) + .5, Y(lv.h)); g.stroke();
+    g.setLineDash([]);
+
+    // 一屏（960×540）的实际大小 —— 跟着鼠标，用来体感「这段有多长」
+    if (mouse.in) {
+      var vw = 960 * s, vh = 540 * s;
+      var vx = Math.min(Math.max(mouse.x - vw / 2, X(0)), X(lv.w) - vw);
+      var vy = Math.min(Math.max(mouse.y - vh / 2, Y(0)), Y(lv.h) - vh);
+      if (lv.h < 540) vy = Y(0) - (540 - lv.h) * s / 2;
+      g.strokeStyle = 'rgba(27,26,23,.55)'; g.lineWidth = 1.5;
+      g.strokeRect(vx + .5, vy + .5, vw, vh);
+      g.fillStyle = 'rgba(27,26,23,.45)'; g.font = '10px system-ui';
+      g.fillText('一屏 960×540', vx + 4, vy - 4);
+      document.getElementById('hint').textContent =
+        'x = ' + Math.round((mouse.x - ox) / s) + '　y = ' + Math.round((mouse.y - oy) / s);
+    }
+
+    // 标题
+    g.fillStyle = 'rgba(27,26,23,.45)'; g.font = '11px "Songti SC",serif';
+    g.fillText(lv.id + ' · ' + lv.title + '　' + lv.w + '×' + lv.h,
+               X(0), laneTop - (lv.spawns.some(function (sp) { return sp.wave === 0; }) ? 22 : 8));
+  }
+
+  cv.addEventListener('mousemove', function (e) {
+    var r = cv.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; mouse.in = true; draw();
+  });
+  cv.addEventListener('mouseleave', function () { mouse.in = false; draw(); });
+  ['tSolid','tHaz','tPick','tSpawn','tWave','tTrig','tCp','tGrid'].forEach(function (id) {
+    document.getElementById(id).onchange = draw;
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ']') { cur = (cur + 1) % L.length; sync(); }
+    if (e.key === 'ArrowLeft' || e.key === '[') { cur = (cur + L.length - 1) % L.length; sync(); }
+  });
+  window.addEventListener('resize', resize);
+  sync(); resize();
+})();
+</script>
+</body>
+</html>

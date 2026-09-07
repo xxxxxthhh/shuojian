@@ -17,11 +17,11 @@
 
   // 普攻三连。第三下明显更重：更长前摇、更长 hitstop、更大震屏、更响。
   var ATK = [
-    { dmg: 8, wind: 0.06, act: 0.08, rec: 0.14, hw: 54, hh: 34, ox: 34, oy: -4,
+    { dmg: 8, wind: 0.06, act: 0.08, rec: 0.14, hw: 62, hh: 36, ox: 37, oy: -4,
       knock: [170, -40], weight: 'light', ink: 6, lunge: 90, sfx: 'swing1', arc: [-1.0, 0.7] },
-    { dmg: 9, wind: 0.06, act: 0.08, rec: 0.14, hw: 58, hh: 38, ox: 36, oy: -2,
+    { dmg: 9, wind: 0.06, act: 0.08, rec: 0.14, hw: 66, hh: 40, ox: 39, oy: -2,
       knock: [190, -70], weight: 'mid', ink: 6, lunge: 110, sfx: 'swing2', arc: [1.0, -0.7] },
-    { dmg: 14, wind: 0.10, act: 0.08, rec: 0.22, hw: 76, hh: 52, ox: 42, oy: -6,
+    { dmg: 14, wind: 0.10, act: 0.08, rec: 0.22, hw: 84, hh: 54, ox: 45, oy: -6,
       knock: [300, -190], weight: 'heavy', ink: 8, lunge: 190, sfx: 'swing3', arc: [-1.5, 1.2] }
   ];
 
@@ -45,6 +45,8 @@
       observing: false, parryWindow: false, obsT: 0, parryGlow: 0,
       castPose: null, cast: null,
       dryAcc: 0, dmgMul: 1,
+      inkDrainMul: 1,              // 决议 009：G 每帧可设，乘在被动墨耗上（雪山）
+      envAx: 0, envAy: 0,          // 决议 009：外部环境加速度，physics 消费后清零
       animT: 0, runPhase: 0, landT: 0,
       dead: false,
       figOpts: null
@@ -81,8 +83,10 @@
       return true;
     };
 
-    // 身法与观势：墨 ≤ 20 时不再扣墨，但依然可用（DESIGN §9.3）
+    // 身法与观势：墨 ≤ 20 时不再扣墨，但依然可用（DESIGN §9.3）。
+    // 被动墨耗乘 inkDrainMul（决议 009，雪山用），地板依然生效。
     p.spendSoft = function (n) {
+      n = n * (this.inkDrainMul || 1);
       if (this.ink > INK_FLOOR) this.ink = Math.max(INK_FLOOR, this.ink - n);
       return true;
     };
@@ -405,11 +409,18 @@
 
   // ── 物理 ───────────────────────────────────────────────────
   function physics(p, dt, gravity) {
+    // 环境力（风、水流…）：无论这一帧走不走时间都要清掉，
+    // 否则 hitstop 期间 G 累加的风会攒起来，解冻那一帧把人吹飞。
+    var eax = p.envAx, eay = p.envAy;
+    p.envAx = 0; p.envAy = 0;
+
     if (dt <= 0) return;
     if (gravity) {
       p.vy += SJ.GRAVITY * dt;
       if (p.vy > SJ.MAXFALL) p.vy = SJ.MAXFALL;
     }
+    if (eax) p.vx += eax * dt;
+    if (eay) p.vy += eay * dt;
     p.wasGround = p.onGround;
     SJ.World.moveX(p, p.vx * dt);
     var fell = p.vy;
@@ -535,6 +546,32 @@
       var p = SJ.player;
       if (!p) return 1;
       return Math.pow(SJ.clamp(p.ink / p.maxInk, 0, 1), 0.7);
+    },
+
+    // 决议 007 §1：招式槽的唯一写入者。H 的换招菜单调这个，不要自己写 Save.data.slots。
+    setSlot: function (i, moveId) {
+      if (i < 0 || i > 3) return false;
+      var p = SJ.player;
+      if (moveId && SJ.Save.data.known.indexOf(moveId) < 0) return false;
+      // 同一招不能占两个槽：先把它从别的槽里摘掉
+      if (moveId) {
+        for (var k = 0; k < 4; k++) {
+          if (k !== i && SJ.Save.data.slots[k] === moveId) SJ.Save.data.slots[k] = null;
+        }
+      }
+      SJ.Save.data.slots[i] = moveId || null;
+      if (p) p.slots[i] = moveId || null;      // p.slots 是取值器，指向同一份，这行是显式冗余
+      SJ.Save.save();
+      return true;
+    },
+
+    // 决议 009 §1：外部环境加速度（第四回的风、第三回的浮筏）。
+    // 每帧累加，physics 消费后清零 —— G 不要直接改 p.vx。
+    envForce: function (ax, ay) {
+      var p = SJ.player;
+      if (!p) return;
+      p.envAx += ax || 0;
+      p.envAy += ay || 0;
     }
   };
 

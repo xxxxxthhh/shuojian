@@ -557,7 +557,8 @@
 
   /* ★★ 书里写着刚刚走过的第四回——而且写错了 ★★ */
   c5_t_page: { speaker:'', mode:'narration', next:'c5_t_page_a', lines:[
-    '翻到第四回。',
+    '最里一层还有一本。',
+    '他翻到第四回。',
     '上面写着雪，写着白衣。'
   ]},
   c5_t_page_a: { speaker:'', mode:'narration', cond:Sp4, next:'c5_t_page_b', lines:[
@@ -575,7 +576,8 @@
 
   /* ★★ 题眼 ★★ */
   c5_book: { speaker:'', mode:'narration', next:'c5_book_b', lines:[
-    '最里一层，架上只剩一本。',
+    '再往里，有一架是空的。',
+    '只最下层剩了一本。',
     '封皮上两个字：',
     '说剑。'
   ]},

@@ -192,7 +192,7 @@
             st.ph = 2; st.t = 0;
             p.vy = -300;
             box(p, {
-              w: 62, h: 84, ox: 30, oy: -26, dmg: 12, ttl: 0.14,
+              w: 74, h: 88, ox: 38, oy: -26, dmg: 12, ttl: 0.14,
               knock: [110, -640], stun: 0.55, weight: 'mid', ink: 6,
               launch: true, pierce: true, moveId: 'chengtian'
             });
@@ -295,7 +295,7 @@
         if (st.n < 3 && st.t >= st.next) {
           var last = st.n === 2;
           box(p, {
-            w: 52, h: 34, ox: 34, oy: last ? -16 : (st.n === 0 ? 6 : -4),
+            w: 60, h: 36, ox: 38, oy: last ? -16 : (st.n === 0 ? 6 : -4),
             dmg: last ? 8 : 5, ttl: 0.09,
             knock: last ? [180, -520] : [140, -40], stun: 0.24,
             type: 'blunt', weight: last ? 'mid' : 'light', ink: 4,
@@ -571,55 +571,69 @@
         var din = SJ.clamp(t / 0.16, 0, 1);
         var dout = SJ.clamp((DUR - t) / 0.3, 0, 1);
         var a = din * dout;
+        var cx = W * 0.54, top = 128, size = 76;
 
-        // 定格画面上罩一层纸，把战斗压下去
+        // 定格画面上罩一层纸，把战斗压到背景里
         g.save();
-        g.globalAlpha = 0.80 * a;
+        g.globalAlpha = 0.86 * a;
         g.fillStyle = SJ.C.paper;
         g.fillRect(0, 0, W, H);
-        // 藤黄：领悟的颜色
-        g.globalAlpha = 0.16 * a * (1 - SJ.clamp((t - 0.1) / 0.9, 0, 1));
-        g.fillStyle = SJ.C.gamboge;
+        g.restore();
+
+        // 藤黄的一闪：只在最初半秒，之后退干净，别把整屏染黄
+        var flash = 1 - SJ.clamp(t / 0.5, 0, 1);
+        if (flash > 0) {
+          g.save();
+          g.globalAlpha = a * flash * 0.22;
+          g.fillStyle = SJ.C.gamboge;
+          g.fillRect(0, 0, W, H);
+          g.restore();
+        }
+
+        // 领悟的晕轮：干净的径向渐变，不用墨团
+        g.save();
+        var gr = 90 + SJ.ease.out(SJ.clamp(t / 0.9, 0, 1)) * 210;
+        var rad = g.createRadialGradient(cx, top + 130, 0, cx, top + 130, gr);
+        rad.addColorStop(0, 'rgba(200,165,91,' + (a * (0.30 + flash * 0.28)).toFixed(3) + ')');
+        rad.addColorStop(0.55, 'rgba(200,165,91,' + (a * 0.10).toFixed(3) + ')');
+        rad.addColorStop(1, 'rgba(200,165,91,0)');
+        g.fillStyle = rad;
         g.fillRect(0, 0, W, H);
         g.restore();
 
-        var cx = W * 0.62, cy = H * 0.16;
-
-        // 藤黄晕轮
-        g.save();
-        g.globalAlpha = a * 0.30 * (1 - SJ.clamp(t / 1.1, 0, 1));
-        SJ.Ink.blob(g, cx, H * 0.44, 150 + t * 60, 21, { color: SJ.C.gamboge, alpha: 0.3 });
-        g.restore();
-
-        // 招名：竖排毛笔字，逐笔写出
-        var wp = SJ.clamp((t - 0.12) / 0.52, 0, 1);
-        SJ.Ink.brushReveal(g, def.name, cx, cy + 46, 62, wp,
+        // 招名：竖排毛笔字，逐笔写出。这是整屏的主角。
+        var wp = SJ.clamp((t - 0.12) / 0.55, 0, 1);
+        SJ.Ink.brushReveal(g, def.name, cx, top, size, wp,
           { color: SJ.C.ink, alpha: a, seed: 5, vertical: true });
 
-        // 「悟」——比招名小，在右上角，藤黄
+        // 「悟」——小字，缀在招名右上
         if (t > 0.06) {
           g.save();
-          g.globalAlpha = a * SJ.clamp((t - 0.06) / 0.3, 0, 1) * 0.9;
-          SJ.Ink.vtext(g, '悟', cx + 74, cy + 4, 30,
+          g.globalAlpha = a * SJ.clamp((t - 0.06) / 0.3, 0, 1) * 0.92;
+          SJ.Ink.vtext(g, '悟', cx + size * 0.86, top - size * 0.52, 30,
             { color: SJ.C.gamboge, alpha: g.globalAlpha, seed: 9 });
           g.restore();
         }
 
-        // 来处：招式来自具体的人
+        // 来处：每一招都来自一个具体的人
         if (t > 0.62) {
-          var sp = SJ.clamp((t - 0.62) / 0.3, 0, 1);
-          SJ.Ink.vtext(g, def.from, cx - 96, cy + 74, 21,
-            { color: SJ.C.inkLight, alpha: a * sp * 0.85, seed: 17 });
-          SJ.Ink.line(g, cx - 52, cy + 30, cx - 52, cy + 30 + 150 * SJ.ease.out(sp), 1.6,
-            { color: SJ.C.inkLight, alpha: a * sp * 0.4 });
+          var sp = SJ.ease.out(SJ.clamp((t - 0.62) / 0.34, 0, 1));
+          var colH = def.name.length * size * 1.14;
+          SJ.Ink.line(g, cx - size * 0.80, top - size * 0.4,
+            cx - size * 0.80, top - size * 0.4 + colH * sp, 1.8,
+            { color: SJ.C.inkLight, alpha: a * sp * 0.42 });
+          SJ.Ink.vtext(g, def.from, cx - size * 1.12, top + size * 0.1, 22,
+            { color: SJ.C.inkLight, alpha: a * sp * 0.88, seed: 17 });
         }
 
-        // 朱砂印
-        if (t > 0.95) {
-          var kp = SJ.clamp((t - 0.95) / 0.22, 0, 1);
+        // 朱砂印：落在招名末尾
+        if (t > 0.98) {
+          var kp = SJ.clamp((t - 0.98) / 0.24, 0, 1);
           g.save();
           g.globalAlpha = a * kp;
-          SJ.Ink.seal(g, W * 0.5 + 130, H * 0.72, 34 * (0.7 + 0.3 * SJ.ease.back(kp)), def.name);
+          SJ.Ink.seal(g, cx + size * 0.30,
+            top + def.name.length * size * 1.14 - size * 0.2,
+            46 * (0.72 + 0.28 * SJ.ease.back(kp)), def.name);
           g.restore();
         }
         g.globalAlpha = 1;

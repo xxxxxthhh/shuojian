@@ -123,9 +123,10 @@
     },
 
     rise: function (p, t) {
+      // 两条腿要错开，否则挤成一团黑
       return P({
         hipY: 33, lean: -0.06, spine: -0.03, neck: 0.04, headAng: 0.03,
-        legF: [-0.30, -0.62], legB: [-0.05, -0.95],
+        legF: [0.42, -0.52], legB: [-0.46, -1.15],
         armF: [-0.16, 0.42], wristF: -0.10,
         armB: [-0.75, 0.50]
       });
@@ -153,9 +154,10 @@
     },
 
     crouch: function (p) {
+      // 角度是解出来的：前脚落在 y≈0，后脚踮起略高
       return P({
         hipY: 21.5, lean: 0.26, spine: 0.10, neck: -0.12, headAng: -0.05,
-        legF: [0.62, -1.30], legB: [-0.34, -1.42],
+        legF: [1.05, -1.70], legB: [-0.20, -1.25],
         armF: [0.48, 0.42], wristF: -0.34,
         armB: [-0.10, 0.60]
       });
@@ -183,40 +185,44 @@
     observe: function (p, t) {
       var fl = Math.sin(t * 1.6) * 0.35;
       return P({
-        hipY: 30.8 + fl, lean: 0.02, spine: -0.02, neck: 0.02,
+        hipY: 29.8 + fl, lean: 0.03, spine: -0.04, neck: 0.03,
         headAng: 0.03 + Math.sin(t * 1.15) * 0.02,
-        legF: [0.30, -0.16], legB: [-0.32, -0.20],
-        armF: [-0.44, 0.28], wristF: -0.16,
-        armB: [1.95, -0.62]
+        legF: [0.46, -0.30], legB: [-0.48, -0.34],
+        armF: [-0.62, 0.34], wristF: -0.10,
+        armB: [2.28, -0.85]
       });
     },
 
     hurt: function (p) {
       var k = ease(p);
       return P({
-        hipY: lerp(30.0, 31.6, k), lean: lerp(-0.42, -0.14, k),
-        spine: -0.14, neck: 0.16, headAng: 0.14,
-        legF: [lerp(-0.30, 0.06, k), -0.24], legB: [lerp(0.34, -0.16, k), -0.34],
-        armF: [lerp(-0.70, 0.10, k), 0.30], wristF: -0.50,
-        armB: [lerp(-1.05, -0.40, k), 0.55]
+        hipY: lerp(29.4, 31.6, k), lean: lerp(-0.62, -0.14, k),
+        spine: lerp(-0.26, -0.04, k), neck: lerp(0.34, 0.06, k),
+        headAng: lerp(0.30, 0.04, k),
+        legF: [lerp(-0.52, 0.06, k), lerp(-0.42, -0.20, k)],
+        legB: [lerp(0.55, -0.16, k), lerp(-0.50, -0.30, k)],
+        armF: [lerp(-1.05, 0.10, k), lerp(0.55, 0.30, k)], wristF: -0.50,
+        armB: [lerp(-1.45, -0.40, k), lerp(0.80, 0.55, k)]
       });
     },
 
-    down: function (p) {
+    // 倒地未死：撑在一只手上，头还抬着 —— 生杀抉择就看这一下
+    down: function (p, t) {
       return P({
-        hipY: 8.5, lean: 1.16, spine: 0.16, neck: -0.44, headAng: -0.20,
-        legF: [1.28, -0.34], legB: [1.05, -0.62],
-        armF: [1.42, 0.22], wristF: -0.10,
-        armB: [1.05, 0.42]
+        hipY: 7, lean: 1.25, spine: 0.10, neck: -0.45,
+        headAng: -0.12 + Math.sin(t * 2.2) * 0.03,
+        legF: [-1.32, -0.10], legB: [-1.10, -0.25],
+        armF: [0.15, 1.50], wristF: -0.55,
+        armB: [-0.20, 1.90]
       });
     },
 
     dead: function (p) {
       return P({
-        hipY: 5.2, lean: 1.46, spine: 0.06, neck: -0.16, headAng: -0.06,
-        legF: [1.45, -0.14], legB: [1.32, -0.30],
-        armF: [1.60, 0.10], wristF: 0.05,
-        armB: [1.28, 0.20]
+        hipY: 4.5, lean: 1.50, spine: 0.05, neck: 0.0, headAng: 0.10,
+        legF: [-1.50, 0.0], legB: [-1.38, -0.14],
+        armF: [1.35, 0.15], wristF: -0.25,
+        armB: [1.15, 0.45]
       });
     },
 
@@ -403,7 +409,7 @@
       sh = [lerp(mid[0], neckP[0], 0.80), lerp(mid[1], neckP[1], 0.80)],
       headA = pose.lean + pose.spine + pose.neck,
       headBase = add(neckP, uv(headA), NECK),
-      headTop = add(headBase, uv(headA + pose.headAng), HEADR * 1.05),
+      headTop = add(headBase, uv(headA + pose.headAng), HEADR * 0.82),
       elF = add(sh, dv(pose.armF[0]), UARM),
       haF = add(elF, dv(pose.armF[0] + pose.armF[1]), FARM),
       elB = add(sh, dv(pose.armB[0]), UARM),
@@ -608,7 +614,7 @@
           p1,
           [p1[0] - (7.0 - lg[0] * 1.1) * rl, p1[1] + (4.0 + rs * 0.30 + lg[1] * 0.5 + rp) * rl],
           [p1[0] - (13.0 - lg[0] * 2.0) * rl, p1[1] + (11.0 + rs * 0.9 + lg[1] * 1.0 + rp) * rl],
-          [p1[0] - (17.5 - lg[0] * 2.8) * rl, p1[1] + (20.0 + rs * 1.6 + lg[1] * 1.4 + rp) * rl]
+          [p1[0] - (15.0 - lg[0] * 2.6) * rl, p1[1] + (16.5 + rs * 1.4 + lg[1] * 1.3 + rp) * rl]
         ], {
           w0: (rj === 0 ? 1.7 : 1.2) * ls, w1: 0.22, color: SJ.C.cinnabar,
           alpha: al * (rj === 0 ? 0.9 : 0.6), seed: 21 + rj, hairs: 2, core: false, wobble: 0.4

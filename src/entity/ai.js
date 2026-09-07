@@ -11,6 +11,7 @@
   'use strict';
 
   var AI = {};
+  var uid = 1;
 
   // 起手式下限（DESIGN §3.2）。低于它玩家来不及反应，一律夹上去并告警。
   var MIN_WIND = 0.35;
@@ -101,11 +102,14 @@
     return true;
   };
 
-  // 前方有没有地可站（防止走下悬崖）
+  // 前方有没有地可站（防止走下悬崖）。
+  // groundAt 要求 s.y >= yFrom，脚正好踩在地面上时必须从脚底稍上方问，
+  // 否则脚下那块地会被判成「在身后」，敌人会原地不动。
   AI.ledge = function (e, dir) {
     var x = e.cx() + dir * (e.w * 0.6 + 6);
-    var g = SJ.World.groundAt(x, e.y + e.h + 2);
-    return g !== null && g - (e.y + e.h) < 90;
+    var foot = e.y + e.h;
+    var g = SJ.World.groundAt(x, foot - 4);
+    return g !== null && g - foot < 96;
   };
 
   // ── 招式跑动器 ───────────────────────────────────────────────
@@ -296,6 +300,9 @@
     o.alpha = e.alpha;
     o.lineScale = e.lineScale;
     o.cloth = SJ.clamp(0.2 + Math.abs(e.vx) / 240 * 0.6 + (e.onGround ? 0 : 0.3), 0, 1.3);
+    // figure.js 的次级运动（衣摆/发带）读 vx/vy，key 用来做每个实体独立的延迟弹簧
+    o.vx = e.vx; o.vy = e.vy;
+    o.key = e.figKey;
     o.t = e.anim + e.seed;
     return o;
   }
@@ -325,6 +332,7 @@
       onGround: false, invuln: 0, stunT: 0, flash: 0,
       act: 'idle', at: 0, anim: 0, runPhase: 0,
       seed: SJ.rand(0, 10),
+      figKey: 'f' + (uid++),
       mv: null, cds: {}, mem: {},
       think: 0,
 
@@ -397,8 +405,10 @@
     // 玩家用过的招 —— 师兄 P3 要现学（combat 的 lastFoeMove 是反方向的）
     if (src === SJ.player && opt.moveId) AI.lastPlayerMove = opt.moveId;
 
-    // ② 格挡型敌人（僧人 / 守阁人）
-    if (e.def.block && dmg > 0) {
+    // ② 格挡型敌人（僧人 / 守阁人）。
+    //    不能用 dmg>0 当门槛 —— 「无锋」本身就是 0 伤害，
+    //    正是它要来撬这道门的（tech.js 里 wufeng 的 hitbox dmg=0）。
+    if (e.def.block) {
       var r = e.def.block(e, dmg, src, opt);
       if (r === true) return;          // 完全挡掉
       if (typeof r === 'number') dmg = r;

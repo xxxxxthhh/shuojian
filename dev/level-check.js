@@ -1,0 +1,564 @@
+#!/usr/bin/env node
+/* dev/level-check.js  【G · 关卡自检】
+ *   node dev/level-check.js      退出码 0 = 全过；非 0 = 有硬错误
+ *
+ * 校验（依 _spec/DESIGN.md §9.3/§9.6、_spec/CONTRACTS.md 决议 004、_spec/STORY.md §4.1/§4.2）：
+ *   1  schema：字段齐全、枚举合法、宽度 3500–6000、检查点 2–4
+ *   2  所有 trigger/bossScript/intro/outro 引用的 script key 都存在，且是**入口**（无 cond）
+ *   3  Σ expectedSec ≥ 1800；budget 各项之和与 expectedSec 自洽；encounters 与波次/Boss 自洽
+ *   4  第三回 / 第五回：可击碎回墨物件沿 x 最大间距 ≤600；石砚 2–3 个（DESIGN §9.3）
+ *   5  决议 004 §2：c5_t_page 与 c5_book 之间必须隔着实际走动 + 至少一场战斗
+ *   6  决议 004 §1：第六回 11 拍齐全、x 单调、教学拍紧贴对应波、
+ *                   c6_t_wave2 必须挂在刷怪数最高的那一波进行中
+ *   7  没有洞：每一列 x 下方必须有不会消失的 solid 或 hazard 兜底，玩家永不掉出地图
+ *   8  spawn / checkpoint / pickup 脚下必须真的有站得住的地面，且不埋在实心块里
+ *   9  positional trigger 必须与某块站得住的地面的「玩家站立盒」相交（否则永远触发不了）
+ *  10  波次自洽：gate 包含触发点与全部 spawn；spawn 引用的 wave 号存在
+ *  11  flag=2（会消失）的平台下方必须还有一层不会消失的地面
+ *  15  STORY §4.2.1 指名断言：c5_book / c5_t_page 不得可错过（割点 + 同层拦路）
+ *  13  blocker 的 flag 必须由位于它之前的 trigger 设上（否则死锁）
+ *  14  全关通路可达性：起点走得到每个检查点 / 波次 / trigger / Boss 场地 / exitX
+ *  12  gate 软锁守卫：被锁住的战场，玩家从最低层必须爬得回战斗层（单向平台 + gate 的经典陷阱）
+ */
+'use strict';
+var fs = require('fs'), path = require('path');
+var ROOT = path.resolve(__dirname, '..');
+
+global.window = {};
+require(path.join(ROOT, 'src/data/script.js'));
+require(path.join(ROOT, 'src/data/levels.js'));
+var S = window.SJ.Script, L = window.SJ.Levels;
+
+var errs = [], warns = [];
+function E(m) { errs.push(m); }
+function W(m) { warns.push(m); }
+
+var PLAYER_H = 54;                       // 玩家站立盒高度（DESIGN §7 身高 ~64px 的躯干部分，保守取 54）
+var MUSIC = ['tea','bamboo','inn','river','snow','library','wall','boss','final','ending','silence'];
+var WEATHER = ['rain','snow','none','wind'];
+var BG = ['bamboo','inn','river','snow','library','wall','tea'];
+var FOES = ['daoke','gongshou','qiangbing','lishi','sengren','cike','denglong'];
+var BOSSES = ['yuzhongdao','dizi','laoweng','baiyi','shouge','shixiong'];
+var MOVES = ['hengyun','liebo','chengtian','guying','wufeng','lianhuan','poyu',
+             'chuanyang','zhenshan','tiyun','fenshu','shuojian'];
+var WHEN = /^(wave:\d+|afterWave:\d+|firstInk|firstHurt|burn)$/;
+var AIRBORNE = { buoy: 1, raft: 1 };      // 故意悬空的物件，不查脚下地面
+
+/* ── 小工具 ─────────────────────────────────────────────────────── */
+function solidsAt(lv, x, includeVanishing) {
+  return lv.solids.filter(function (s) {
+    if (!includeVanishing && s[4] === 2) return false;
+    return x >= s[0] && x <= s[0] + s[2];
+  });
+}
+// 某个 (x, y) 是不是「站得住的地面顶面」
+function standsOn(lv, x, y, tol, allowVanishing) {
+  tol = tol === undefined ? 3 : tol;
+  return lv.solids.some(function (s) {
+    return (allowVanishing || s[4] !== 2) && x >= s[0] && x <= s[0] + s[2] && Math.abs(s[1] - y) <= tol;
+  }) || lv.deco.some(function (d) {          // 浮筏也算站得住
+    return d.kind === 'raft' && x >= d.ax - 20 && x <= d.bx + d.w + 20 && Math.abs(d.y - y) <= 40;
+  });
+}
+function insideSolid(lv, x, y) {             // 点被埋在实心块内部（脚底上方 4px 处取样）
+  return lv.solids.some(function (s) {
+    return s[4] === 0 && x > s[0] + 1 && x < s[0] + s[2] - 1 && y > s[1] + 1 && y < s[1] + s[3] - 1;
+  });
+}
+function entryOk(key, where) {
+  if (!S[key]) { E(where + ': script key 不存在 -> ' + key); return false; }
+  if ('cond' in S[key]) { E(where + ': ' + key + ' 带 cond，不是入口 key（决议 002 §1）'); return false; }
+  return true;
+}
+function screens(key) {                      // 中性存档下这条链会显示几屏
+  var save = { mercy: {}, known: [], flags: {} }, n = 0, g = 0, seen = {}, k = key;
+  while (k && S[k] && !seen[k] && ++g < 200) {
+    seen[k] = 1;
+    if (!S[k].cond || S[k].cond(save)) n++;
+    k = S[k].next;
+  }
+  return n;
+}
+
+/* ══ 1. schema ═════════════════════════════════════════════════════ */
+if (!Array.isArray(L) || L.length !== 8) E('SJ.Levels 必须是 8 关的数组，实得 ' + (L && L.length));
+
+var usedKeys = {};
+var totalSec = 0, totalScreens = 0;
+
+L.forEach(function (lv, i) {
+  var P = '[' + i + ' ' + lv.id + ']';
+
+  ['id','title','chapter','music','weather','bg','w','h','solids','hazards','deco',
+   'spawns','waves','checkpoints','triggers','intro','outro','exitX',
+   'expectedSec','encounters'].forEach(function (f) {
+    if (lv[f] === undefined) E(P + ' 缺字段 ' + f);
+  });
+  if (MUSIC.indexOf(lv.music) < 0) E(P + ' music 非法: ' + lv.music);
+  if (WEATHER.indexOf(lv.weather) < 0) E(P + ' weather 非法: ' + lv.weather);
+  if (BG.indexOf(lv.bg) < 0) E(P + ' bg 非法: ' + lv.bg);
+  if (lv.w < 3500 || lv.w > 6000) E(P + ' 关卡宽度 ' + lv.w + ' 不在 3500–6000（契约）');
+  if (lv.chapter !== i) E(P + ' chapter 应等于索引 ' + i + '，实得 ' + lv.chapter);
+  if (lv.checkpoints.length < 2 || lv.checkpoints.length > 4)
+    E(P + ' 检查点 ' + lv.checkpoints.length + ' 个，契约要求 2–4');
+  if (lv.exitX < 0 || lv.exitX > lv.w) E(P + ' exitX 越界');
+
+  /* ══ 2. script key ═══════════════════════════════════════════════ */
+  function use(k, where) { if (entryOk(k, P + ' ' + where)) usedKeys[k] = 1; }
+  use(lv.intro, 'intro'); use(lv.outro, 'outro');
+  if (lv.boss) {
+    if (BOSSES.indexOf(lv.boss) < 0) E(P + ' boss id 非法: ' + lv.boss);
+    if (!lv.bossScript) E(P + ' 有 boss 却没有 bossScript');
+    else ['pre','mid','down','p2','p3'].forEach(function (f) {
+      if (lv.bossScript[f]) use(lv.bossScript[f], 'bossScript.' + f);
+    });
+    if (!lv.bossScript || !lv.bossScript.down) E(P + ' bossScript.down 必填（倒地未死那一屏）');
+    if (!lv.bossArena) E(P + ' 有 boss 却没有 bossArena');
+    else if (lv.bossArena[0] < 0 || lv.bossArena[1] > lv.w || lv.bossArena[0] >= lv.bossArena[1])
+      E(P + ' bossArena 非法');
+    if (['boss','final'].indexOf(lv.bossMusic) < 0) E(P + ' bossMusic 应为 boss|final');
+  }
+
+  lv.triggers.forEach(function (t, ti) {
+    var T = P + ' trigger#' + ti;
+    if (!t.event) { E(T + ' 缺 event'); return; }
+    if (t.event.play) use(t.event.play, 'trigger#' + ti);
+    if (t.event.gain) {
+      if (MOVES.indexOf(t.event.gain[0]) < 0) E(T + ' gain 的招式 id 非法: ' + t.event.gain[0]);
+    }
+    if (t.event.music && MUSIC.indexOf(t.event.music) < 0) E(T + ' music 非法');
+    if (t.when !== undefined && !WHEN.test(t.when)) E(T + ' when 非法: ' + t.when);
+    var positional = t.x !== undefined;
+    if (!positional && !t.when) E(T + ' 既没有位置也没有 when，永远不会触发');
+    if (positional) {
+      if (t.x < 0 || t.x + t.w > lv.w) E(T + ' 越出关卡宽度');
+      /* ══ 9. positional trigger 必须够得着 ══ */
+      var reachable = lv.solids.some(function (s) {
+        if (s[4] === 2) return false;
+        if (t.x + t.w < s[0] || t.x > s[0] + s[2]) return false;
+        return t.y < s[1] && t.y + t.h > s[1] - PLAYER_H;
+      }) || lv.hazards.some(function (hz) {   // 风口这类会把玩家送进区域的 hazard
+        return hz.kind === 'updraft' && t.x < hz.x + hz.w && t.x + t.w > hz.x;
+      });
+      if (!reachable) E(T + ' (' + (t.event.play || '?') + ') 与任何站得住的地面都不相交，玩家触发不到');
+    }
+    var m = /^(wave|afterWave):(\d+)$/.exec(t.when || '');
+    if (m && !lv.waves.some(function (w) { return w.id === +m[2]; }))
+      E(T + ' when 引用了不存在的波次 ' + m[2]);
+  });
+
+  /* ══ 3. 时长预算 ════════════════════════════════════════════════ */
+  totalSec += lv.expectedSec;
+  if (!(lv.expectedSec > 0)) E(P + ' expectedSec 必填且 >0');
+  if (lv.encounters === undefined) E(P + ' encounters 必填');
+  var ambient = lv.spawns.some(function (s) { return s.wave === 0; }) ? 1 : 0;
+  var wantEnc = lv.waves.length + (lv.boss ? 1 : 0) + ambient;
+  if (lv.encounters !== wantEnc)
+    E(P + ' encounters=' + lv.encounters + ' 与实际（' + lv.waves.length + ' 波 + ' +
+      (lv.boss ? 'Boss' : '无 Boss') + (ambient ? ' + 游荡' : '') + ' = ' + wantEnc + '）不符');
+  if (lv.budget) {
+    var b = lv.budget, sum = b.walk + b.waves + b.boss + b.story + b.other;
+    if (Math.abs(sum - lv.expectedSec) > 1)
+      E(P + ' budget 各项之和 ' + sum + ' ≠ expectedSec ' + lv.expectedSec);
+    var waveSum = lv.waves.reduce(function (a, w) { return a + w.sec; }, 0);
+    if (b.waves < waveSum) E(P + ' budget.waves ' + b.waves + ' < 各波 sec 之和 ' + waveSum);
+    if (lv.boss && b.boss <= 0) E(P + ' 有 Boss 但 budget.boss = 0');
+  } else W(P + ' 没有 budget 明细');
+
+  /* ══ 7. 没有洞 ══════════════════════════════════════════════════ */
+  var holes = [];
+  for (var x = 0; x <= lv.w; x += 20) {
+    var covered = solidsAt(lv, x, false).length > 0 ||
+      lv.hazards.some(function (hz) { return x >= hz.x && x <= hz.x + hz.w; });
+    if (!covered) holes.push(x);
+  }
+  if (holes.length) E(P + ' 地图有洞，玩家会掉出去，x = ' + holes.slice(0, 8).join(',') +
+                      (holes.length > 8 ? ' …共 ' + holes.length + ' 列' : ''));
+
+  /* ══ 11. flag=2 下面必须有兜底 ══════════════════════════════════ */
+  lv.solids.forEach(function (s) {
+    if (s[4] !== 2) return;
+    if (s.length < 6 || typeof s[5] !== 'number') E(P + ' flag=2 的 solid 缺 burnAt: ' + JSON.stringify(s));
+    var mid = s[0] + s[2] / 2;
+    var below = lv.solids.some(function (o) {
+      return o[4] !== 2 && mid >= o[0] && mid <= o[0] + o[2] && o[1] > s[1];
+    });
+    if (!below) E(P + ' 会消失的平台 ' + JSON.stringify(s) + ' 下方没有兜底地面，烧掉会摔出图');
+  });
+
+  /* ══ 8. spawn / checkpoint / pickup 站得住 ══════════════════════ */
+  lv.spawns.forEach(function (sp, si) {
+    var T = P + ' spawn#' + si + '(' + sp.type + ')';
+    if (FOES.indexOf(sp.type) < 0) E(T + ' 敌人 id 非法');
+    if (!standsOn(lv, sp.x, sp.y)) E(T + ' @' + sp.x + ',' + sp.y + ' 脚下没有地面');
+    if (insideSolid(lv, sp.x, sp.y - 4)) E(T + ' 埋在实心块里');
+    if (sp.wave !== 0 && !lv.waves.some(function (w) { return w.id === sp.wave; }))
+      E(T + ' 引用了不存在的波次 ' + sp.wave);
+  });
+  lv.checkpoints.forEach(function (cp, ci) {
+    var T = P + ' checkpoint#' + ci;
+    if (!standsOn(lv, cp[0], cp[1])) E(T + ' @' + cp + ' 脚下没有地面');
+    if (insideSolid(lv, cp[0], cp[1] - 4)) E(T + ' 埋在实心块里');
+    lv.hazards.forEach(function (hz) {
+      if (cp[0] > hz.x && cp[0] < hz.x + hz.w && cp[1] > hz.y && cp[1] - PLAYER_H < hz.y + hz.h)
+        E(T + ' 落在 ' + hz.kind + ' hazard 里，重生即死');
+    });
+  });
+  lv.deco.forEach(function (d, di) {
+    if (AIRBORNE[d.kind]) return;
+    if (!standsOn(lv, d.x, d.y, 3, true)) E(P + ' deco#' + di + '(' + d.kind + ') @' + d.x + ',' + d.y + ' 脚下没有地面');
+  });
+
+  /* ══ 10. 波次自洽 ══════════════════════════════════════════════ */
+  lv.waves.forEach(function (w) {
+    var T = P + ' wave' + w.id;
+    if (!(w.sec > 0)) E(T + ' 缺 sec');
+    if (w.gate) {
+      if (w.x < w.gate[0] || w.x > w.gate[1]) E(T + ' 触发点不在 gate 内');
+      lv.spawns.filter(function (s) { return s.wave === w.id; }).forEach(function (s) {
+        if (s.x < w.gate[0] - 40 || s.x > w.gate[1] + 40) E(T + ' spawn @' + s.x + ' 在 gate 之外，玩家打不到');
+      });
+    }
+    if (!lv.spawns.some(function (s) { return s.wave === w.id; })) E(T + ' 没有任何 spawn');
+
+    /* ══ 12. gate 软锁守卫 ══
+     * 「把玩家锁在 [g0,g1] 里」+「战场是单向平台」= 玩家掉到下面那层就永远上不去了。
+     * 判定：该波每一个 spawn 所在的地面高度，要么被一块横跨整个 gate 的实心地面托住
+     *      （根本掉不下去），要么必须能从 gate 内**最低**的那层一路爬回去。
+     * 爬得上去 = 高差 ≤190（满跳 114 + 二段跳 ≈85）且水平间距 ≤150（满跳滞空 144）。 */
+    if (w.gate) {
+      var g0 = w.gate[0], g1 = w.gate[1];
+      var surf = lv.solids.filter(function (s) {
+        return s[4] !== 2 && s[0] < g1 && s[0] + s[2] > g0;
+      }).map(function (s) { return { y: s[1], x0: s[0], x1: s[0] + s[2] }; });
+      lv.deco.forEach(function (d) {
+        if (d.kind === 'raft' && d.ax < g1 && d.bx + d.w > g0) surf.push({ y: d.y, x0: d.ax, x1: d.bx + d.w });
+      });
+      if (surf.length) {
+        var lowest = Math.max.apply(null, surf.map(function (s) { return s.y; }));
+        var seen = surf.map(function (s) { return s.y === lowest; });
+        var moved = true;
+        while (moved) {
+          moved = false;
+          surf.forEach(function (a, ai) {
+            if (!seen[ai]) return;
+            surf.forEach(function (b, bi) {
+              if (seen[bi]) return;
+              if (Math.abs(a.y - b.y) > 190) return;
+              var gap = Math.max(b.x0 - a.x1, a.x0 - b.x1, 0);
+              if (gap > 150) return;
+              seen[bi] = true; moved = true;
+            });
+          });
+        }
+        var spawnYs = {};
+        lv.spawns.forEach(function (s) { if (s.wave === w.id) spawnYs[s.y] = 1; });
+        Object.keys(spawnYs).map(Number).forEach(function (y) {
+          var spans = lv.solids.some(function (s) {
+            return s[4] !== 2 && s[1] === y && s[0] <= g0 && s[0] + s[2] >= g1;
+          });
+          if (spans) return;                     // 有整条托底的地面，掉不下去
+          var ok = surf.some(function (s, si) { return seen[si] && s.y === y; });
+          if (!ok) E(T + ' 软锁风险：gate [' + g0 + ',' + g1 + '] 内，玩家从最低层(y=' +
+                      lowest + ')爬不回 spawn 所在的 y=' + y + '，掉下去就出不来了');
+        });
+      }
+    }
+  });
+
+  /* ══ 4. 墨的保底（DESIGN §9.3，第三/五回硬性）══════════════════ */
+  var inkX = lv.deco.filter(function (d) { return d.ink; }).map(function (d) { return d.x; })
+                    .sort(function (a, b) { return a - b; });
+  var yan = lv.deco.filter(function (d) { return d.refill; });
+  if (lv.id === 'c3' || lv.id === 'c5') {
+    if (!inkX.length) { E(P + ' 没有任何可击碎回墨物件（DESIGN §9.3.3）'); }
+    else {
+      var prev = 0, worst = 0, worstAt = 0;
+      inkX.concat([lv.w]).forEach(function (x) {
+        if (x - prev > worst) { worst = x - prev; worstAt = prev; }
+        prev = x;
+      });
+      if (worst > 600) E(P + ' 回墨物件最大间距 ' + worst + 'px（x≈' + worstAt + ' 之后），超过 600（DESIGN §9.3.3）');
+      else console.log('  ' + P + ' 回墨物件 ' + inkX.length + ' 个，最大间距 ' + worst + 'px ✓');
+    }
+    if (yan.length < 2 || yan.length > 3)
+      E(P + ' 石砚 ' + yan.length + ' 个，DESIGN §9.3.4 要求 2–3 个');
+    else console.log('  ' + P + ' 石砚 ' + yan.length + ' 个 ✓');
+  }
+});
+
+/* ══ 13/14. blockers 与全关通路可达性 ══════════════════════════════
+ * 14 是这份检查器里最值钱的一条：波次内的可达性只管被锁住的那一小段，
+ * 管不到「整关根本走不通」。第五回原来的三层就有一段 220px 的断层没有梯子，
+ * 从二层上不去，w2 / 火势 / 顶层 / Boss 全部不可达 —— 数据看着完全正常。
+ * 这条规则从起点做一次全图表面 BFS，要求所有检查点 / 波次触发点 / 位置型 trigger /
+ * Boss 场地 / exitX 都在可达集合里。 */
+L.forEach(function (lv) {
+  var P = '[' + lv.chapter + ' ' + lv.id + ']';
+
+  /* 13. blocker 的 flag 必须由一个位于它之前的 trigger 设上 */
+  (lv.blockers || []).forEach(function (b) {
+    var setter = lv.triggers.filter(function (t) {
+      return t.event && t.event.flag && t.event.flag[0] === b.flag && t.event.flag[1];
+    });
+    if (!setter.length)
+      return E(P + ' blocker@' + b.x + ' 要的 flag "' + b.flag + '" 没有任何 trigger 会设上，玩家永远过不去');
+    setter.forEach(function (t) {
+      if (t.x === undefined) return E(P + ' 设 flag "' + b.flag + '" 的 trigger 没有位置');
+      if (t.x >= b.x) E(P + ' 设 flag "' + b.flag + '" 的 trigger @' + t.x +
+                        ' 在 blocker@' + b.x + ' 之后，玩家够不到它 —— 死锁');
+    });
+  });
+
+  /* 14. 全关通路可达性 */
+  var surf = lv.solids.filter(function (q) { return q[4] !== 2; })
+    .map(function (q) { return { y: q[1], x0: q[0], x1: q[0] + q[2] }; });
+  lv.deco.forEach(function (d) {
+    if (d.kind === 'raft') surf.push({ y: d.y, x0: d.ax, x1: d.bx + d.w });   // 浮筏是路
+  });
+  if (!surf.length) return;
+
+  var seen = surf.map(function () { return false; });
+  // 起点：第一个检查点脚下那块地面
+  var c0 = lv.checkpoints[0];
+  surf.forEach(function (q, i) {
+    if (c0[0] >= q.x0 && c0[0] <= q.x1 && Math.abs(q.y - c0[1]) <= 3) seen[i] = true;
+  });
+  if (!seen.some(Boolean)) return E(P + ' 起点检查点脚下没有地面，无法做通路检查');
+
+  function link(a, b) {                       // b 能否从 a 到达
+    if (Math.abs(a.y - b.y) > 190) return false;              // 满跳 114 + 二段跳 ≈85
+    return Math.max(b.x0 - a.x1, a.x0 - b.x1, 0) <= 150;      // 满跳滞空 144
+  }
+  var moved = true;
+  while (moved) {
+    moved = false;
+    surf.forEach(function (a, ai) {
+      if (!seen[ai]) return;
+      surf.forEach(function (b, bi) {
+        if (!seen[bi] && link(a, b)) { seen[bi] = true; moved = true; }
+      });
+    });
+    // 风口（updraft）把上下两块地面接起来 —— 第四回的断崖就是这么过的
+    lv.hazards.filter(function (h) { return h.kind === 'updraft'; }).forEach(function (h) {
+      var grp = [];
+      surf.forEach(function (q, i) {
+        if (q.x1 >= h.x - 150 && q.x0 <= h.x + h.w + 150 &&
+            q.y >= h.y - 60 && q.y <= h.y + h.h + 60) grp.push(i);
+      });
+      if (grp.some(function (i) { return seen[i]; }))
+        grp.forEach(function (i) { if (!seen[i]) { seen[i] = true; moved = true; } });
+    });
+  }
+  function reachedAt(x, y) {                  // (x,y) 是可达地面吗（y 可省＝只看 x）
+    return surf.some(function (q, i) {
+      return seen[i] && x >= q.x0 && x <= q.x1 && (y === undefined || Math.abs(q.y - y) <= 3);
+    });
+  }
+  lv.checkpoints.forEach(function (c, i) {
+    if (!reachedAt(c[0], c[1])) E(P + ' 通路不通：检查点#' + i + ' @' + c + ' 从起点走不到');
+  });
+  lv.waves.forEach(function (w) {
+    if (!reachedAt(w.x)) E(P + ' 通路不通：wave' + w.id + ' 的触发点 @' + w.x + ' 从起点走不到');
+    lv.spawns.filter(function (sp) { return sp.wave === w.id; }).forEach(function (sp) {
+      if (!reachedAt(sp.x, sp.y))
+        E(P + ' 通路不通：wave' + w.id + ' 的 ' + sp.type + ' @' + sp.x + ',' + sp.y + ' 玩家够不到');
+    });
+  });
+  lv.triggers.forEach(function (t) {
+    if (t.x === undefined) return;
+    var ok = surf.some(function (q, i) {
+      return seen[i] && t.x + t.w >= q.x0 && t.x <= q.x1 &&
+             t.y < q.y && t.y + t.h > q.y - PLAYER_H;
+    }) || lv.hazards.some(function (h) {
+      return h.kind === 'updraft' && t.x < h.x + h.w && t.x + t.w > h.x;
+    });
+    if (!ok) E(P + ' 通路不通：trigger (' + (t.event.play || '?') + ') @' + t.x + ' 从起点走不到');
+  });
+  if (lv.boss) {
+    if (lv.bossY === undefined) E(P + ' 有 boss 却没有 bossY（Boss 站的那层地面 y）');
+    else if (!reachedAt(lv.bossArena[0] + 10, lv.bossY))
+      E(P + ' 通路不通：Boss 场地 @' + lv.bossArena[0] + ',' + lv.bossY + ' 从起点走不到');
+  }
+  if (!reachedAt(lv.exitX)) E(P + ' 通路不通：exitX @' + lv.exitX + ' 从起点走不到');
+});
+
+/* ══ 15. STORY §4.2.1 —— 指名断言：这两屏不得可错过 ══════════════════
+ * 规则 13/14 是通用的（flag 死锁、通路走得通），**证明不了「玩家一定会看到」**。
+ * `c5_t_page` 是全剧唯一一处「说书人在撒谎」的硬证据：错过它的玩家会完整通关、
+ * 拿到结局，并且永远不知道自己少了什么——不可靠叙述者会静默退化成隐藏内容。
+ * 所以这里按 key 指名断言，用两个能真正证明「必经」的性质：
+ *   A「割点」：把承载这一屏的那块地面从可达图里删掉，Boss 就走不到了
+ *              ⇒ 玩家不可能绕过这块地面。（对 auto 触发，走过即播，到此为止。）
+ *   B「拦路」：interact 触发可以走过去不按，所以还要求它与 Boss 之间有一道 blocker，
+ *              且那道 blocker 的 flag **只**由这一屏设、并与它踩在同一块地面上
+ *              （同一块＝不是「跳上侧龛去读」，是「走到跟前非读不可」）。 */
+(function () {
+  var lv = L.filter(function (l) { return l.id === 'c5'; })[0];
+  if (!lv || !lv.boss) return;
+
+  var surf = lv.solids.filter(function (q) { return q[4] !== 2; })
+    .map(function (q) { return { y: q[1], x0: q[0], x1: q[0] + q[2] }; });
+  function reach(exclude) {                        // 排除某块地面后，Boss 还走得到吗
+    var seen = surf.map(function (q) {
+      return q !== exclude && lv.checkpoints[0][0] >= q.x0 && lv.checkpoints[0][0] <= q.x1 &&
+             Math.abs(q.y - lv.checkpoints[0][1]) <= 3;
+    });
+    var moved = true;
+    while (moved) {
+      moved = false;
+      surf.forEach(function (a, ai) {
+        if (!seen[ai] || a === exclude) return;
+        surf.forEach(function (b, bi) {
+          if (seen[bi] || b === exclude) return;
+          if (Math.abs(a.y - b.y) > 190) return;
+          if (Math.max(b.x0 - a.x1, a.x0 - b.x1, 0) > 150) return;
+          seen[bi] = true; moved = true;
+        });
+      });
+    }
+    return surf.some(function (q, i) {
+      return seen[i] && q !== exclude &&
+             lv.bossArena[0] + 10 >= q.x0 && lv.bossArena[0] + 10 <= q.x1 &&
+             Math.abs(q.y - lv.bossY) <= 3;
+    });
+  }
+
+  ['c5_book', 'c5_t_page'].forEach(function (key) {
+    var t = lv.triggers.filter(function (t) { return t.event && t.event.play === key; })[0];
+    if (!t) return E('STORY §4.2.1: 第五回没有 ' + key + ' 的 trigger');
+    if (t.x === undefined) return E('STORY §4.2.1: ' + key + ' 没有位置');
+
+    // 它踩在哪块地面上
+    var host = surf.filter(function (q) {
+      return t.x + t.w >= q.x0 && t.x <= q.x1 && t.y < q.y && t.y + t.h > q.y - PLAYER_H;
+    });
+    if (!host.length) return E('STORY §4.2.1: ' + key + ' 不在任何站得住的地面上');
+
+    // A. 割点
+    var cut = host.some(function (h) { return !reach(h); });
+    if (!cut)
+      E('STORY §4.2.1: ' + key + ' @' + t.x + ' 可以被绕过 —— ' +
+        '把它脚下那块地面删掉，Boss 仍然走得到，说明它不在必经之路上');
+
+    // B. interact 的还要有拦路的 blocker
+    if (t.interact) {
+      var bl = (lv.blockers || []).filter(function (b) {
+        return b.flag && t.event.flag && b.flag === t.event.flag[0] &&
+               b.x > t.x && b.x <= lv.bossArena[0];
+      });
+      if (!bl.length)
+        return E('STORY §4.2.1: ' + key + ' 是 interact 触发（可以走过去不按），' +
+                 '却没有一道位于它与 Boss 之间、由它解锁的 blocker —— 玩家可以整关不触发');
+      bl.forEach(function (b) {
+        var others = lv.triggers.filter(function (o) {
+          return o !== t && o.event && o.event.flag && o.event.flag[0] === b.flag && o.event.flag[1];
+        });
+        if (others.length)
+          E('STORY §4.2.1: blocker@' + b.x + ' 的 flag 还能被别的 trigger 设上，' + key + ' 就绕得过去了');
+        if (!host.some(function (h) { return b.x >= h.x0 && b.x <= h.x1; }))
+          E('STORY §4.2.1: ' + key + ' 与拦它的 blocker@' + b.x + ' 不在同一块地面上 —— ' +
+            '那就成了「跳上侧龛去读」的可选绕路，不是「走到跟前非读不可」');
+      });
+    }
+  });
+  console.log('  [c5] §4.2.1 不得可错过 ✓ c5_book（走过即播·割点）/ c5_t_page（interact + 同层拦路 + 割点）');
+})();
+
+/* ══ 3b. 总预算 ═════════════════════════════════════════════════════ */
+if (totalSec < 1800) E('Σ expectedSec = ' + totalSec + '，未达 DESIGN §9.6 的 1800 秒下限');
+
+/* ══ 5. 决议 004 §2：c5_t_page 与 c5_book 空间隔离 ══════════════════ */
+(function () {
+  var lv = L.filter(function (l) { return l.id === 'c5'; })[0];
+  if (!lv) return E('找不到第五回');
+  function trig(key) {
+    return lv.triggers.filter(function (t) { return t.event && t.event.play === key; })[0];
+  }
+  var page = trig('c5_t_page'), book = trig('c5_book');
+  if (!page) return E('决议 004 §2: 第五回没有 c5_t_page 的 trigger');
+  if (!book) return E('决议 004 §2: 第五回没有 c5_book 的 trigger');
+  var d = Math.abs(book.x - page.x);
+  if (d < 600) E('决议 004 §2: c5_t_page 与 c5_book 只隔 ' + d + 'px，不足以构成「实际的走动」');
+  if (!page.interact) E('决议 004 §2: c5_t_page 必须 interact:true —— 玩家得自己翻开那一页');
+  var lo = Math.min(page.x, book.x), hi = Math.max(page.x, book.x);
+  var between = lv.waves.filter(function (w) { return w.x > lo && w.x < hi; });
+  if (!between.length) E('决议 004 §2: c5_t_page 与 c5_book 之间没有任何一场遭遇');
+  else console.log('  [c5] 题眼/物证隔离 ✓ Δx=' + d + 'px，中间夹着 wave' +
+                   between.map(function (w) { return w.id; }).join(',') +
+                   '（' + (page.x < book.x ? '先物证后题眼' : '先题眼后物证') + '）');
+})();
+
+/* ══ 6. 决议 004 §1 / STORY §4.1：第六回 11 拍 ═════════════════════ */
+(function () {
+  var lv = L.filter(function (l) { return l.id === 'c6'; })[0];
+  if (!lv) return E('找不到第六回');
+  var BEATS = ['c6_t_climb','c6_t_ghost','c6_t_wave1','c6_t_moon','c6_t_mix',
+               'c6_t_wave2','c6_t_flag','c6_t_all','c6_t_wave3','c6_t_see','c6_t_last'];
+  var pos = {};
+  lv.triggers.forEach(function (t) { if (t.event && t.event.play) pos[t.event.play] = t; });
+  var missing = BEATS.filter(function (k) { return !pos[k]; });
+  if (missing.length) return E('决议 004 §1: 第六回缺拍 ' + missing.join(','));
+  for (var i = 1; i < BEATS.length; i++) {
+    if (pos[BEATS[i]].x < pos[BEATS[i - 1]].x)
+      E('决议 004 §1: 第六回节拍 x 不单调：' + BEATS[i - 1] + '(' + pos[BEATS[i - 1]].x +
+        ') 之后是 ' + BEATS[i] + '(' + pos[BEATS[i]].x + ')');
+  }
+  // 教学拍必须紧贴它要教的那一波（触发点在该波触发点前 300px 内）
+  [['c6_t_mix', 3], ['c6_t_all', 5]].forEach(function (r) {
+    var t = pos[r[0]], w = lv.waves.filter(function (w) { return w.id === r[1]; })[0];
+    if (!w) return E('决议 004 §1: 找不到 wave' + r[1]);
+    if (!(t.x <= w.x && t.x >= w.x - 300))
+      E('决议 004 §1: 教学拍 ' + r[0] + ' @' + t.x + ' 没有紧贴 wave' + r[1] + ' @' + w.x);
+  });
+  // c6_t_wave2 必须挂在刷怪数最高的那一波「进行中」
+  var count = {};
+  lv.spawns.forEach(function (s) { if (s.wave) count[s.wave] = (count[s.wave] || 0) + 1; });
+  var maxW = Object.keys(count).sort(function (a, b) { return count[b] - count[a]; })[0];
+  var wm = /^wave:(\d+)$/.exec(pos['c6_t_wave2'].when || '');
+  if (!wm) E('决议 004 §1: c6_t_wave2 必须带 when:"wave:N"（波**中**触发，不是波前波后）');
+  else if (wm[1] !== maxW)
+    E('决议 004 §1: c6_t_wave2 挂在 wave' + wm[1] + '（' + count[wm[1]] + ' 敌），' +
+      '但密度最高的是 wave' + maxW + '（' + count[maxW] + ' 敌）');
+  else console.log('  [c6] 11 拍齐、x 单调、教学拍紧贴其波；c6_t_wave2 挂在 wave' + maxW +
+                   '（' + count[maxW] + ' 敌，全关最高）✓');
+  if (!/^wave:/.test(pos['c6_t_ghost'].when || '')) E('决议 004 §1: c6_t_ghost 应在第一波遭遇**中**');
+  if (!/^afterWave:/.test(pos['c6_t_wave1'].when || '')) E('决议 004 §1: c6_t_wave1 应在第一波**清完**后');
+  if (!/^wave:/.test(pos['c6_t_wave3'].when || '')) E('决议 004 §1: c6_t_wave3 应在最后一波进行中');
+})();
+
+/* ══ 2b. 覆盖率：93 个入口 key 是不是都被关卡用上了 ════════════════ */
+var allEntries = Object.keys(S).filter(function (k) { return !('cond' in S[k]); });
+// 入口＝无 cond 且不是链内被指向的节点
+var pointed = {};
+Object.keys(S).forEach(function (k) { if (S[k].next) pointed[S[k].next] = 1; });
+var realEntries = allEntries.filter(function (k) { return !pointed[k]; });
+var unused = realEntries.filter(function (k) { return !usedKeys[k]; });
+if (unused.length) W('这些入口 key 没有被任何关卡引用: ' + unused.join(' '));
+
+/* ══ 输出 ═══════════════════════════════════════════════════════════ */
+console.log('');
+console.log('关卡数        : ' + L.length);
+console.log('Σ expectedSec : ' + totalSec + ' 秒（' + (totalSec / 60).toFixed(1) + ' 分）  下限 1800 ' +
+            (totalSec >= 1800 ? '✓' : '✗'));
+var scr = 0;
+L.forEach(function (lv) {
+  var n = screens(lv.intro) + screens(lv.outro);
+  lv.triggers.forEach(function (t) { if (t.event && t.event.play) n += screens(t.event.play); });
+  if (lv.bossScript) ['pre','mid','down','p2','p3'].forEach(function (f) {
+    if (lv.bossScript[f]) n += screens(lv.bossScript[f]);
+  });
+  scr += n;
+  console.log('  ' + lv.id.padEnd(3) + ' ' + String(lv.expectedSec).padStart(4) + 's  ' +
+              String(lv.encounters) + ' 遭遇  ' + String(n).padStart(3) + ' 屏  ' + lv.title);
+});
+console.log('剧情总屏数    : ' + scr + '（中性存档；按 3.4s/屏 = ' + Math.round(scr * 3.4) + 's）');
+console.log('引用入口 key  : ' + Object.keys(usedKeys).length + ' / ' + realEntries.length);
+warns.forEach(function (m) { console.log('⚠ ' + m); });
+if (errs.length) {
+  console.log('');
+  errs.forEach(function (m) { console.log('✗ ' + m); });
+  console.log('\n失败：' + errs.length + ' 个错误');
+  process.exit(1);
+}
+console.log('\n全部通过。');

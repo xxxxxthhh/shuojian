@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<title>说剑 · 演出预览台 (H)</title>
+<style>
+  html,body { margin:0; padding:0; background:#0c0b09; overflow:hidden; height:100%; }
+  body { display:flex; align-items:center; justify-content:center; }
+  canvas { image-rendering:auto; display:block; }
+
+  /* 仅供本机截图自动化用：把画布整体缩小并顶到左上角，方便一次性截全图。
+     不影响 SJ.Game 的内部坐标/逻辑分辨率，纯 CSS transform。 */
+  body.qa { align-items:flex-start; justify-content:flex-start; }
+  body.qa canvas { transform:scale(0.42); transform-origin:top left; }
+
+  #tab {
+    position:fixed; top:10px; right:10px; z-index:20;
+    width:34px; height:34px; border-radius:6px; cursor:pointer;
+    background:#1b1a17; border:1px solid #6f6a60; color:#efe7d8;
+    font-size:16px; display:flex; align-items:center; justify-content:center;
+  }
+  #qaTab {
+    position:fixed; top:10px; left:10px; z-index:20;
+    width:34px; height:34px; border-radius:6px; cursor:pointer;
+    background:#1b1a17; border:1px solid #6f6a60; color:#efe7d8;
+    font-size:14px; display:flex; align-items:center; justify-content:center;
+  }
+  #panel {
+    position:fixed; top:0; right:0; bottom:0; width:360px; z-index:15;
+    background:rgba(20,19,15,0.94); color:#d8d2c4; overflow-y:auto;
+    font:12px/1.55 -apple-system,"PingFang SC","Songti SC",sans-serif;
+    padding:52px 16px 24px; box-sizing:border-box;
+    border-left:1px solid #2e2b24;
+    transition:transform .18s ease;
+  }
+  #panel.hidden { transform:translateX(100%); }
+  h2 { font-size:12px; color:#c8a55b; margin:18px 0 8px; text-transform:uppercase; letter-spacing:1px; }
+  h2:first-of-type { margin-top:0; }
+  .row { display:flex; align-items:center; gap:8px; margin:6px 0; flex-wrap:wrap; }
+  label { color:#8a8478; }
+  select, input[type=range] { flex:1; min-width:0; }
+  button { background:#35322c; color:#efe7d8; border:1px solid #6f6a60; border-radius:4px;
+           padding:6px 10px; font-size:12px; cursor:pointer; }
+  button:hover { background:#4a453c; }
+  button.primary { border-color:#b03a2b; }
+  button.primary:hover { background:#b03a2b; }
+  .grid4 { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+  .mercy label { display:flex; align-items:center; gap:6px; font-size:11.5px; color:#d8d2c4; }
+  #log { background:#14130f; border:1px solid #2e2b24; border-radius:5px; padding:8px;
+         max-height:120px; overflow-y:auto; font:11px/1.5 ui-monospace,Menlo,monospace; color:#6faa72; }
+  .val { color:#c8a55b; min-width:2.6em; text-align:right; display:inline-block; }
+  hr { border:none; border-top:1px solid #2e2b24; margin:14px 0; }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="tab">☰</div>
+<div id="qaTab" title="缩小画布，方便截图">▣</div>
+<div id="panel">
+
+  <h2>剧本 · 逐 key 播放</h2>
+  <div class="row"><select id="scriptKey"></select></div>
+  <div class="row">
+    <button class="primary" id="playBtn">▶ 播放</button>
+    <button id="skipBtn">⏭ 瞬间跳到 next:null</button>
+  </div>
+
+  <h2>存档状态（影响 cond 分支）</h2>
+  <div class="row grid4 mercy" id="mercyGrid"></div>
+  <div class="row">
+    <label>known 数</label>
+    <input type="range" id="knownCount" min="0" max="12" step="1" value="0">
+    <span class="val" id="knownCountVal">0</span>
+  </div>
+  <div class="row"><button id="resetSave">重置存档</button></div>
+
+  <h2>结局预览</h2>
+  <div class="row grid4">
+    <button data-end="all">集大成</button>
+    <button data-end="kill">杀尽</button>
+    <button data-end="mercy">留手</button>
+    <button data-end="mid">中间态</button>
+  </div>
+
+  <h2>生杀抉择 mercyChoice</h2>
+  <div class="row">
+    <select id="bossSel">
+      <option value="yuzhongdao">雨中刀（一）</option>
+      <option value="dizi">铁笛先生（二）</option>
+      <option value="laoweng">渡口老翁（三）</option>
+      <option value="baiyi">白衣（四）</option>
+      <option value="shouge">守阁人（五）</option>
+      <option value="shixiong">师兄（六）</option>
+    </select>
+    <button class="primary" id="mcBtn">触发</button>
+  </div>
+  <div class="row" style="color:#8a8478">攻击键(J) = 杀；方向/身法(A D L S) = 走开；3 秒不动 = 走开。</div>
+
+  <h2>菜单预览</h2>
+  <div class="row grid4">
+    <button id="menuTitle">标题</button>
+    <button id="menuPause">暂停</button>
+    <button id="menuSlots">换招</button>
+    <button id="menuGameover">死亡</button>
+  </div>
+
+  <h2>HUD 预览（下方场景常驻）</h2>
+  <div class="row"><label>maxHp</label>
+    <select id="maxHp"><option>60</option><option>80</option><option selected>100</option></select>
+  </div>
+  <div class="row"><label>hp</label><input type="range" id="hp" min="0" max="100" value="100"><span class="val" id="hpVal">100</span></div>
+  <div class="row"><label>ink</label><input type="range" id="ink" min="0" max="100" value="80"><span class="val" id="inkVal">80</span></div>
+  <div class="row"><label>学习中</label>
+    <select id="learningId"><option value="">（无）</option></select>
+    <input type="range" id="learningVal" min="0" max="100" value="40"><span class="val" id="learningValVal">40</span>
+  </div>
+  <div class="grid4" id="slotSelects"></div>
+  <div class="row"><button id="randomHud">随机一套</button></div>
+
+  <hr>
+  <div id="log">日志……</div>
+</div>
+
+<!-- ══ 真实模块（按 index.html 顺序，只加载我这次会用到的） ══════════ -->
+<script src="../src/core/const.js"></script>
+<script src="../src/core/input.js"></script>
+<script src="../src/core/camera.js"></script>
+<script src="../src/core/world.js"></script>
+<script src="../src/core/ent.js"></script>
+<script src="../src/core/save.js"></script>
+<script src="../src/core/game.js"></script>
+<script src="../src/render/ink.js"></script>
+<script src="../src/audio/audio.js"></script>
+<script src="../src/data/script.js"></script>
+<script src="../src/story/story.js"></script>
+<script src="../src/ui/hud.js"></script>
+<script src="../src/ui/menus.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  // ══ 仅供本预览台使用的占位实现 ═══════════════════════════════════
+  // SJ.Figure / SJ.Tech / SJ.Player / SJ.Level 尚未由 B/E/F/G 交付。
+  // 这些 shim 只存在于这个 dev 文件里，绝不写进 src/ ——story.js/hud.js/
+  // menus.js 里全部按 CONTRACTS 的签名直接调用，没有任何兜底判断。
+
+  var TECH_ORDER = ['hengyun','liebo','chengtian','guying','wufeng','lianhuan',
+                     'poyu','chuanyang','zhenshan','tiyun','fenshu','shuojian'];
+  var TECH_DEFS = {
+    hengyun:  { id:'hengyun',  name:'横云断',   from:'雨中刀' },
+    liebo:    { id:'liebo',    name:'裂帛',     from:'铁笛先生' },
+    chengtian:{ id:'chengtian',name:'撑天',     from:'渡口老翁' },
+    guying:   { id:'guying',   name:'孤影',     from:'白衣' },
+    wufeng:   { id:'wufeng',   name:'无锋',     from:'守阁人' },
+    lianhuan: { id:'lianhuan', name:'连环腿',   from:'杂兵·力士' },
+    poyu:     { id:'poyu',     name:'破雨',     from:'杂兵·刀客' },
+    chuanyang:{ id:'chuanyang',name:'穿杨',     from:'杂兵·弓手' },
+    zhenshan: { id:'zhenshan', name:'镇山',     from:'杂兵·枪兵' },
+    tiyun:    { id:'tiyun',    name:'踏云',     from:'场景·雪山' },
+    fenshu:   { id:'fenshu',   name:'焚书',     from:'场景·藏经阁' },
+    shuojian: { id:'shuojian', name:'说剑',     from:'师兄' }
+  };
+  var fakeUnusable = {}; // slotId(0-3) -> bool，模拟 Tech.can 为 false 的样子
+
+  window.SJ = window.SJ || {};
+  SJ.Tech = { defs: TECH_DEFS, progress: {}, can: function (p, id) {
+    var i = (p.slots || []).indexOf(id);
+    return i === -1 ? true : !fakeUnusable[i];
+  }};
+
+  SJ.Figure = {
+    pose: function (name, p, t) { return { name: name, p: p, t: t }; },
+    blend: function (a, b, k) { return a; },
+    tip: function (o) { return { x: o.x, y: o.y }; },
+    // 极简占位剪影：一个头 + 一道躯干折线 + 两道腿，只为了在预览台里
+    // 看清「窗／灯／案／人」这个构图，不代表 B 最终的人物骨架。
+    draw: function (g, o) {
+      var x = o.x, y = o.y, s = (o.scale || 1) * 62;
+      g.save();
+      g.globalAlpha = o.alpha != null ? o.alpha : 1;
+      SJ.Ink.blob(g, x, y - s * 0.86, s * 0.10, 3, { color: o.color, alpha: 1, rough: 0.2 });
+      SJ.Ink.stroke(g, [[x, y - s*0.78], [x - s*0.06, y - s*0.30], [x + s*0.10, y*1]], {
+        w0: s*0.09, w1: s*0.06, color: o.color, alpha: 1, seed: 9, hairs: 0
+      });
+      SJ.Ink.stroke(g, [[x - s*0.02, y], [x - s*0.30, y + s*0.02]], { w0: s*0.08, w1: s*0.03, color:o.color, alpha:0.9, seed:10, hairs:0 });
+      SJ.Ink.stroke(g, [[x + s*0.06, y], [x + s*0.34, y + s*0.04]], { w0: s*0.08, w1: s*0.03, color:o.color, alpha:0.9, seed:11, hairs:0 });
+      g.restore();
+    }
+  };
+
+  var fakeLog = document.getElementById('log');
+  function log(str) {
+    var line = document.createElement('div');
+    line.textContent = '· ' + str;
+    fakeLog.insertBefore(line, fakeLog.firstChild);
+  }
+
+  SJ.Level = {
+    current: 0, def: null, pickups: [],
+    load: function (idx, checkpoint) { log('SJ.Level.load(' + idx + ', ' + !!checkpoint + ') — 占位，G 未交付'); },
+    checkpoint: function () {}, complete: function () {}, spawnWave: function () {},
+    bossDefeated: function (id) { SJ.Story.mercyChoice(id, function (k) { log('bossDefeated(' + id + ') → killed=' + k); }); }
+  };
+
+  // ══ 常驻底层场景：兼当「HUD 预览」与「narration/talk 背后的世界」 ══
+  var fakePlayer = { hp: 100, maxHp: 100, ink: 80, known: [], slots: [null,null,null,null] };
+
+  var worldScene = {
+    enter: function () {}, exit: function () {},
+    update: function () {},
+    draw: function (g) {
+      SJ.Ink.paper(g, 0, 0);
+      SJ.Ink.mountains(g, 0, 2, {});
+      SJ.Ink.mountains(g, 0, 1, {});
+      SJ.Ink.bamboo(g, 0, 1, {});
+      SJ.Ink.bamboo(g, 0, 0, {});
+      g.save();
+      g.font = '500 13px ' + SJ.FONT; g.fillStyle = SJ.C.inkLight; g.globalAlpha = 0.5;
+      g.textAlign = 'left'; g.textBaseline = 'top';
+      g.fillText('（占位关卡背景，用于验证 narration/talk 面板不遮挡整个世界）', 16, SJ.H - 22);
+      g.restore();
+      SJ.HUD.draw(g, fakePlayer);
+    }
+  };
+
+  // ══ 启动 ═══════════════════════════════════════════════════════
+  var canvas = document.getElementById('c');
+  SJ.Game.init(canvas);
+  SJ.Save.load();
+  SJ.Game.setScene(worldScene);
+
+  // 首次任意点击/按键解锁音频（浏览器策略）
+  window.addEventListener('mousedown', function once() {
+    SJ.Audio.init(); window.removeEventListener('mousedown', once);
+  });
+
+  // ══ 面板：折叠 ═════════════════════════════════════════════════
+  var panel = document.getElementById('panel'), tab = document.getElementById('tab');
+  tab.onclick = function () { panel.classList.toggle('hidden'); };
+  document.getElementById('qaTab').onclick = function () { document.body.classList.toggle('qa'); };
+
+  // ══ 面板：剧本 key 下拉 ════════════════════════════════════════
+  var scriptSel = document.getElementById('scriptKey');
+  Object.keys(SJ.Script).sort().forEach(function (k) {
+    var o = document.createElement('option'); o.value = k;
+    o.textContent = k + '　[' + SJ.Script[k].mode + '/' + (SJ.Script[k].speaker || '－') + ']';
+    scriptSel.appendChild(o);
+  });
+  document.getElementById('playBtn').onclick = function () {
+    var key = scriptSel.value;
+    log('play("' + key + '") 开始');
+    SJ.Story.play(key, function () { log('play("' + key + '") → onDone'); });
+  };
+  document.getElementById('skipBtn').onclick = function () {
+    log('（提示：在播放中按空格/J 可逐屏推进；第一下补完本屏文字，第二下前进）');
+  };
+
+  // ══ 面板：mercy 六个开关 + known 数 ═════════════════════════════
+  var BOSS_NAMES = { yuzhongdao:'雨中刀', dizi:'铁笛先生', laoweng:'渡口老翁',
+                     baiyi:'白衣', shouge:'守阁人', shixiong:'师兄' };
+  var mercyGrid = document.getElementById('mercyGrid');
+  Object.keys(BOSS_NAMES).forEach(function (id) {
+    var label = document.createElement('label');
+    var cb = document.createElement('input'); cb.type = 'checkbox';
+    cb.onchange = function () {
+      SJ.Save.data.mercy[id] = cb.checked; SJ.Save.save();
+      log('mercy.' + id + ' = ' + cb.checked);
+    };
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(BOSS_NAMES[id] + '留手'));
+    mercyGrid.appendChild(label);
+  });
+
+  var knownSlider = document.getElementById('knownCount'), knownVal = document.getElementById('knownCountVal');
+  function applyKnownCount(n) {
+    SJ.Save.data.known = TECH_ORDER.slice(0, n);
+    fakePlayer.known = SJ.Save.data.known;
+    SJ.Save.save();
+    knownVal.textContent = n;
+  }
+  knownSlider.oninput = function () { applyKnownCount(+knownSlider.value); };
+
+  document.getElementById('resetSave').onclick = function () {
+    SJ.Save.reset();
+    Array.prototype.forEach.call(mercyGrid.querySelectorAll('input'), function (cb) { cb.checked = false; });
+    knownSlider.value = 0; applyKnownCount(0);
+    log('存档已重置');
+  };
+
+  // ══ 面板：结局预览 ═════════════════════════════════════════════
+  document.querySelectorAll('[data-end]').forEach(function (btn) {
+    btn.onclick = function () {
+      var kind = btn.getAttribute('data-end');
+      var mercy = {};
+      if (kind === 'kill') { /* 全 false */ }
+      else if (kind === 'mercy') { Object.keys(BOSS_NAMES).forEach(function (id) { mercy[id] = true; }); }
+      else if (kind === 'mid') { mercy.yuzhongdao = true; mercy.dizi = true; }
+      SJ.Save.data.mercy = mercy;
+      applyKnownCount(kind === 'all' ? 12 : 3);
+      Array.prototype.forEach.call(mercyGrid.querySelectorAll('input'), function (cb, i) {
+        var id = Object.keys(BOSS_NAMES)[i]; cb.checked = !!mercy[id];
+      });
+      SJ.Save.save();
+      log('预设「' + kind + '」结局条件，播放 SJ.Story.ending()');
+      SJ.Story.ending();
+    };
+  });
+
+  // ══ 面板：mercyChoice 预览 ═════════════════════════════════════
+  document.getElementById('mcBtn').onclick = function () {
+    var id = document.getElementById('bossSel').value;
+    log('mercyChoice("' + id + '") 开始');
+    SJ.Story.mercyChoice(id, function (killed) {
+      log('mercyChoice("' + id + '") → cb(killed=' + killed + ')　mercy.' + id + '=' + SJ.Save.data.mercy[id]);
+    });
+  };
+
+  // ══ 面板：菜单预览 ═════════════════════════════════════════════
+  document.getElementById('menuTitle').onclick = function () { SJ.Menu.title(); };
+  document.getElementById('menuPause').onclick = function () { SJ.Menu.pause(); };
+  document.getElementById('menuSlots').onclick = function () { SJ.Menu.slots(); };
+  document.getElementById('menuGameover').onclick = function () { SJ.Menu.gameover(); };
+
+  // ══ 面板：HUD 预览 ═════════════════════════════════════════════
+  var maxHpSel = document.getElementById('maxHp');
+  var hpSlider = document.getElementById('hp'), hpVal = document.getElementById('hpVal');
+  var inkSlider = document.getElementById('ink'), inkVal = document.getElementById('inkVal');
+  function syncHud() {
+    fakePlayer.maxHp = +maxHpSel.value;
+    hpSlider.max = fakePlayer.maxHp;
+    fakePlayer.hp = Math.min(+hpSlider.value, fakePlayer.maxHp);
+    hpVal.textContent = fakePlayer.hp;
+    fakePlayer.ink = +inkSlider.value;
+    inkVal.textContent = fakePlayer.ink;
+  }
+  maxHpSel.onchange = syncHud;
+  hpSlider.oninput = syncHud;
+  inkSlider.oninput = syncHud;
+
+  var learningSel = document.getElementById('learningId');
+  TECH_ORDER.forEach(function (id) {
+    var o = document.createElement('option'); o.value = id; o.textContent = TECH_DEFS[id].name;
+    learningSel.appendChild(o);
+  });
+  var learningVal = document.getElementById('learningVal'), learningValVal = document.getElementById('learningValVal');
+  function syncLearning() {
+    SJ.Tech.progress = {};
+    if (learningSel.value) SJ.Tech.progress[learningSel.value] = +learningVal.value;
+    learningValVal.textContent = learningVal.value;
+  }
+  learningSel.onchange = syncLearning;
+  learningVal.oninput = syncLearning;
+
+  var slotSelects = document.getElementById('slotSelects');
+  var slotEls = [];
+  for (var s = 0; s < 4; s++) {
+    var wrap = document.createElement('div');
+    var sel = document.createElement('select');
+    var optNone = document.createElement('option'); optNone.value = ''; optNone.textContent = '槽' + (s+1) + '：空';
+    sel.appendChild(optNone);
+    TECH_ORDER.forEach(function (id) {
+      var o = document.createElement('option'); o.value = id; o.textContent = TECH_DEFS[id].name;
+      sel.appendChild(o);
+    });
+    (function (idx, sel) {
+      sel.onchange = function () {
+        fakePlayer.slots[idx] = sel.value || null;
+      };
+    })(s, sel);
+    wrap.appendChild(sel);
+    slotSelects.appendChild(wrap);
+    slotEls.push(sel);
+  }
+
+  document.getElementById('randomHud').onclick = function () {
+    fakePlayer.hp = Math.floor(Math.random() * (fakePlayer.maxHp + 1));
+    hpSlider.value = fakePlayer.hp; hpVal.textContent = fakePlayer.hp;
+    fakePlayer.ink = Math.floor(Math.random() * 101);
+    inkSlider.value = fakePlayer.ink; inkVal.textContent = fakePlayer.ink;
+    var pool = TECH_ORDER.slice();
+    for (var i = 0; i < 4; i++) {
+      var pick = Math.random() < 0.75 ? pool.splice(Math.floor(Math.random()*pool.length), 1)[0] : null;
+      fakePlayer.slots[i] = pick || null;
+      slotEls[i].value = pick || '';
+    }
+    learningSel.value = TECH_ORDER[Math.floor(Math.random()*TECH_ORDER.length)];
+    learningVal.value = Math.floor(Math.random()*100);
+    syncLearning();
+  };
+
+  syncHud();
+  applyKnownCount(0);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,500 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>说剑 · 敌人试炼场</title>
+<style>
+  html,body{margin:0;height:100%;background:#141310;overflow:hidden;
+            font:12px/1.5 "Songti SC","STSong",serif;color:#efe7d8}
+  canvas{display:block;margin:0 auto;image-rendering:auto}
+  #panel{position:fixed;top:0;right:0;width:252px;height:100%;overflow-y:auto;
+         background:rgba(20,19,16,.90);border-left:1px solid #4a453c;
+         padding:8px 10px 40px;box-sizing:border-box;font-size:11px}
+  #panel.hide{display:none}
+  h3{margin:10px 0 4px;font-size:11px;color:#c8a55b;font-weight:normal;
+     border-bottom:1px solid #3a352d;padding-bottom:2px}
+  h3:first-child{margin-top:0}
+  button{font:11px/1.4 inherit;background:#2b2822;color:#efe7d8;border:1px solid #55503f;
+         border-radius:2px;padding:3px 5px;margin:1px;cursor:pointer}
+  button:hover{background:#3d3830}
+  button.on{background:#b03a2b;border-color:#d4553f}
+  label{display:block;margin:2px 0;cursor:pointer}
+  input[type=range]{width:100%}
+  .row{display:flex;flex-wrap:wrap;gap:2px}
+  #stats{font:10px/1.35 ui-monospace,Menlo,monospace;white-space:pre;color:#a8a094}
+  .hint{color:#6f6a60;font-size:10px;margin:3px 0}
+</style>
+
+<canvas id="c"></canvas>
+<div id="panel"></div>
+
+<!-- 按 index.html 的顺序加载；带版本号是为了绕开浏览器缓存，
+     不然改完 src 刷新页面还是旧代码（自动化迭代时非常致命）。 -->
+<script>
+(function () {
+  var v = '?v=' + Date.now();
+  var srcs = [
+    '../src/core/const.js',
+    '../src/core/input.js',
+    '../src/core/camera.js',
+    '../src/core/world.js',
+    '../src/core/ent.js',
+    '../src/core/save.js',
+    '../src/core/game.js',
+    '../src/render/ink.js',
+    '../src/render/figure.js',
+    '../src/render/fx.js',
+    '../src/audio/audio.js',
+    '../src/combat/combat.js',
+    '../src/combat/tech.js',
+    '../src/entity/player.js',
+    '../src/entity/ai.js',
+    '../src/entity/enemies.js',
+    '../src/entity/bosses.js'
+  ];
+  for (var i = 0; i < srcs.length; i++) document.write('<scr' + 'ipt src="' + srcs[i] + v + '"><\/scr' + 'ipt>');
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var SJ = window.SJ;
+
+  // ── 试炼场 ────────────────────────────────────────────────
+  var GY = 470, LV = {
+    solids: [
+      [0, GY, 2400, 90, 0],
+      [-40, -300, 40, 900, 0],
+      [2400, -300, 40, 900, 0],
+      [430, 360, 220, 14, 1],
+      [920, 296, 210, 14, 1],
+      [1320, 386, 170, 84, 0],
+      [1730, 330, 270, 14, 1]
+    ]
+  };
+
+  var D = {
+    lock: false, god: false, ink: false, bot: false, hidePanel: false,
+    lat: 0.30, wind: 1.0
+  };
+  var stats = {};          // "敌人:招" -> {p:格挡数, h:挨打数}
+  function wipeStats() { for (var k in stats) delete stats[k]; }
+  var botClock = 0, seen = {}, botHold = 0, botDown = false;
+  var focus = null;        // 当前观察的敌人
+
+  // ── 合成按键（给反应机器人用；Input 按 e.code 认键）────────
+  function key(code, down) {
+    window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup',
+      { code: code, bubbles: true }));
+  }
+
+  // ── 统计钩子 ──────────────────────────────────────────────
+  function tag(hb) {
+    var o = hb && hb.owner;
+    if (!o) return '?';
+    return (o.id || o.tag) + ':' + (o.mv ? o.mv.d.id : (hb.moveId || '-'));
+  }
+  function bump(k, f) {
+    var s = stats[k] || (stats[k] = { p: 0, h: 0 });
+    s[f]++;
+  }
+
+  function hook(p) {
+    var op = p.onParry, oh = p.hurt;
+    p.onParry = function (src, hb) { bump(tag(hb), 'p'); return op.apply(this, arguments); };
+    p.hurt = function (dmg, src, opt) {
+      if (D.god && dmg > 0) { opt = opt || {}; dmg = 0; }
+      if (opt && opt.hb && opt.hb.team === 'foe') bump(tag(opt.hb), 'h');
+      return oh.call(this, dmg, src, opt);
+    };
+  }
+
+  // ── 锁定 AI ───────────────────────────────────────────────
+  function applyLock() {
+    SJ.Ent.each(function (e) {
+      if (e === SJ.player || e.tag === 'arrow' || e.tag === 'wave') return;
+      if (D.lock && !e.__upd) { e.__upd = e.update; e.update = function () { }; }
+      else if (!D.lock && e.__upd) { e.update = e.__upd; e.__upd = null; }
+    });
+  }
+
+  // ── 生成 ──────────────────────────────────────────────────
+  function foes() {
+    var out = [], L = SJ.Ent.list, i;
+    for (i = 0; i < L.length; i++) {
+      if (!L[i].dead && L[i].team === 'foe' && L[i].def) out.push(L[i]);
+    }
+    return out;
+  }
+
+  function clearFoes() {
+    var L = SJ.Ent.list.slice(), i;
+    for (i = 0; i < L.length; i++) if (L[i] !== SJ.player) SJ.Ent.remove(L[i]);
+    SJ.Combat.clear();
+    focus = null;
+  }
+
+  function spawn(kind, id, dx) {
+    var x = SJ.clamp(SJ.player.cx() + (dx === undefined ? 300 : dx), 40, 2360);
+    var e = (kind === 'boss' ? SJ.Bosses : SJ.Enemies)
+      .spawn(id, x, GY, { facing: -1, windMul: D.wind });
+    if (!e) return null;
+    if (kind === 'boss') e.onDefeat = function (b) {
+      SJ.FX.word(b.cx(), b.cy() - 70, '倒地 · 等生杀', { color: SJ.C.cinnabar, life: 2.2, size: 15 });
+      console.log('[试炼场] onDefeat 触发：' + b.id + '（hp=' + b.hp + ' dead=' + b.dead + '）');
+    };
+    focus = e;
+    applyLock();
+    return e;
+  }
+
+  // ── 面板 ──────────────────────────────────────────────────
+  var MOBS = [['daoke', '刀客'], ['gongshou', '弓手'], ['qiangbing', '枪兵'],
+              ['lishi', '力士'], ['sengren', '僧人'], ['cike', '刺客'], ['denglong', '提灯人']];
+  var BOSSES = [['yuzhongdao', '雨中刀'], ['dizi', '铁笛先生'], ['laoweng', '渡口老翁'],
+                ['baiyi', '白衣'], ['shouge', '守阁人'], ['shixiong', '师兄']];
+
+  function el(tag, html, parent) {
+    var e = document.createElement(tag);
+    if (html != null) e.innerHTML = html;
+    (parent || panel).appendChild(e);
+    return e;
+  }
+  var panel = document.getElementById('panel'), statsEl;
+
+  function toggle(label, keyName, after) {
+    var b = el('button', label);
+    b.onclick = function () {
+      D[keyName] = !D[keyName];
+      b.className = D[keyName] ? 'on' : '';
+      if (after) after();
+    };
+    return b;
+  }
+
+  function buildPanel() {
+    el('h3', '杂兵');
+    var r1 = el('div'); r1.className = 'row';
+    MOBS.forEach(function (m) {
+      var b = el('button', m[1], r1);
+      b.onclick = function () { spawn('mob', m[0]); };
+    });
+    el('h3', 'Boss');
+    var r2 = el('div'); r2.className = 'row';
+    BOSSES.forEach(function (m) {
+      var b = el('button', m[1], r2);
+      b.onclick = function () { spawn('boss', m[0]); };
+    });
+
+    el('h3', '编组（教组合威胁）');
+    var r3 = el('div'); r3.className = 'row';
+    [['弓+枪', function () { spawn('mob', 'gongshou', 420); spawn('mob', 'qiangbing', 240); }],
+     ['刀×3', function () { spawn('mob', 'daoke', 240); spawn('mob', 'daoke', 380); spawn('mob', 'daoke', -260); }],
+     ['僧+弓', function () { spawn('mob', 'sengren', 200); spawn('mob', 'gongshou', 430); }],
+     ['白衣+影', function () { var b = spawn('boss', 'baiyi', 300); if (b) b.setPhase(3); }]
+    ].forEach(function (p) {
+      var b = el('button', p[0], r3); b.onclick = p[1];
+    });
+
+    el('h3', '调试');
+    var r4 = el('div'); r4.className = 'row';
+    var bh = el('button', 'hitbox', r4);
+    bh.onclick = function () {
+      SJ.Combat.debug.hitbox = !SJ.Combat.debug.hitbox;
+      bh.className = SJ.Combat.debug.hitbox ? 'on' : '';
+    };
+    var bt = el('button', '轨迹常显', r4);
+    bt.onclick = function () {
+      SJ.Combat.debug.tgAlways = !SJ.Combat.debug.tgAlways;
+      bt.className = SJ.Combat.debug.tgAlways ? 'on' : '';
+    };
+    r4.appendChild(toggle('锁AI', 'lock', applyLock));
+    r4.appendChild(toggle('无敌', 'god'));
+    r4.appendChild(toggle('满墨', 'ink'));
+    var bc = el('button', '清场', r4); bc.onclick = clearFoes;
+
+    el('h3', 'Boss 阶段');
+    var r5 = el('div'); r5.className = 'row';
+    [1, 2, 3].forEach(function (n) {
+      var b = el('button', 'P' + n, r5);
+      b.onclick = function () { if (focus && focus.boss) focus.setPhase(n); };
+    });
+    var br = el('button', '回满血', r5);
+    br.onclick = function () { if (focus) focus.hp = focus.maxHp; };
+
+    el('h3', '起手式倍率 <span id="wv">1.00</span>');
+    var sw = el('input'); sw.type = 'range'; sw.min = 55; sw.max = 130; sw.value = 100;
+    sw.oninput = function () {
+      D.wind = sw.value / 100;
+      document.getElementById('wv').textContent = D.wind.toFixed(2);
+      foes().forEach(function (e) { e.windMul = D.wind; });
+    };
+
+    el('h3', '反应机器人');
+    el('div', '起手式出现后延迟 <span id="lv">0.30</span>s 按住观势，' +
+      '统计每一招格开/挨打次数。', panel).className = 'hint';
+    var r6 = el('div'); r6.className = 'row';
+    r6.appendChild(toggle('开', 'bot'));
+    var bz = el('button', '清统计', r6);
+    bz.onclick = wipeStats;
+    var bp = el('button', '打印', r6);
+    bp.onclick = printStats;
+    var sl = el('input'); sl.type = 'range'; sl.min = 10; sl.max = 60; sl.value = 30;
+    sl.oninput = function () {
+      D.lat = sl.value / 100;
+      document.getElementById('lv').textContent = D.lat.toFixed(2);
+    };
+
+    el('h3', '招式');
+    var r7 = el('div'); r7.className = 'row';
+    var ba = el('button', '学会全部 12 招', r7);
+    ba.onclick = function () {
+      for (var k in SJ.Tech.defs) SJ.Tech.learn(SJ.Tech.defs[k].id || k);
+      if (SJ.Tech.defs.length !== undefined) {
+        SJ.Tech.defs.forEach(function (d) { SJ.Tech.learn(d.id); });
+      }
+      renderSlots();
+    };
+    var slotsEl = el('div', '', panel); slotsEl.id = 'slots'; slotsEl.className = 'hint';
+    window.renderSlots = function () {
+      slotsEl.textContent = 'U/I/O/P → ' + (SJ.Save.data.slots || []).join(' / ');
+    };
+    var r8 = el('div'); r8.className = 'row';
+    [['wufeng', '无锋'], ['hengyun', '横云断'], ['chuanyang', '穿杨'], ['shuojian', '说剑']]
+      .forEach(function (m) {
+        var b = el('button', '装 ' + m[1], r8);
+        b.onclick = function () {
+          SJ.Tech.learn(m[0]);
+          SJ.Save.data.slots[0] = m[0];
+          renderSlots();
+        };
+      });
+
+    el('h3', '统计');
+    statsEl = el('pre'); statsEl.id = 'stats';
+
+    el('h3', '键');
+    el('div', 'AD 走 · 空格 跳 · J 攻 · <b>K 观势</b> · L 身法 · UIOP 招式<br>' +
+      'H 隐藏面板 · R 复位玩家 · 数字键 1-7 生杀兵 · Q 打印统计', panel).className = 'hint';
+  }
+
+  function printStats() {
+    var k, s, lines = ['moveId                      格开  挨打   格开率'];
+    for (k in stats) {
+      s = stats[k];
+      lines.push((k + '                          ').slice(0, 26) +
+        String(s.p + '    ').slice(0, 5) + String(s.h + '    ').slice(0, 5) +
+        '  ' + (s.p + s.h ? Math.round(s.p / (s.p + s.h) * 100) : 0) + '%');
+    }
+    console.log('[试炼场·公平性] 延迟 ' + D.lat.toFixed(2) + 's / 起手倍率 ' +
+      D.wind.toFixed(2) + '\n' + lines.join('\n'));
+  }
+
+  function renderStats() {
+    if (!statsEl) return;
+    var k, s, out = [];
+    for (k in stats) {
+      s = stats[k];
+      out.push((k + '                    ').slice(0, 20) + ' ' +
+        ('  ' + s.p).slice(-3) + ' /' + ('  ' + s.h).slice(-3) + '  ' +
+        (s.p + s.h ? Math.round(s.p / (s.p + s.h) * 100) : 0) + '%');
+    }
+    statsEl.textContent = out.length ? out.join('\n') : '（空）';
+  }
+
+  // ── 反应机器人 ────────────────────────────────────────────
+  function bot(raw) {
+    botClock += raw;
+    if (!D.bot) {
+      if (botDown) { key('KeyK', false); botDown = false; }
+      return;
+    }
+    var T = SJ.Combat.tgList, i, want = false, alive = {};
+    for (i = 0; i < T.length; i++) {
+      var tg = T[i];
+      alive[tg.id] = 1;
+      if (!tg.danger) continue;
+      if (!seen[tg.id]) seen[tg.id] = botClock;
+      if (botClock - seen[tg.id] >= D.lat) want = true;
+    }
+    // 飞来的东西（箭、音波、冲撞的身体）也是「起手式」：
+    // 它们的落点比 telegraph 结束晚得多，只盯虚线的机器人会被打中，人不会
+    var H = SJ.Combat.hitList, p = SJ.player;
+    for (i = 0; i < H.length; i++) {
+      var hb = H[i];
+      if (hb.team !== 'foe') continue;
+      // 半径放到 600：箭一出弦就该开始计反应时间，而不是等它飞到脸上。
+      // 人是看着箭飞过来的，机器人也该这样，否则统计出来的「不公平」是假的。
+      var d = Math.abs(hb.x + hb.w / 2 - p.cx());
+      if (d > 600) continue;
+      var k = 'h' + hb.id;
+      if (!seen[k]) seen[k] = botClock;
+      alive[k] = 1;
+      if (botClock - seen[k] >= D.lat) want = true;
+    }
+    // 起手式消失后再多按 0.22s：招式落点常常在 telegraph 结束的下一帧
+    if (want) botHold = 0.22;
+    else if (botHold > 0) { botHold -= raw; want = true; }
+
+    if (want && !botDown) { key('KeyK', true); botDown = true; }
+    else if (!want && botDown) { key('KeyK', false); botDown = false; }
+
+    if (SJ.Game.frame % 240 === 0) {
+      for (var k in seen) if (!alive[k] && botClock - seen[k] > 6) delete seen[k];
+    }
+  }
+
+  // ── 场景 ──────────────────────────────────────────────────
+  var scene = {
+    enter: function () {
+      SJ.World.load(LV);
+      SJ.Camera.setBounds(0, 2400, -260, 560);
+      var p = SJ.Player.create(200, GY - 52);
+      hook(p);
+      SJ.Camera.snap(p.cx(), p.cy());
+    },
+
+    update: function (dt) {
+      bot(SJ.Game.rawDt);
+
+      // 决议 005 §3 的顺序
+      SJ.Ent.updateAll(dt);
+      SJ.Tech.update(dt);
+      SJ.Combat.update(dt);
+      SJ.FX.update(dt);
+      SJ.Camera.follow(SJ.player, dt);
+
+      var p = SJ.player;
+      // 无敌 = 伤害归零（在 hook 里做），不是 invuln —— invuln 会让 combat
+      // 在调用 hurt 之前就 return，统计就全丢了
+      if (D.god) p.hp = p.maxHp;
+      if (D.ink) p.ink = p.maxInk;
+      if (p.y > 900 || p.state === 'dead' && p.st > 1.6) p.respawn(200, GY - 60);
+      if (focus && (focus.dead || focus.hp <= 0 && !focus.boss)) focus = null;
+      if (!focus) { var f = foes(); focus = f[0] || null; }
+      if (SJ.Game.frame % 12 === 0) renderStats();
+    },
+
+    draw: function (g) {
+      SJ.Ink.paper(g, SJ.Camera.x, SJ.Camera.y);
+      SJ.Ink.mountains(g, SJ.Camera.x, 2, {});
+      SJ.Ink.mountains(g, SJ.Camera.x, 1, {});
+
+      SJ.Camera.apply(g);
+      // 地形
+      var i, s;
+      for (i = 0; i < SJ.World.solids.length; i++) {
+        s = SJ.World.solids[i];
+        if (s.gone) continue;
+        if (s.oneway) {
+          SJ.Ink.stroke(g, [[s.x, s.y], [s.x + s.w, s.y]],
+            { w0: 3, w1: 2, color: SJ.C.ink2, alpha: 0.7, seed: i * 7 });
+        } else {
+          SJ.Ink.wash(g, s.x, s.y, s.w, Math.min(s.h, 200),
+            { color: SJ.C.ink, alpha: 0.16 });
+          SJ.Ink.stroke(g, [[s.x, s.y], [s.x + s.w * 0.5, s.y - 1.5], [s.x + s.w, s.y]],
+            { w0: 4, w1: 2.5, color: SJ.C.ink, alpha: 0.85, seed: i * 13 });
+        }
+      }
+      SJ.Ent.drawAll(g);
+      SJ.Combat.draw(g);
+      SJ.FX.draw(g);
+
+      // 起手式剩余时间（调试）
+      if (SJ.Combat.debug.tgAlways || SJ.Combat.debug.hitbox) {
+        g.font = '11px ui-monospace,monospace';
+        g.fillStyle = SJ.C.cinnabar;
+        var T = SJ.Combat.tgList;
+        for (i = 0; i < T.length; i++) {
+          var tg = T[i];
+          if (!tg.owner) continue;
+          g.fillStyle = tg.danger ? SJ.C.cinnabar : SJ.C.stone;
+          g.fillText((tg.moveId || '-') + ' ' + (tg.dur - tg.t).toFixed(2) + 's',
+            tg.owner.cx() - 26, tg.owner.y - 16);
+        }
+      }
+      SJ.Camera.restore(g);
+
+      // 墨褪色（G 的活，这里照做一次，好看清墨低时敌人还读不读得出来）
+      var tint = SJ.Player.inkTint();
+      if (tint < 0.999) {
+        g.globalAlpha = (1 - tint) * 0.72;
+        g.fillStyle = SJ.C.paper;
+        g.fillRect(0, 0, SJ.W, SJ.H);
+        g.globalAlpha = 1;
+      }
+
+      hud(g);
+    }
+  };
+
+  function hud(g) {
+    var p = SJ.player;
+    g.font = '12px ui-monospace,Menlo,monospace';
+    g.fillStyle = SJ.C.ink;
+    g.globalAlpha = 0.85;
+    g.fillText('HP ' + Math.ceil(p.hp) + '/' + p.maxHp +
+      '   墨 ' + Math.round(p.ink) + '   ' + p.state +
+      (p.observing ? ' [观势]' : ''), 10, 18);
+
+    if (focus) {
+      var f = focus;
+      g.fillText(f.def.name + '  HP ' + Math.max(0, Math.ceil(f.hp)) + '/' + f.maxHp +
+        '  P' + f.phase +
+        (f.act === 'down' ? ' [倒地]' : '') +
+        (f.mv ? '  ' + f.mv.d.name + '·' + f.mv.ph : '') +
+        (f.stunT > 0 ? '  硬直' + f.stunT.toFixed(2) : '') +
+        (f.armorT > 0 ? '  霸体' : '') +
+        (f.openT > 0 ? '  破防' + f.openT.toFixed(1) : ''), 10, 34);
+      // Boss 血条：一道墨线
+      var w = 300 * SJ.clamp(f.hp / f.maxHp, 0, 1);
+      g.globalAlpha = 0.5;
+      g.fillStyle = SJ.C.inkLight; g.fillRect(SJ.W / 2 - 150, 500, 300, 3);
+      g.fillStyle = SJ.C.cinnabar; g.fillRect(SJ.W / 2 - 150, 500, w, 3);
+    }
+    if (D.bot) {
+      g.globalAlpha = 0.8; g.fillStyle = SJ.C.stone;
+      g.fillText('机器人 ' + D.lat.toFixed(2) + 's' + (botDown ? ' ●' : ''), 10, 50);
+    }
+    g.globalAlpha = 1;
+  }
+
+  // ── 启动 ──────────────────────────────────────────────────
+  SJ.Save.load();
+  if (!SJ.Save.data.slots) SJ.Save.data.slots = [null, null, null, null];
+  if (!SJ.Save.data.known) SJ.Save.data.known = [];
+  buildPanel();
+  renderSlots();
+  SJ.Game.init(document.getElementById('c'));
+  SJ.Game.setScene(scene);
+
+  var started = false;
+  function boot() { if (started) return; started = true; SJ.Audio.init(); }
+  window.addEventListener('pointerdown', boot);
+  window.addEventListener('keydown', boot);
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'KeyH') {
+      D.hidePanel = !D.hidePanel;
+      panel.className = D.hidePanel ? 'hide' : '';
+    }
+    if (e.code === 'KeyR') SJ.player.respawn(200, GY - 60);
+    if (e.code === 'KeyQ') printStats();
+    var n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7']
+      .indexOf(e.code);
+    if (n >= 0) spawn('mob', MOBS[n][0]);
+  });
+
+  // 给浏览器自动化用的把手
+  window.T = {
+    D: D, stats: stats, spawn: spawn, clear: clearFoes, foes: foes,
+    focus: function () { return focus; },
+    print: printStats,
+    reset: function () { wipeStats(); seen = {}; botClock = 0; },
+    err: []
+  };
+  window.addEventListener('error', function (e) {
+    window.T.err.push(e.message + ' @' + e.filename + ':' + e.lineno);
+    console.error('[试炼场·异常]', e.message, e.filename + ':' + e.lineno);
+  });
+})();
+</script>

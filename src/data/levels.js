@@ -179,7 +179,7 @@
       { type: 'daoke', x: 1800, y: 470, wave: 2 },
       { type: 'daoke', x: 1940, y: 470, wave: 2 },
 
-      { type: 'daoke', x: 2560, y: 470, wave: 3 },
+      { type: 'daoke', x: 2490, y: 410, wave: 3 },   // 站在岩上，居高临下
       { type: 'daoke', x: 2720, y: 470, wave: 3 },
       { type: 'lishi', x: 2640, y: 470, wave: 3 },   // 直线冲撞 → 教身法
 
@@ -211,7 +211,7 @@
 
     boss: 'yuzhongdao',
     bossScript: { pre: 'c1_boss_pre', mid: null, down: 'c1_boss_down', p2: null, p3: null },
-    bossArena: [3620, 4200], bossMusic: 'boss',
+    bossArena: [3620, 4200], bossY: 470, bossMusic: 'boss',
     intro: 'c1_intro', outro: 'c1_outro', exitX: 4150,
 
     expectedSec: 245, encounters: 5,
@@ -221,21 +221,27 @@
 
   /* ══════════════════════════════════════════════════════════════════
    * 2 · 第二回「断桥客栈」 —— 垂直空间、单向平台、隘口、可击碎灯笼、远程压制。
-   *   结构：断桥（0–820，落水会掉血回检查点）→ 客栈一层（820–3700）
-   *        → 二层走廊（600）→ 三层（380）→ 最里的阁楼（3100–4000，实心）铁笛先生。
+   *   动线是一条螺旋（这是本关最重要的结构决定）：
+   *       断桥 → 一层向右走到底(820→3300) → 楼梯上二层 → 二层向左折返(3630→1290)
+   *       → 楼梯上三层 → 三层向右走到底(1400→3800) → 阁楼 · 铁笛先生
+   *   为什么是螺旋：客栈只有 4000px 宽，直着走 17 秒就没了。折回来两趟把实际步行拉到
+   *   7100px（≈30s），而且每一层都能看见另外两层在打什么——垂直空间才有意义。
+   *   ★ 螺旋还顺手解决了「gate + 单向平台 = 软锁」这个陷阱：
+   *     每一波的 gate 都把该层的楼梯**包在里面**，玩家从单向平台掉下去永远爬得回来。
+   *     dev/level-check.js 的可达性检查会替我盯死这条。
    *   教学摆位：
-   *     c2_t_up(940)     踩上第一段木梯前 —— 「踩上去是路，踩不住就是下一层」
-   *     c2_t_lantern(1160) 紧贴第一盏可击碎灯笼
-   *     wall_c2_a(1200)  「碎一盏 得一滴」双保险
-   *     c2_t_multi(2180) 二层楼梯口隘口，紧贴 w3 —— 「站对地方，人就得排着来」
-   *     wall_c2_b(2140)  「上易 下难」
+   *     c2_t_up(1900)     第一块单向平台（2350 的挑台）之前 ——「踩上去是路，踩不住就是下一层」
+   *     c2_t_lantern(1100)/wall_c2_a(1240) 紧贴一层第一串灯笼 ——「碎一盏 得一滴」
+   *     c2_t_multi(3200)/wall_c2_b(3160)   紧贴上二层的楼梯口 ——「站对地方，人就得排着来」
    *   敌人配置教什么：
-   *     w2 弓手站三层往下射 → 第一次「退无可退」，必须上楼处理远程
-   *     w3 力士+刀客从隘口排队过来 → 站位价值
-   *     w4 两个弓手在三层两端交叉火力 → 逼你用掩体（垛口式的柜）
-   *   时长预算：走 4000÷240 = 17s + 上下三层的爬升与折返 ≈ 20s
+   *     w2 弓手站 2350 的挑台上往下射 → 第一次「退无可退」；挑台够得着（120px），
+   *        所以答案是爬上去，不是硬吃——远程不是无解，是要换位置
+   *     w3 楼梯口：力士+两个刀客只能排着下来，站在梯下就是赚的
+   *     w4 二层长廊两端交叉火力 + 两个立柜掩体 → 掩体的价值
+   *     w5 三层四人杂烩，Boss 前最后一次回墨
+   *   时长预算：实际步行 7140÷240 = 30s + 三次爬升 8s
    *            + 5 场遭遇(20+26+30+28+34 = 138s) + Boss 铁笛先生 80s
-   *            + 剧情 16 屏×3.4 = 54s ≈ 309s → 300s（取保守值）
+   *            + 剧情 16 屏×3.4 = 54s ≈ 310s → 300s（取保守值）
    * ══════════════════════════════════════════════════════════════════ */
   {
     id: 'c2', title: '断桥客栈', chapter: 2,
@@ -247,29 +253,22 @@
       [0, 760, 340, 140, 0],           // 东岸
       [470, 700, 110, 14, 1],          // 断桥残板（单向）
       [700, 760, 120, 140, 0],         // 桥头
-      [820, 820, 3180, 80, 0],         // 客栈一层地面（一直铺到 4000，绝不留洞）
-      [3690, 600, 30, 220, 0],         // 一层尽头的墙：过不去，得上楼
+      [820, 820, 3180, 80, 0],         // 一层地面：一直铺到 4000，绝不留洞
+      [3690, 600, 30, 220, 0],         // 一层尽头的墙：过不去，只能上楼
 
-      // 一层 → 二层的木梯（单向）
-      [1000, 760, 90, 14, 1],
-      [1120, 700, 90, 14, 1],
-      [1240, 648, 90, 14, 1],
-      // 二层走廊，两处开口就是楼梯口/隘口
-      [900, 600, 900, 16, 1],
-      [1900, 600, 900, 16, 1],
-      [2600, 600, 700, 16, 1],
-      // 二层 → 三层的木梯
-      [2150, 540, 90, 14, 1],
-      [2270, 488, 90, 14, 1],
-      [2390, 436, 90, 14, 1],
-      // 三层
-      [1000, 380, 1000, 16, 1],
-      [2100, 380, 900, 16, 1],
-      [3100, 380, 900, 40, 0],         // 最里的阁楼：实心，铁笛先生的场子
-      // 掩体（挡箭的立柜）
-      [1600, 320, 40, 60, 0],
-      [2500, 320, 40, 60, 0],
-      [3350, 320, 40, 60, 0]
+      [2350, 700, 200, 16, 1],         // 挑台：弓手站这儿；离一层 120px，跳得上去
+      // 一层 → 二层（在一层最右端，走到底才上得去）
+      [3300, 760, 90, 14, 1],
+      [3420, 706, 90, 14, 1],
+      [3540, 652, 90, 14, 1],
+      [900, 600, 2740, 18, 1],         // 二层长廊（900–3640），向左折返
+      [1800, 540, 40, 60, 0],          // 立柜掩体
+      [2600, 540, 40, 60, 0],
+      // 二层 → 三层（在二层最左端）
+      [960, 540, 90, 14, 1],
+      [1080, 486, 90, 14, 1],
+      [1200, 434, 90, 14, 1],
+      [1400, 380, 2600, 40, 0]         // 三层（实心，1400–4000）；最右端是铁笛先生的阁楼
     ],
 
     hazards: [
@@ -277,72 +276,75 @@
     ],
 
     deco: [
-      { kind: 'stele', x: 1200, y: 820 },
-      { kind: 'stele', x: 2140, y: 600 },
+      { kind: 'stele', x: 1240, y: 820 },
+      { kind: 'stele', x: 3160, y: 820 },
       { kind: 'lantern', x: 950, y: 820, ink: 12 },
-      { kind: 'lantern', x: 1450, y: 820, ink: 12 },
-      { kind: 'lantern', x: 1950, y: 820, ink: 12 },
-      { kind: 'lantern', x: 2450, y: 820, ink: 12 },
+      { kind: 'lantern', x: 1150, y: 820, ink: 12 },
+      { kind: 'lantern', x: 1600, y: 820, ink: 12 },
+      { kind: 'lantern', x: 2050, y: 820, ink: 12 },
+      { kind: 'lantern', x: 2500, y: 820, ink: 12 },
       { kind: 'lantern', x: 2950, y: 820, ink: 12 },
-      { kind: 'lantern', x: 3450, y: 820, ink: 12 },
-      { kind: 'jar', x: 1200, y: 600, ink: 14 },
-      { kind: 'jar', x: 2050, y: 600, ink: 14 },
-      { kind: 'jar', x: 2900, y: 600, ink: 14 },
-      { kind: 'lantern', x: 1300, y: 380, ink: 12 },
-      { kind: 'lantern', x: 2300, y: 380, ink: 12 },
-      { kind: 'lantern', x: 3300, y: 380, ink: 12 },
+      { kind: 'lantern', x: 3400, y: 820, ink: 12 },
+      { kind: 'jar', x: 2450, y: 700, ink: 14 },
+      { kind: 'jar', x: 1300, y: 600, ink: 14 },
+      { kind: 'jar', x: 2200, y: 600, ink: 14 },
+      { kind: 'jar', x: 3100, y: 600, ink: 14 },
+      { kind: 'lantern', x: 1500, y: 380, ink: 12 },
+      { kind: 'lantern', x: 2500, y: 380, ink: 12 },
+      { kind: 'lantern', x: 3500, y: 380, ink: 12 },
       { kind: 'table', x: 1700, y: 820 },
-      { kind: 'table', x: 2700, y: 820 }
+      { kind: 'table', x: 2800, y: 820 }
     ],
 
     spawns: [
       { type: 'daoke', x: 1150, y: 820, wave: 1 },
       { type: 'daoke', x: 1320, y: 820, wave: 1 },
 
-      { type: 'daoke', x: 1500, y: 600, wave: 2 },
-      { type: 'gongshou', x: 1700, y: 380, wave: 2 },   // 站三层往下射：第一次「退无可退」
+      { type: 'daoke', x: 2150, y: 820, wave: 2 },
+      { type: 'daoke', x: 2320, y: 820, wave: 2 },
+      { type: 'gongshou', x: 2450, y: 700, wave: 2 },   // 挑台上往下射：退无可退，但爬得上去
 
-      { type: 'lishi', x: 2450, y: 600, wave: 3 },
-      { type: 'daoke', x: 2700, y: 600, wave: 3 },
-      { type: 'daoke', x: 2900, y: 600, wave: 3 },
+      { type: 'lishi', x: 3400, y: 820, wave: 3 },      // 楼梯口，只能排着下来
+      { type: 'daoke', x: 3550, y: 820, wave: 3 },
+      { type: 'daoke', x: 3200, y: 820, wave: 3 },
 
-      { type: 'gongshou', x: 2250, y: 380, wave: 4 },
-      { type: 'gongshou', x: 2900, y: 380, wave: 4 },   // 交叉火力，逼你用立柜掩体
-      { type: 'daoke', x: 2600, y: 380, wave: 4 },
+      { type: 'gongshou', x: 1400, y: 600, wave: 4 },   // 二层长廊两端交叉火力
+      { type: 'gongshou', x: 3100, y: 600, wave: 4 },
+      { type: 'daoke', x: 2100, y: 600, wave: 4 },
 
-      { type: 'daoke', x: 3200, y: 380, wave: 5 },
-      { type: 'daoke', x: 3350, y: 380, wave: 5 },
-      { type: 'lishi', x: 3480, y: 380, wave: 5 },
-      { type: 'gongshou', x: 3600, y: 380, wave: 5 }
+      { type: 'daoke', x: 1600, y: 380, wave: 5 },
+      { type: 'daoke', x: 1800, y: 380, wave: 5 },
+      { type: 'lishi', x: 2000, y: 380, wave: 5 },
+      { type: 'gongshou', x: 2200, y: 380, wave: 5 }
     ],
 
     waves: [
-      { id: 1, x: 880, w: 60, gate: [820, 1420], sec: 20, note: '一层两个刀客，先把上楼的路清出来' },
-      { id: 2, x: 1440, w: 60, gate: [900, 1800], sec: 26, note: '弓手在三层往下射：远程存在，退无可退' },
-      { id: 3, x: 2160, w: 60, gate: [1900, 2820], sec: 30, note: '楼梯口隘口，三人只能排着上来' },
-      { id: 4, x: 2620, w: 60, gate: [2100, 3000], sec: 28, note: '三层两端交叉火力，逼你贴立柜' },
-      { id: 5, x: 3140, w: 60, gate: [3100, 3620], sec: 34, note: '阁楼前的杂烩，Boss 前最后一次回墨机会' }
+      { id: 1, x: 880, w: 60, gate: [820, 1500], sec: 20, note: '一层两个刀客，先把手感和灯笼串起来' },
+      { id: 2, x: 2000, w: 60, gate: [820, 2600], sec: 26, note: '弓手在挑台上：第一次退无可退，答案是爬上去' },
+      { id: 3, x: 3180, w: 60, gate: [820, 3690], sec: 30, note: '楼梯口隘口，三人只能排着下来' },
+      { id: 4, x: 3020, w: 60, gate: [900, 3640], sec: 28, note: '二层长廊两端交叉火力，逼你贴立柜（gate 含两处楼梯，掉下去爬得回来）' },
+      { id: 5, x: 1500, w: 60, gate: [1400, 3400], sec: 34, note: '三层四人杂烩，Boss 前最后一次回墨' }
     ],
 
-    checkpoints: [[100, 760], [1000, 820], [2200, 600], [3150, 380]],
+    checkpoints: [[100, 760], [2100, 820], [1500, 600], [1450, 380]],
 
     triggers: [
-      { x: 930, y: 730, w: 100, h: 90, once: true, event: { play: 'c2_t_up' } },
-      { x: 1140, y: 730, w: 100, h: 90, once: true, event: { play: 'c2_t_lantern' } },
-      { x: 1190, y: 730, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c2_a' } },
-      { x: 2130, y: 510, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c2_b' } },
-      { x: 2160, y: 510, w: 110, h: 90, once: true, event: { play: 'c2_t_multi' } },
-      { x: 3640, y: 290, w: 80, h: 90, once: true, event: { play: 'c2_boss_pre', music: 'boss' } }
+      { x: 1080, y: 730, w: 110, h: 90, once: true, event: { play: 'c2_t_lantern' } },
+      { x: 1230, y: 730, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c2_a' } },
+      { x: 1880, y: 730, w: 110, h: 90, once: true, event: { play: 'c2_t_up' } },
+      { x: 3150, y: 730, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c2_b' } },
+      { x: 3190, y: 730, w: 110, h: 90, once: true, event: { play: 'c2_t_multi' } },
+      { x: 3420, y: 290, w: 90, h: 90, once: true, event: { play: 'c2_boss_pre', music: 'boss' } }
     ],
 
     boss: 'dizi',
     bossScript: { pre: 'c2_boss_pre', mid: 'c2_boss_mid', down: 'c2_boss_down', p2: null, p3: null },
-    bossArena: [3620, 4000], bossMusic: 'boss',
+    bossArena: [3400, 4000], bossY: 380, bossMusic: 'boss',
     intro: 'c2_intro', outro: 'c2_outro', exitX: 3950,
 
     expectedSec: 300, encounters: 6,
-    budget: { walk: 37, waves: 138, boss: 80, story: 54, other: -9,
-              note: '16 屏；走 17s + 三层爬升折返 20s；遭遇 20+26+30+28+34；Boss 三阶段远程 80s' }
+    budget: { walk: 38, waves: 138, boss: 80, story: 54, other: -10,
+              note: '16 屏；螺旋动线实际步行 7140px=30s + 爬升 8s；遭遇 20+26+30+28+34；Boss 三阶段远程 80s' }
   },
 
   /* ══════════════════════════════════════════════════════════════════
@@ -465,7 +467,7 @@
 
     boss: 'laoweng',
     bossScript: { pre: 'c3_boss_pre', mid: 'c3_boss_mid', down: 'c3_boss_down', p2: null, p3: null },
-    bossArena: [4010, 4600], bossMusic: 'boss',
+    bossArena: [4010, 4600], bossY: 580, bossMusic: 'boss',
     intro: 'c3_intro', outro: 'c3_outro', exitX: 4550,
 
     expectedSec: 330, encounters: 6,
@@ -480,11 +482,14 @@
    *     断崖底部另铺了一层实心地面 [2800,1240,...]：就算玩家往下掉也只是被风重新托起，
    *     绝不会掉出地图，也绝不会卡死在坑里（updraft 常开）。
    *   ★ c4_mid（说反第一回）挂在 afterWave:2、x=2050 —— 半山腰，画外音，不打断成过场（决议 003 §3）。
+   *   ★ 决议 008 §5 视野受限：提灯人 e.light 是雪山唯一的光源，两个都是 wave 0 游荡兵。
+   *     绝不能把他们放进带 gate 的波 —— 「清完才能走」＝「必须杀」，那这层选择就废了。
+   *     #1 摆在断崖/风口前（光值钱的地方），#2 摆在最后一段爬升；两处不带光也过得去。
    *   教学摆位：
    *     c4_t_ink(300)   开场就说「走得越慢，掉得越多」，此时风已经在推
    *     wall_c4_b(480)  「慢者 冻」
    *     c4_t_lost(1380) 紧贴 w2 的刺客（看不见的东西还在那里）
-   *     c4_t_deng(2170) 紧贴 w3 的提灯人
+   *     c4_t_deng(2580) 第一次撞见游荡的提灯人（不在任何一波里，见 spawns 注释）
    *     wall_c4_a(2760) 「风起处 可借一步」—— 就刻在风口前那块石头上
    *     c4_t_tiyun      风口区域内，gain('tiyun',100)
    *     c4_t_men(3880)  山门
@@ -545,13 +550,19 @@
     ],
 
     spawns: [
+      // ★ 提灯人是游荡的（wave 0），不属于任何一波 —— 决议 008 §5。
+      //   放进带 gate 的波里，「清完才能走」就等于「必须杀」，那这一关最好的那层选择就没了：
+      //   雪山唯一的光源是他，你杀了他视野就没了，留着他他就一直跟着你打。
+      //   两个的摆位都挑在「光值钱」的地方，但两处都有不带光也过得去的走法，不做强制解。
+      { type: 'denglong', x: 2700, y: 780, wave: 0 },  // 就在断崖/风口前那块台上：他活着，那一跳看得见
+      { type: 'denglong', x: 3450, y: 540, wave: 0 },  // 最后一段爬升
+
       { type: 'daoke', x: 780, y: 1120, wave: 1 },
       { type: 'daoke', x: 930, y: 1120, wave: 1 },
 
       { type: 'cike', x: 1620, y: 1000, wave: 2 },     // 瞬移刺客 + 视野受限
       { type: 'daoke', x: 1740, y: 1000, wave: 2 },
 
-      { type: 'denglong', x: 2400, y: 860, wave: 3 },  // 提灯人：他一亮，你才看得见另外三个
       { type: 'daoke', x: 2260, y: 860, wave: 3 },
       { type: 'daoke', x: 2440, y: 860, wave: 3 },
       { type: 'gongshou', x: 2320, y: 760, wave: 3 },
@@ -565,7 +576,7 @@
     waves: [
       { id: 1, x: 560, w: 60, gate: [400, 1020], sec: 22, note: '逆风打两个刀客：先体会风把节奏拖慢' },
       { id: 2, x: 1420, w: 60, gate: [1400, 1800], sec: 28, note: '刺客瞬移 + 雪幕：看不见的还在那里' },
-      { id: 3, x: 2180, w: 60, gate: [2160, 2500], sec: 32, note: '提灯人一亮才看清编制，打灯还是打人？' },
+      { id: 3, x: 2180, w: 60, gate: [2160, 2500], sec: 28, note: '雪幕里的三人组；此时第一个提灯人就在前面 200px，光要不要留是玩家自己的事' },
       { id: 4, x: 3320, w: 60, gate: [3300, 3920], sec: 30, note: '山门下最后一波，两个刺客夹一个力士' }
     ],
 
@@ -577,7 +588,7 @@
       { x: 1350, y: 910, w: 90, h: 90, once: true, event: { play: 'c4_t_lost' } },
       // ★ 关卡内矛盾：半山腰，第二波打完之后，画外音说反第一回（STORY §2 / 决议 003 §3）
       { x: 2020, y: 850, w: 120, h: 90, once: true, when: 'afterWave:2', event: { play: 'c4_mid' } },
-      { x: 2170, y: 770, w: 100, h: 90, once: true, event: { play: 'c4_t_deng' } },
+      { x: 2580, y: 690, w: 110, h: 90, once: true, event: { play: 'c4_t_deng' } },  // 第一次撞见提灯人
       { x: 2740, y: 690, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c4_a' } },
       // ★ 非战斗学招：站进风口 → 踏云（DESIGN §9.2）
       { x: 2800, y: 700, w: 160, h: 540, once: true, event: { play: 'c4_t_tiyun', gain: ['tiyun', 100] } },
@@ -587,38 +598,46 @@
 
     boss: 'baiyi',
     bossScript: { pre: 'c4_boss_pre', mid: 'c4_boss_mid', down: 'c4_boss_down', p2: null, p3: null },
-    bossArena: [3920, 4400], bossMusic: 'boss',
+    bossArena: [3920, 4400], bossY: 340, bossMusic: 'boss',
     intro: 'c4_intro', outro: 'c4_outro', exitX: 4350,
 
-    expectedSec: 325, encounters: 5,
-    budget: { walk: 58, waves: 112, boss: 85, story: 71, other: -1,
-              note: '21 屏（含 c4_mid 3 屏）；逆风走速约 ×0.66，18s 的路走成 40s+；Boss 白衣分身 85s' }
+    expectedSec: 325, encounters: 6,
+    budget: { walk: 58, waves: 118, boss: 85, story: 71, other: -7,
+              note: '21 屏（含 c4_mid 3 屏）；逆风走速约 ×0.66，18s 的路走成 40s+；遭遇 22+28+28+30 + 游荡提灯人 10；Boss 白衣分身 85s' }
   },
 
   /* ══════════════════════════════════════════════════════════════════
    * 5 · 第五回「藏经阁」 —— 战斗少、压迫多；火会烧纸，地形随时间消失。
-   *   ★ DESIGN §9.3 墨的保底重点关：本关只有 3 场遭遇，回墨机会稀缺。
-   *     经卷/烛台沿路每 ≤350px 一个，另放 3 个石砚（1520 / 2750 / 3420）。
-   *   ★ DESIGN §9.2 非战斗学招：第一次被火燎到 → gain('fenshu',100)。走 when:'burn'，
-   *     不绑死在某一处火上——玩家在任何一处被烧到都算。
-   *   ★ 决议 004 §2 —— 题眼与物证的空间隔离（本关成立与否全看这条）：
-   *       c5_t_page 挂在三层 2620 的一个侧龛书架上，interact:true，玩家得自己爬上去、自己翻开；
-   *       c5_book   挂在最里一层（顶层 3480，主路径上，STORY 原文「最里一层，架上只剩一本」）。
-   *       两者之间隔着：880px 的实际走动 + 一次三层的爬升 + w2 一整场遭遇 + c5_t_burn 的火势推进。
-   *     ▲ 顺序取「先物证、后题眼」：c5_t_page 的四屏是自足的（「纸是旧的。这一段写下来，
-   *       至少有二十年了。」），不依赖题眼；反过来 c5_book 原文写死了「最里一层」，
-   *       只能放在最后。先撞见一页写错的自己，再撞见这本书是干什么用的——递进更陡。
-   *       此决定已在 notes-G 与阶段一汇报里写明，D/Lead 若不同意，改的只是两个 x。
-   *   ★ c5_book 之后还有 w3 一场遭遇才到 Boss：避免 9 屏题眼 + 3 屏 boss_pre 连成 12 屏干读。
-   *   教学摆位：
-   *     c5_t_shelf(600)  「一座楼，抄的是同一本书」题眼铺垫
-   *     c5_t_seng(850)   紧贴 w1 的僧人 —— 「空的东西，砍不开」
-   *     wall_c5_a/b(1560/1600) 「守亦是招」「不写 则无」—— 全游戏唯一「观一个防御动作」的伏笔
-   *     c5_t_fire(1450)  火起，flag=2 的木板开始按 burnAt 消失
-   *     c5_t_burn(3180)  火势推进（afterWave:2；不挂在 3300 那块 burnAt=26 的木板上——
-   *                      板一烧掉这一拍就永远播不出来了）
-   *   ★ 所有 flag=2 的木板下方都是一层通铺的实心一层地面（y=900），烧塌只会掉一层，不会死。
-   *   时长预算：走 4200÷240 = 18s + 三次爬升、绕火、找侧龛 ≈ 50s
+   *
+   *   ★ 顺序按 STORY.md §4.2（D 裁定，驳回我原来的「先物证后题眼」）：
+   *       c5_t_shelf(560, 一层)  满楼是同一本书的抄本 —— 后两条的前提
+   *       → w1 → 火起 → 上二层 →
+   *       c5_book(1990, 二层主路径, 9 屏)  题眼：这是教人怎么讲好故事的书
+   *       → 上三层 → w2 + c5_t_burn 火势推进 → 上顶层 →
+   *       c5_t_page(3530, 顶层最深处, 4 屏)  物证：书里写着第四回，且写错
+   *       → w3 → c5_boss_pre → 守阁人
+   *     D 的三条理由我接受：① 反过来会把 c5_book_d「这本书写的是我」从揭示降级成复述；
+   *     ② 物证「纸是旧的，至少有二十年了」与终回「讲了二十年」同源，是落点不是引子；
+   *     ③ 它直接喂给守阁人第一句「还手的，都写进去了」——三拍是一条链。
+   *     顺带这个顺序把 9 屏放在离 Boss 最远处，比我原来的更不容易堆成一堵墙。
+   *
+   *   ★ STORY §4.2.1（比顺序更要紧）：c5_t_page **不得可错过**。
+   *     我原来把它放在三层侧龛、要跳上去才够得着 —— 那是可以整关不触发的，这是我的错。
+   *     现在的解法：保留 interact（「自己翻开的」这个动作是这一屏的全部力量），
+   *     但把那一架**倒下来横在路上**（blockers），不翻开就过不去。
+   *     翻开＝挪开＝读到，三件事是同一个动作。玩家仍然是自己翻的，只是躲不掉。
+   *
+   *   ★ 会烧掉的木板一律**不放在主路径上**（这是我改过的一个真 bug 的教训）：
+   *     2350/3450 两块 flag=2 是**侧龛**，只承载拾取物；烧掉损失的是墨，不是通路。
+   *     主路径（二层 1780–2850、三层 2980–3900）全程连续，且一层是整层通铺的实心地面，
+   *     从任何地方掉下去都只是掉一层，走回楼梯再上来 —— 永远不会软锁。
+   *
+   *   ★ DESIGN §9.3 墨的保底重点关：只有 3 场遭遇，回墨机会稀缺。
+   *     14 个经卷/烛台（最大间距 400px）+ 3 个石砚（1500 一层 / 2600 二层 / 4050 Boss 前）。
+   *   ★ DESIGN §9.2 非战斗学招：第一次被火燎到 → gain('fenshu',100)，走 when:'burn'，
+   *     不绑死在某一处火上。
+   *
+   *   时长预算：走 4200÷240 = 18s + 三次爬升、绕火、被烧塌一次走回头路 ≈ 50s
    *            + 3 场遭遇(26+30+34 = 90s) + Boss 守阁人 80s（要先悟出无锋才能破，会磨）
    *            + 剧情 30 屏×3.4 = 102s ≈ 340s → 335s
    * ══════════════════════════════════════════════════════════════════ */
@@ -631,62 +650,60 @@
     solids: [
       [0, 900, 4200, 100, 0],          // 一层：整层通铺。上面任何木板烧塌，最多掉到这里
       // 一层 → 二层
-      [1500, 840, 90, 14, 1],
-      [1620, 786, 90, 14, 1],
-      [1740, 732, 90, 14, 1],
-      // 二层走廊
-      [700, 680, 700, 18, 1],
-      [1600, 680, 600, 18, 1],
-      [2200, 680, 200, 18, 2, 18],     // ★ 火起 18s 后烧穿：逼你别在这儿磨蹭
-      [2600, 680, 700, 18, 1],
+      [1450, 840, 90, 14, 1],
+      [1570, 786, 90, 14, 1],
+      [1690, 732, 90, 14, 1],
+      [1780, 680, 1070, 18, 1],        // 二层主路（连续，不放会烧的段）
+      [2300, 560, 220, 18, 2, 18],     // ★ 二层侧龛（火起 18s 后烧穿）：只放拾取物，不承载通行
       // 二层 → 三层
-      [2300, 620, 80, 14, 1],
-      [2380, 566, 80, 14, 1],
-      [2450, 512, 80, 14, 1],
-      // 三层
-      [900, 460, 800, 18, 1],
-      [2000, 460, 700, 18, 1],
-      [3000, 460, 300, 18, 1],
-      [3300, 460, 200, 18, 2, 26],     // ★ 火起 26s 后烧穿
-      [3500, 460, 400, 18, 1],
-      // 三层的侧龛：c5_t_page 那个书架，要多跳一步才够得着
-      [2560, 380, 160, 16, 1],
-      // 三层 → 顶层
-      [3380, 380, 90, 14, 1],
-      [3400, 260, 800, 40, 0]          // 顶层 · 最里一层 · 守阁人的场子
+      [2650, 620, 90, 14, 1],
+      [2770, 566, 90, 14, 1],
+      [2890, 512, 90, 14, 1],
+      [2980, 460, 920, 18, 1],         // 三层主路（连续）
+      [3450, 380, 200, 18, 2, 26],     // ★ 三层侧龛（火起 26s 后烧穿）
+      // 三层 → 顶层（阶梯摆在顶层板的**左边**，免得玩家的头顶进楼板里）
+      [3050, 400, 90, 14, 1],
+      [3170, 346, 90, 14, 1],
+      [3290, 300, 90, 14, 1],
+      [3500, 260, 700, 40, 0]          // 顶层（实心）· 最深处 · 守阁人的场子
+    ],
+
+    // 倒下的书架横在路上；翻开那一页＝把它挪开。不读就过不去（STORY §4.2.1）
+    blockers: [
+      { x: 3700, w: 24, flag: 'c5_page', note: '倒下的书架。翻开那一页才过得去 —— c5_t_page 不得可错过' }
     ],
 
     hazards: [
-      { kind: 'fire', x: 2050, y: 640, w: 120, h: 40, dps: 6, startAt: 0 },
+      { kind: 'fire', x: 2400, y: 640, w: 120, h: 40, dps: 6, startAt: 0 },
       { kind: 'fire', x: 1200, y: 860, w: 180, h: 40, dps: 6, startAt: 10 },
-      { kind: 'fire', x: 2600, y: 860, w: 200, h: 40, dps: 6, startAt: 20 },
-      { kind: 'fire', x: 3100, y: 640, w: 180, h: 40, dps: 6, startAt: 30 },
-      { kind: 'fire', x: 3320, y: 420, w: 160, h: 40, dps: 6, startAt: 40 }
+      { kind: 'fire', x: 2700, y: 640, w: 150, h: 40, dps: 6, startAt: 22 },
+      { kind: 'fire', x: 3200, y: 420, w: 180, h: 40, dps: 6, startAt: 32 },
+      { kind: 'fire', x: 3750, y: 420, w: 150, h: 40, dps: 6, startAt: 42 }
     ],
 
     deco: [
-      { kind: 'stele', x: 1560, y: 900 },
-      { kind: 'stele', x: 1610, y: 900 },
-      { kind: 'shelf', x: 600, y: 900 },
-      { kind: 'shelf', x: 2620, y: 380 },     // ★ 物证书架（c5_t_page）
-      { kind: 'shelf', x: 3480, y: 260 },     // ★ 题眼书架（c5_book）「架上只剩一本」
-      { kind: 'yan', x: 1520, y: 900, refill: true },
-      { kind: 'yan', x: 2750, y: 680, refill: true },
-      { kind: 'yan', x: 3420, y: 260, refill: true },
-      // 回墨物件：最大间距 350px（本关战斗稀疏，铺密一点）
+      { kind: 'shelf', x: 600, y: 900 },       // c5_t_shelf：满楼都是抄本
+      { kind: 'shelf', x: 2000, y: 680 },      // ★ 题眼书架（c5_book）
+      { kind: 'shelf', x: 3560, y: 260 },      // ★ 物证书架（c5_t_page）—— 就是横在路上那一架
+      { kind: 'stele', x: 1840, y: 680 },
+      { kind: 'stele', x: 1930, y: 680 },
+      { kind: 'yan', x: 1500, y: 900, refill: true },
+      { kind: 'yan', x: 2600, y: 680, refill: true },
+      { kind: 'yan', x: 4050, y: 260, refill: true },   // Boss 前：无锋要 18 墨，这里给你蘸满
+      // 回墨物件：最大间距 400px（本关战斗稀疏，铺密一点）
       { kind: 'scroll', x: 200, y: 900, ink: 12 },
       { kind: 'candle', x: 500, y: 900, ink: 12 },
       { kind: 'scroll', x: 850, y: 900, ink: 12 },
       { kind: 'candle', x: 1150, y: 900, ink: 12 },
       { kind: 'scroll', x: 1450, y: 900, ink: 12 },
-      { kind: 'scroll', x: 1800, y: 680, ink: 12 },
-      { kind: 'candle', x: 2100, y: 680, ink: 12 },
-      { kind: 'scroll', x: 2400, y: 460, ink: 12 },
-      { kind: 'candle', x: 2700, y: 680, ink: 12 },
-      { kind: 'scroll', x: 3000, y: 900, ink: 12 },
-      { kind: 'candle', x: 3300, y: 900, ink: 12 },
-      { kind: 'scroll', x: 3600, y: 460, ink: 12 },
-      { kind: 'candle', x: 3900, y: 260, ink: 12 },
+      { kind: 'scroll', x: 1850, y: 680, ink: 12 },
+      { kind: 'candle', x: 2150, y: 680, ink: 12 },
+      { kind: 'scroll', x: 2400, y: 560, ink: 12 },     // 二层侧龛：走慢了就烧没了
+      { kind: 'candle', x: 2750, y: 680, ink: 12 },
+      { kind: 'scroll', x: 3050, y: 460, ink: 12 },
+      { kind: 'candle', x: 3350, y: 460, ink: 12 },
+      { kind: 'scroll', x: 3550, y: 380, ink: 12 },     // 三层侧龛
+      { kind: 'candle', x: 3800, y: 260, ink: 12 },
       { kind: 'scroll', x: 4150, y: 260, ink: 12 }
     ],
 
@@ -698,43 +715,44 @@
       { type: 'cike', x: 3260, y: 460, wave: 2 },
       { type: 'gongshou', x: 3560, y: 460, wave: 2 },
 
-      { type: 'sengren', x: 3620, y: 260, wave: 3 },
       { type: 'sengren', x: 3820, y: 260, wave: 3 },
-      { type: 'cike', x: 3720, y: 260, wave: 3 }
+      { type: 'sengren', x: 3980, y: 260, wave: 3 },
+      { type: 'cike', x: 3900, y: 260, wave: 3 }
     ],
 
     waves: [
       { id: 1, x: 880, w: 60, gate: [820, 1420], sec: 26, note: '僧人+刀客：僧人砍不开，刀客不停手，逼你先解题' },
-      { id: 2, x: 3060, w: 60, gate: [3000, 3400], sec: 30, note: '三层：僧人挡路、刺客绕后、弓手远射，脚下还在烧' },
-      { id: 3, x: 3600, w: 60, gate: [3400, 3960], sec: 34, note: '题眼之后、Boss 之前：两僧一刺客，把无锋的必要性压到脸上' }
+      { id: 2, x: 3050, w: 60, gate: null, sec: 30, note: '三层：僧人挡路、刺客绕后、弓手远射，脚下还在烧。不加 gate——三层是单向板，锁住+掉下去=软锁' },
+      { id: 3, x: 3760, w: 60, gate: [3500, 4060], sec: 34, note: '物证之后、Boss 之前：两僧一刺客，把无锋的必要性压到脸上（顶层是实心板，横跨整个 gate，掉不下去）' }
     ],
 
-    checkpoints: [[100, 900], [1500, 900], [2500, 460], [3450, 260]],
+    checkpoints: [[100, 900], [1500, 900], [2980, 460], [3520, 260]],
 
     triggers: [
       { x: 560, y: 810, w: 100, h: 90, interact: true, once: true, event: { play: 'c5_t_shelf' } },
       { x: 830, y: 810, w: 100, h: 90, once: true, event: { play: 'c5_t_seng' } },
-      { x: 1420, y: 810, w: 110, h: 90, once: true, event: { play: 'c5_t_fire', fireStart: true } },
-      { x: 1550, y: 810, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c5_a' } },
-      { x: 1640, y: 810, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c5_b' } },
-      // ★ 物证：三层侧龛的书架，必须自己跳上去、自己翻（决议 004 §2）
-      { x: 2580, y: 300, w: 120, h: 80, interact: true, once: true, event: { play: 'c5_t_page' } },
-      { x: 3180, y: 370, w: 110, h: 90, once: true, when: 'afterWave:2', event: { play: 'c5_t_burn' } },
-      // ★ 题眼：最里一层，主路径上，走进去就播
-      { x: 3450, y: 170, w: 120, h: 90, once: true, event: { play: 'c5_book' } },
-      { x: 3970, y: 170, w: 80, h: 90, once: true, event: { play: 'c5_boss_pre', music: 'boss' } },
+      { x: 1380, y: 810, w: 110, h: 90, once: true, event: { play: 'c5_t_fire', fireStart: true } },
+      { x: 1840, y: 590, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c5_a' } },
+      { x: 1930, y: 590, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c5_b' } },
+      // ★ 题眼：二层主路径上，走到就播
+      { x: 1990, y: 570, w: 120, h: 110, once: true, event: { play: 'c5_book' } },
+      { x: 3280, y: 370, w: 110, h: 90, once: true, when: 'afterWave:2', event: { play: 'c5_t_burn' } },
+      // ★ 物证：顶层最深处，倒下的书架横在路上；interact 保留，但躲不掉（STORY §4.2.1）
+      { x: 3530, y: 170, w: 130, h: 90, interact: true, once: true,
+        event: { play: 'c5_t_page', flag: ['c5_page', true] } },
+      { x: 4020, y: 170, w: 80, h: 90, once: true, event: { play: 'c5_boss_pre', music: 'boss' } },
       // ★ 非战斗学招：第一次被火燎到（DESIGN §9.2）
       { when: 'burn', once: true, event: { play: 'c5_t_fenshu', gain: ['fenshu', 100] } }
     ],
 
     boss: 'shouge',
     bossScript: { pre: 'c5_boss_pre', mid: 'c5_boss_mid', down: 'c5_boss_down', p2: null, p3: null },
-    bossArena: [3960, 4200], bossMusic: 'boss',
+    bossArena: [3700, 4200], bossY: 260, bossMusic: 'boss',
     intro: 'c5_intro', outro: 'c5_outro', exitX: 4150,
 
     expectedSec: 335, encounters: 4,
     budget: { walk: 68, waves: 90, boss: 80, story: 102, other: -5,
-              note: '30 屏（c5_book 9 屏 + c5_t_page 3 屏是本关的重量）；只有 3 场遭遇，故墨保底铺到 350px 一个' }
+              note: '30 屏（c5_book 9 屏在二层、c5_t_page 3 屏在顶层，中间隔 1540px + w2 + 火势）；只有 3 场遭遇，故墨保底铺到 400px 一个' }
   },
 
   /* ══════════════════════════════════════════════════════════════════
@@ -869,7 +887,7 @@
 
     boss: 'shixiong',
     bossScript: { pre: 'c6_boss_pre', mid: null, down: 'c6_boss_down', p2: 'c6_boss_p2', p3: 'c6_boss_p3' },
-    bossArena: [4900, 5200], bossMusic: 'final',
+    bossArena: [4900, 5200], bossY: 560, bossMusic: 'final',
     intro: 'c6_intro', outro: 'c6_outro', exitX: 5150,
 
     expectedSec: 410, encounters: 6,
