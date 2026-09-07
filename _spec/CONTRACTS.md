@@ -780,6 +780,8 @@ SJ.FX.splash(hx, hy, angleInRadians, { groundY: <落地高度> });
 - `grab`：突进 / 抓取 —— 朱砂主线 + **外圈淡墨线**（双线）。
 - 守势型 `danger:false` 维持石青不动；显式 `color` 仍优先；落点小点与 danger 语义绑定、不随 tier 变。
 - 验收标准：三档在 0.3s 内一眼可分，且 light 的显著性不低于现状。
+- **遍照（白衣）的真伪不靠 tier 也不靠 color**：假影 `danger:false` → 石青（守势型不吃 tier）；本体 `danger:true` + heavy → 朱砂加重。
+  **不许为了「统一」把假影改成 heavy，更不许给它 `danger:true`**——那等于删掉「必须观势」这道题的答案（T3 纠正 Lead 的口误后钉入）。
 T3 在 enemies/bosses 的招式表里给每招标 tier；T2 在 combat.js 的 telegraph 绘制里按 tier 分画。
 两边都不得改 `path / dur / danger` 的语义。玩家能否格挡的**规则**不变，只是画法。
 
