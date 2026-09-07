@@ -717,6 +717,13 @@
 
     /* 决议 007 §2：H 的 gameover 确认后只调这一个函数。
      * 语义 = 回到本关最近检查点，不回退章节、不清存档。 */
+    /* 只读调试口（Lead 补）：给巡逻机器人分类失败用，不改任何行为 */
+    _debug: function () {
+      return { gate: R.gate ? R.gate.slice() : null,
+               activeWave: R.active ? R.active.def.id : null,
+               busy: !!R.busy, bossDown: !!R.bossDown };
+    },
+
     restartFromCheckpoint: function () {
       var idx = SJ.Level.current >= 0 ? SJ.Level.current : (SJ.Save.data.chapter | 0);
       SJ.Level.load(idx, true);
