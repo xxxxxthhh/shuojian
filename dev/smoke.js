@@ -163,5 +163,45 @@ for (let i = 0; i < SJ.Levels.length; i++) {
 }
 console.log(`累计 step ${ran} 帧 / render ${drew} 帧`);
 
+/* ══ 第三阶段：随机输入猴子测试 ══════════════════════════════
+ * 站着不动跑通 ≠ 玩得起来。用确定性伪随机接管输入，压移动/攻击/观势/招式/地形/触发。 */
+if (only === null) {
+  let seed = 20260907;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const ACTS = ['left','right','up','down','jump','attack','guard','dash','t1','t2','t3','t4','interact','confirm'];
+  const held = {}, edge = {};
+  const I = SJ.Input;
+  I.down = a => !!held[a];
+  I.pressed = a => !!edge[a];
+  I.released = () => false;
+  I.buffered = a => !!held[a] || !!edge[a];
+  I.consume = () => {};
+  I.axis = () => (held.left ? -1 : 0) + (held.right ? 1 : 0);
+  I.any = () => true;
+  I.update = () => {};
+
+  const MFRAMES = Number(process.env.MONKEY_FRAMES || 3600);
+  let monkeyErr = 0;
+  for (let i = 0; i < SJ.Levels.length; i++) {
+    const id = SJ.Levels[i].id;
+    try { SJ.Level.load(i); } catch (e) { fail(`猴子: 第${i}关 load 抛异常 ${e.message}`); continue; }
+    for (const k in held) delete held[k];
+    let err = null;
+    for (let f = 0; f < MFRAMES && !err; f++) {
+      for (const a of ACTS) { edge[a] = false; }
+      if (f % 3 === 0) {
+        const a = ACTS[(rnd() * ACTS.length) | 0];
+        if (rnd() < 0.5) { held[a] = !held[a]; if (held[a]) edge[a] = true; }
+        else edge[a] = true;
+      }
+      try { SJ.Game._step(1/60); SJ.Game._render(g); }
+      catch (e) { err = `f${f}: ${e.message}`; }
+    }
+    if (err) { fail(`猴子: 第${i}关(${id}) @${err}`); monkeyErr++; }
+    else console.log(`  猴子 第${i}关 ${id.padEnd(4)} ${MFRAMES} 帧(${(MFRAMES/60)|0}s) 随机操作 ✓`);
+  }
+  if (!monkeyErr) console.log('猴子测试：八关全部无异常');
+}
+
 console.log(errors.length ? '\n✗ 失败：\n  ' + errors.join('\n  ') : '\n✓ 全部通过');
 process.exit(errors.length ? 1 : 0);
