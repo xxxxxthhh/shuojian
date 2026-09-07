@@ -775,9 +775,11 @@ SJ.FX.splash(hx, hy, angleInRadians, { groundY: <落地高度> });
 ## 决议 014 — 预警分层 `telegraph.tier`（T3 打标签，T2 画）
 
 `SJ.Combat.telegraph(o)` 新增可选字段 **`o.tier`**，取值 `'light' | 'heavy' | 'grab'`，缺省 `'light'`（完全向后兼容）。
-- `light`：可格挡的普通招 —— 现状画法（墨线）。
-- `heavy`：superArmor / 不可格挡的大招 —— **朱砂**线，线宽 ×1.4。
-- `grab`：突进 / 抓取 —— **双线**（墨线 + 外圈淡线）。
+- `light`：可格挡的普通招 —— **现状画法不动**（T2 指出现状 danger:true 已是朱砂细线；Lead 原文写「墨线」是事实错误，作废。墨线画在墨画的世界里会失去显著性，且用户已经学会了「红线=来招」）。
+- `heavy`：superArmor / 不可格挡的大招 —— 朱砂线宽 **×1.6** + 路径端点一个实心朱砂「势」点（比 light 更重、更实）。
+- `grab`：突进 / 抓取 —— 朱砂主线 + **外圈淡墨线**（双线）。
+- 守势型 `danger:false` 维持石青不动；显式 `color` 仍优先；落点小点与 danger 语义绑定、不随 tier 变。
+- 验收标准：三档在 0.3s 内一眼可分，且 light 的显著性不低于现状。
 T3 在 enemies/bosses 的招式表里给每招标 tier；T2 在 combat.js 的 telegraph 绘制里按 tier 分画。
 两边都不得改 `path / dur / danger` 的语义。玩家能否格挡的**规则**不变，只是画法。
 
@@ -809,3 +811,15 @@ SJ.Scenery = {
 1. **不改玩法、不改数值规则、不改存档结构**（决议 016 除外）。用户正在探索期。
 2. **新建文件 → 告诉 Lead → Lead 挂进 index.html 和 check.html**。
 3. **任何跨文件签名改动 → 先发决议**；四份 checker 交付前必须全绿。
+
+## 决议 018 — 起手时间下限夹紧挪到 `windMul` 之后（T3 发现，Lead 裁定）
+
+`ai.js` 里 `MIN_WIND` 的夹紧发生在 `wind *= windMul` **之前**，所以 enemies.js 注释承诺的「下限由 AI.start 兜底」对最终值不成立。
+现状最短最终起手 0.361s ≥ MIN_WIND，挪动对当前所有招**改变为零**；挪的目的是让承诺真的成立。
+`dev/enemy-check.js` 钉一条「每招最终 wind ≥ MIN_WIND，且 telegraph 出现到首次判定 ≥ 0.25s」。以后谁把第六回 windMul 调低都会被接住。
+
+## 决议 019 — Boss 换势演出用现有 `def.shiftSec`，不缩短（Lead 自纠）
+
+REVIEW §2 第 10 条写的 0.6s 是 Lead 在不知道已有 shift 态时拍的数。**保留 1.0–1.3s**，演出填进现有窗口；断言读 shiftSec。
+换势期间 Boss 无敌导致玩家 hitbox 被 `combat.js strike()` 的 invuln 分支**静默吃掉**（无 hitstop / 墨点 / 声）——
+这条归 T2 在 combat.js 加「挡开」反馈（墨环 + block 音，不掉血、不进进度统计）。T3 **不在 ai.js 侧绕**。
