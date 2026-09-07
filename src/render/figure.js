@@ -586,10 +586,31 @@
     }
 
     // ── 躯干（5）：一笔，胯窄胸宽，这一笔决定这个人有没有「体量」──
-    // w0 在胯（腰窄），w1 在颈（胸宽）。wobble 让边缘不匀，别填成一根黑柱。
-    SJ.Ink.stroke(g, [r.hip, r.mid, r.neck], {
-      w0: 4.5 * ls, w1: 6.8 * ls, color: col, alpha: al,
-      taper: false, hairs: 0, seed: 15, wobble: 0.55
+    // ── 躯干（5）：胯窄胸宽，并且**分成前后两笔、中间留一条细缝**。
+    // 那条缝就是飞白 —— 只能靠「不画」留出来，不能用 destination-out 去擦，
+    // 那会把背景一起擦穿（人物是直接画在场景上的）。
+    // 缝宽 ~0.5 单位，scale 越大越明显；小 scale 下自然合拢成实心，可接受。
+    var sx = r.neck[0] - r.hip[0], sy = r.neck[1] - r.hip[1],
+      sl = Math.hypot(sx, sy) || 1, px = -sy / sl, py = sx / sl;   // 垂直于脊柱
+    function torso(off, wa, wb, sd) {
+      SJ.Ink.stroke(g, [
+        [r.hip[0] + px * off * 0.72, r.hip[1] + py * off * 0.72],
+        [r.mid[0] + px * off, r.mid[1] + py * off],
+        [r.neck[0] + px * off, r.neck[1] + py * off]
+      ], {
+        w0: wa * ls, w1: wb * ls, color: col, alpha: al,
+        taper: false, hairs: 0, seed: sd, wobble: 0.5
+      });
+    }
+    torso(-1.5, 3.0, 4.2, 15);   // 后半：主体
+    // 前半只占上半段（胸口），这样飞白是「一段」不是一条贯穿到底的直缝
+    SJ.Ink.stroke(g, [
+      [SJ.lerp(r.hip[0], r.mid[0], 0.75) + px * 2.0, SJ.lerp(r.hip[1], r.mid[1], 0.75) + py * 2.0],
+      [r.mid[0] + px * 2.4, r.mid[1] + py * 2.4],
+      [r.neck[0] + px * 2.3, r.neck[1] + py * 2.3]
+    ], {
+      w0: 1.5 * ls, w1: 2.7 * ls, color: col, alpha: al,
+      taper: false, hairs: 0, seed: 26, wobble: 0.5
     });
 
     // ── 前侧腿（6-7）──
