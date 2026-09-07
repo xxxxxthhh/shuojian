@@ -98,6 +98,9 @@
           } else {
             if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
             SJ.Save.reset();
+            // 残墨进度只在内存里（DESIGN §8 的存档结构没有这一项），
+            // 不重置的话新档会带着上一周目的进度：第一次挨打就直接「悟」。
+            if (SJ.Tech && SJ.Tech.resetProgress) SJ.Tech.resetProgress();
             SJ.Level.load(0);
           }
         } else if (titleSel === 1) {

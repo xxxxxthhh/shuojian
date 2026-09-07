@@ -132,8 +132,11 @@
       SJ.Game.shake(6, 0.24);
       SJ.Game.slowmo(0, 0.06);
       SJ.Game.flash(SJ.C.cinnabar, 0.22, 0.20);
-      SJ.FX.splash(this.cx(), this.cy(), -dir,
-        { n: 6, color: SJ.C.cinnabar, speed: 240 });
+      // splash 第三参是弧度角（不是 ±1），groundY 不传墨点就只在半空晕开
+      var gy = SJ.World.groundAt(this.cx(), this.cy());
+      SJ.FX.splash(this.cx(), this.cy(), dir > 0 ? -(Math.PI - 0.6) : -0.6,
+        { n: 6, color: SJ.C.cinnabar, speed: 240,
+          groundY: gy == null ? this.y + this.h : gy });
       SJ.Audio.sfx('hurt', { vol: 1 });
     };
 
@@ -472,7 +475,11 @@
     SJ.Game.slowmo(0.25, 0.9);
     SJ.Game.shake(9, 0.5);
     SJ.Audio.sfx('death', { vol: 1 });
-    SJ.FX.splash(p.cx(), p.cy(), 0, { n: 12, color: SJ.C.cinnabar, speed: 260 });
+    var dgy = SJ.World.groundAt(p.cx(), p.cy());
+    SJ.FX.splash(p.cx(), p.cy(), -Math.PI / 2, {
+      n: 12, color: SJ.C.cinnabar, speed: 260, spread: 3.0,
+      groundY: dgy == null ? p.y + p.h : dgy
+    });
   }
 
   // ── 姿势与绘制 ─────────────────────────────────────────────

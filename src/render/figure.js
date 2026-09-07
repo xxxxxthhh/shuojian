@@ -566,18 +566,22 @@
     // 整条肢体一笔画完（hip→knee→foot），只填充一次，所以关节不会叠深；
     // sharp:true 用折线插值保住折角，宽度沿路径连续收细。
     // hairs + wobble 让边不是数学直线。
-    function limb(pA, pB, pC, wa, wc, alp, sd) {
-      SJ.Ink.stroke(g, [pA, pB, pC], {
+    function limb(pts, wa, wc, alp, sd) {
+      SJ.Ink.stroke(g, pts, {
         w0: wa * ls, w1: wc * ls, color: col, alpha: alp,
         taper: true, hairs: 1, seed: sd, core: false,
         sharp: true, wobble: 0.30
       });
     }
+    // 腿：胯→膝→踝→脚尖，一笔到底。脚不再是单独一笔，
+    // 否则踝部收锋收到几乎没有，脚看着是掉在地上的。
+    function leg(hip, kn, ft, ang, alp, wa, sd) {
+      limb([hip, kn, ft, add(ft, dv(1.30 + ang * 0.22), 4.0)], wa, 1.4, alp, sd);
+    }
 
     // ── 后侧肢体（1-4）──
-    limb(r.hip, r.knB, r.ftB, 5.0, 1.8, alB, 11);
-    seg(r.ftB, add(r.ftB, dv(1.30 + (pose.legB[0] + pose.legB[1]) * 0.22), 3.7), 1.7, 1.0, alB, 25);
-    limb(r.sh, r.elB, r.haB, 4.1, 2.0, alB, 13);
+    leg(r.hip, r.knB, r.ftB, pose.legB[0] + pose.legB[1], alB, 5.0, 11);
+    limb([r.sh, r.elB, r.haB], 4.1, 2.0, alB, 13);
 
     // ── 衣摆：跟着躯干速度甩，比躯干晚一点 ──
     if (cloth > 0) {
@@ -624,9 +628,7 @@
     });
 
     // ── 前侧腿（6-7）──
-    limb(r.hip, r.knF, r.ftF, 5.5, 2.0, al, 16);
-    // 脚：很短的一笔，但没有它人就站不住
-    seg(r.ftF, add(r.ftF, dv(1.30 + (pose.legF[0] + pose.legF[1]) * 0.22), 4.0), 1.9, 1.1, al, 24);
+    leg(r.hip, r.knF, r.ftF, pose.legF[0] + pose.legF[1], al, 5.5, 16);
 
     // ── 脖子与头（8-9）──
     // 末端插进头墨点内部（0.30），端对端相接会露出接缝
@@ -665,7 +667,7 @@
     }
 
     // ── 前侧手臂 + 武器（手腕独立于肘，剑尖轨迹才好看）──
-    limb(r.sh, r.elF, r.haF, 4.5, 2.2, al, 22);   // （10）
+    limb([r.sh, r.elF, r.haF], 4.5, 2.2, al, 22);
     drawWeapon(g, r, o.weapon, pose.weaponLen, col, al, ls);
 
     g.restore();

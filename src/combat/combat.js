@@ -276,7 +276,7 @@
         lastParry = { owner: hb.owner, t: now };
         p.onParry(hb.owner, hb);          // 回墨 + 无敌 + 敌人硬直（stun 在 onParry 内，别在这里再调一次）
         if (hb.moveId) SJ.Tech.gain(hb.moveId, 34);
-        parryFx(px, py, dir);
+        parryFx(px, py, dir, e);
       }
       return;
     }
@@ -300,23 +300,42 @@
     if (hb.ink && hb.owner === p) p.addInk(hb.ink);
     if (hb.onHit) hb.onHit(e, hb);
 
-    if (!hb.silent) hitFx(hb, px, py, dir, dmg);
+    if (!hb.silent) hitFx(hb, e, px, py, dir, dmg);
+  }
+
+  // 墨点该落到哪条线上：优先取命中点正下方真正的地面，
+  // 找不到（悬空、深坑）再退回目标脚底。
+  function groundLine(x, y, e) {
+    var gy = SJ.World.groundAt(x, y);
+    return gy == null ? e.y + e.h : gy;
+  }
+
+  // SJ.FX.splash 的第三参是**弧度角**，不是 ±1（fx.js 里 base = dir）。
+  // y 向下为正，所以「朝斜上方甩开」：dir>0 取 -0.6，dir<0 取 -(π-0.6)。
+  // 传 ±1 的话 1 和 -1 会甩向同一侧（cos1 与 cos(-1) 同号），墨点方向就永远是错的。
+  function sprayAngle(dir) {
+    return dir > 0 ? -0.6 : -(Math.PI - 0.6);
   }
 
   // 命中三件套：hitstop + 屏幕轻震 + 墨点飞溅。缺一不可。
-  function hitFx(hb, px, py, dir, dmg) {
+  function hitFx(hb, e, px, py, dir, dmg) {
     var w = WEIGHT[hb.weight] || (dmg >= 14 ? WEIGHT.heavy : dmg >= 9 ? WEIGHT.mid : WEIGHT.light);
     var stop = hb.hitstop === undefined ? w.stop : hb.hitstop;
 
     SJ.Game.slowmo(0, stop);
     SJ.Game.shake(w.shake, 0.16 + stop);
-    SJ.FX.splash(px, py, dir, { n: w.splash, color: SJ.C.ink, speed: 200 + w.shake * 20 });
+    // groundY 必须传：不传墨点只在半空原地晕开，
+    // DESIGN §1 要的「飞出去、落地晕开、留在纸上」就少了三分之一。
+    SJ.FX.splash(px, py, sprayAngle(dir), {
+      n: w.splash, color: SJ.C.ink, speed: 200 + w.shake * 20,
+      groundY: groundLine(px, py, e)
+    });
     SJ.FX.slash(px, py, -0.9 * dir, 0.9 * dir, 26 + w.shake * 2.2,
       { color: SJ.C.ink, w: 5 + w.shake * 0.45 });
     SJ.Audio.sfx(w.sfx, { vol: w.vol, pan: SJ.clamp((px - SJ.Camera.x - SJ.W / 2) / (SJ.W / 2), -1, 1) });
   }
 
-  function parryFx(px, py, dir) {
+  function parryFx(px, py, dir, e) {
     SJ.Game.slowmo(0, 0.10);
     SJ.Game.slowmo(0.25, 0.22);          // 定格后再半拍慢镜，格挡的「回味」
     SJ.Game.shake(7, 0.22);
@@ -327,6 +346,9 @@
       life: 0.5, size: 3, gravity: 900, drag: 2.4
     });
     SJ.FX.slash(px, py, -1.5 * dir, 1.5 * dir, 46, { color: SJ.C.cinnabar, w: 7 });
+    SJ.FX.splash(px, py, sprayAngle(dir), {
+      n: 5, color: SJ.C.cinnabar, speed: 300, groundY: groundLine(px, py, e)
+    });
     SJ.Audio.sfx('parry', { vol: 1 });
   }
 

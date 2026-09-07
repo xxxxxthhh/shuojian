@@ -127,6 +127,16 @@
 1. **命中三件套是 combat 的统一出口**：任何一次 `SJ.Combat.hit` 命中都会自动产生
    hitstop + 屏幕震 + 墨点飞溅 + 挥毫弧线 + 音效。F 只要传 `weight:'light'|'mid'|'heavy'|'huge'`
    （不传就按伤害自动分档），**不要自己调 `slowmo`/`shake`/`splash`**，会叠加成一团糊。
+
+   **`SJ.FX.splash` 的两个坑（契约签名里都看不出来，传错不报错、只是效果没了）：**
+   - **第三参 `dir` 是弧度角，不是 ±1**。fx.js 里 `base = dir`，直接拿去做 `cos/sin`。
+     传 ±1 的话 `cos(1)` 与 `cos(-1)` 同号 —— 左右打墨点都甩向同一侧。
+     y 向下为正，所以「朝斜上方甩开」是 `dir>0 → -0.6`、`dir<0 → -(π-0.6)`。
+   - **必须传 `o.groundY`**，否则墨点只在半空原地晕开，落不到纸上。
+     combat 里取命中点正下方的 `SJ.World.groundAt`，取不到才退回目标脚底
+     （目标悬空时脚底是半空，墨该继续落到真正的地面）。
+
+   两条都已钉进 `dev/player-check.js` §7d，含「左右两侧甩向不同号」的断言。
 2. **点燃 DoT**：hitbox 传 `type:'fire'` 就会自动挂 2.5s 燃烧（3 伤/秒）。已在 combat 内实现。
 3. **硬直**：`SJ.Combat.stun(ent, sec, src)`，内部走 `ent.hurt(0, src, {stun, parried:true})`，
    **不新增字段**，复用 F 本来就要处理的 `opt.stun`。

@@ -47,7 +47,9 @@ SJ.Figure = { draw: noop, blend: (a) => a, tip: () => ({ x: 0, y: 0 }),
               pose: (n) => ({ name: n, hipY: 0, lean: 0, headAng: 0, neck: 0, spine: 0,
                 armF: [0, 0], armB: [0, 0], legF: [0, 0], legB: [0, 0],
                 wristF: 0, weaponLen: 1 }) };
-SJ.FX = new Proxy({}, { get: () => noop });
+const fxCalls = { splash: [] };
+SJ.FX = new Proxy({ splash: (x, y, dir, o) => { fxCalls.splash.push({ x, y, dir, o: o || {} }); } },
+  { get: (t, k) => (k in t ? t[k] : noop) });
 SJ.Audio = { init: noop, ready: false, sfx: noop, music: noop, intensity: noop,
              duck: noop, setMute: noop, muted: false };
 
@@ -396,6 +398,39 @@ console.log('\n7. 决议 007 / 009 接口');
   for (let i = 0; i < 60; i++) { SJ.Player.envForce(900, 0); step(1); }
   up('KeyA');
   ok('玩家仍能顶着风走（逆风净位移为负）', p.x < 195, (p.x - 200).toFixed(0) + 'px');
+}
+
+// ── 7d. 命中三件套的墨点必须落地（B 的 groundY 要求）───────
+console.log('\n7d. 墨点落地');
+{
+  const p = reset(); step(40);
+  p.x = 452; p.y = 328; p.vx = 0; p.vy = 0; p.facing = 1;
+  const foe = mkFoe(520);
+  foe.hurt = function (d) { this.hp -= d; };
+  fxCalls.splash.length = 0;
+  down('KeyJ'); step(1); up('KeyJ'); step(10);
+  const c = fxCalls.splash[0];
+  ok('命中会产生墨点飞溅', !!c);
+  ok('墨点带 groundY（否则只在半空晕开，打击感少三分之一）',
+    c && typeof c.o.groundY === 'number' && isFinite(c.o.groundY),
+    c ? String(c.o.groundY) : '无调用');
+  ok('groundY 落在地面线 380 上', c && near(c.o.groundY, 380, 0.01),
+    c ? String(c.o.groundY) : '-');
+  // splash 第三参是弧度角：向右打应当甩向右上（cos>0, sin<0）
+  ok('splash 第三参传的是弧度角而非 ±1（向右打甩向右上）',
+    c && Math.cos(c.dir) > 0.5 && Math.sin(c.dir) < 0,
+    c ? 'dir=' + c.dir.toFixed(2) : '-');
+
+  // 反向：向左打必须甩向左上，不能和向右同侧
+  const p2 = reset(); step(40);
+  p2.x = 452; p2.y = 328; p2.vx = 0; p2.vy = 0; p2.facing = -1;
+  const foe2 = mkFoe(402);
+  foe2.hurt = function (d) { this.hp -= d; };
+  fxCalls.splash.length = 0;
+  down('KeyJ'); step(1); up('KeyJ'); step(10);
+  const c2 = fxCalls.splash[0];
+  ok('向左打甩向左上（两侧不同号）', c2 && Math.cos(c2.dir) < -0.5 && Math.sin(c2.dir) < 0,
+    c2 ? 'dir=' + c2.dir.toFixed(2) : '无调用');
 }
 
 // ── 8. 契约面 ─────────────────────────────────────────────
