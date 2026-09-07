@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>说剑 · 音频测试台</title>
+<style>
+  body { background:#1b1a17; color:#efe7d8; font-family:-apple-system,"PingFang SC","Songti SC",sans-serif; padding:24px; }
+  h1 { font-size:18px; color:#c8a55b; margin:0 0 4px; }
+  h2 { font-size:13px; color:#b03a2b; margin:24px 0 8px; text-transform:uppercase; letter-spacing:1px; }
+  .grid { display:flex; flex-wrap:wrap; gap:8px; }
+  button { background:#35322c; color:#efe7d8; border:1px solid #6f6a60; border-radius:4px; padding:8px 12px; font-size:13px; cursor:pointer; }
+  button:hover { background:#4a453c; }
+  button:active { background:#b03a2b; border-color:#b03a2b; }
+  .music-btn.active { background:#4a6f7c; border-color:#4a6f7c; }
+  .row { display:flex; align-items:center; gap:12px; margin:12px 0; }
+  input[type=range] { width:240px; }
+  label { font-size:13px; color:#6f6a60; }
+  #status { font-size:12px; color:#6f6a60; margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>说剑 · 音频测试台</h1>
+<div id="status">未初始化（点任意按钮开始，需要一次用户手势）</div>
+
+<h2>音效 sfx</h2>
+<div class="grid" id="sfxGrid"></div>
+
+<h2>音乐 music</h2>
+<div class="grid" id="musicGrid"></div>
+
+<h2>控制</h2>
+<div class="row">
+  <label>intensity</label>
+  <input type="range" id="intensity" min="0" max="1" step="0.01" value="0.45">
+  <span id="intensityVal">0.45</span>
+</div>
+<div class="row">
+  <label><input type="checkbox" id="mute"> 静音</label>
+  <button id="duckBtn">duck(1.0)</button>
+</div>
+
+<script src="../src/audio/audio.js"></script>
+<script>
+var SFX_NAMES = ['swing1','swing2','swing3','hit','hitHeavy','parry','block','guard','dash','jump','land',
+  'step','hurt','death','enemyDeath','draw','sheathe','learn','qi','arrow','bell','woodclap','page',
+  'door','fire','water','wind','ui','uiConfirm','uiBack','coin','heart'];
+var MUSIC_NAMES = ['tea','bamboo','inn','river','snow','library','wall','boss','final','ending','silence'];
+
+function ensureInit() {
+  SJ.Audio.init();
+  document.getElementById('status').textContent = 'ready = ' + SJ.Audio.ready;
+}
+
+var sfxGrid = document.getElementById('sfxGrid');
+SFX_NAMES.forEach(function (name) {
+  var b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = function () { ensureInit(); SJ.Audio.sfx(name); };
+  sfxGrid.appendChild(b);
+});
+
+var musicButtons = {};
+var musicGrid = document.getElementById('musicGrid');
+MUSIC_NAMES.forEach(function (name) {
+  var b = document.createElement('button');
+  b.textContent = name;
+  b.className = 'music-btn';
+  b.onclick = function () {
+    ensureInit();
+    SJ.Audio.music(name);
+    Object.keys(musicButtons).forEach(function (k) {
+      musicButtons[k].classList.toggle('active', k === name);
+    });
+  };
+  musicGrid.appendChild(b);
+  musicButtons[name] = b;
+});
+var stopBtn = document.createElement('button');
+stopBtn.textContent = '■ 停止';
+stopBtn.onclick = function () {
+  ensureInit();
+  SJ.Audio.music(null);
+  Object.keys(musicButtons).forEach(function (k) { musicButtons[k].classList.remove('active'); });
+};
+musicGrid.appendChild(stopBtn);
+
+var intensitySlider = document.getElementById('intensity');
+var intensityVal = document.getElementById('intensityVal');
+intensitySlider.oninput = function () {
+  ensureInit();
+  var v = parseFloat(intensitySlider.value);
+  intensityVal.textContent = v.toFixed(2);
+  SJ.Audio.intensity(v);
+};
+
+document.getElementById('mute').onchange = function (e) {
+  ensureInit();
+  SJ.Audio.setMute(e.target.checked);
+};
+
+document.getElementById('duckBtn').onclick = function () {
+  ensureInit();
+  SJ.Audio.duck(1.0);
+};
+</script>
+</body>
+</html>

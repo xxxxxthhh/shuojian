@@ -336,3 +336,92 @@ dev/figure.html  —— 姿势画廊：网格展示全部 pose 名，idle/run/at
                     可切换 scale/weapon/facing。这是 wave 1 的视觉验收门。
 dev/ink.html     —— 笔触画廊：展示 Ink.* 每个函数的效果。
 ```
+
+---
+
+## 决议 001 — 姿势与残影约定（Lead 裁定，优先级最高）
+
+由 B 提案，Lead 批准。所有写 pose 的人（B/E/F）必须遵守。
+
+1. **角度符号**：`0 = 向下`，**正 = 向 facing 方向（向前）摆**。
+   局部坐标里 `dir(a) = (sin a, cos a)`，绘制时用 `g.scale(facing,1)` 做镜像。
+   （契约原文「正=顺时针」作废；新约定在 facing=-1 时与原文等价。）
+2. **关节角相对父节点**：`legF:[hip,knee]` 的 `knee` 是在大腿方向上的再偏转。
+   **屈膝 = 负，屈肘 = 正。**
+3. `weaponLen` 是倍率，1 = 正常。`SJ.Figure.tip(o)` 在 `weapon:null` 时返回**手腕**坐标，不报错。
+4. **实体必须每帧维护 `ent.figOpts`**：即那个传给 `SJ.Figure.draw` 的对象
+   （至少含 `{x,y,facing,scale,pose,weapon}`）。
+   `SJ.FX.trail(ent,o)` 优先读 `ent.figOpts`，缺失时退回读 ent 上的同名字段。
+   身法残影、刺客瞬移、白衣分身全部依赖这条 —— **E 与 F 必须实现**。
+5. **特效坐标空间**：`SJ.FX.draw(g)` 世界坐标（在 camera 变换内调用），
+   `SJ.FX.drawScreen(g)` 屏幕坐标（在 camera 变换外调用）。
+   粒子用 `screen` 标志区分：「悟」与招名默认 `screen:true`，伤害数字默认 `false`。
+
+---
+
+## 决议 002 — 剧本条件与生杀记录（Lead 裁定，优先级最高）
+
+由 D 提案，Lead 批准并加强。涉及 D / G / H 三方。
+
+### 1. `cond` 语义：链式跳过（H 必须照此实现）
+`SJ.Story.play(key)` 在进入时与每次 advance 时，对当前 node 求值 `cond(SJ.Save.data)`：
+- 返回 false → **不显示该屏，直接跳到它的 `next`**；`next:null` 即结束。
+- 无 `cond` 字段视为 true。
+
+D 保证：外部（levels.js / level.js）会 `play()` 的**入口 key 一律不带 cond**；cond 只出现在内部变体节点上，每组变体互斥且穷尽，链必然终止。
+H 仍须加一个 200 步的跳转上限保护，超限则直接结束并 `console.warn`，不许死循环。
+
+### 2. `mercy` 的方向 —— 单一写入者
+**`SJ.Save.data.mercy[bossId] === true` 表示「留手（没杀）」。**
+（与 DESIGN §5「留手结局 mercy≥4」一致。）
+
+为杜绝方向写反导致不可靠叙述者静默失效：
+
+> **`SJ.Story.mercyChoice(bossId, cb)` 是 `mercy` 的唯一写入者。**
+> 它内部执行 `SJ.Save.data.mercy[bossId] = !killed; SJ.Save.save();`，然后调用 `cb(killed)`。
+> **G 绝不允许自己写 `save.mercy`**，只能调用 `mercyChoice` 并在回调里处理演出与流程。
+
+`cb` 的参数含义保持 `true = 杀`。读取方一律用「`mercy[id]` 为真 = 留手」。
+D 在 script.js 顶部的 `spared(save,id)` helper 是唯一读取入口，其他人不要自己写判断。
+
+**wave 3 集成测试必须覆盖**：留手一个 Boss 后 `mercy[id] === true`，且第四回旁白确实出现与行为矛盾的版本。
+
+### 3. 剧本入口 key 清单（G 写 levels.js 时直接引用）
+```
+楔子   p_intro   p_outro
+第一至六回  c1_intro c1_outro … c6_intro c6_outro
+终回   f_intro   f_end
+Boss   cN_boss_pre / cN_boss_down   (N=1..6)
+关卡内 cN_t1 / cN_t2 / …            (mode:'narration')
+墙上题字 wall_cN_a / wall_cN_b …    (mode:'narration'，单屏)
+```
+`SJ.Story.ending()` 直接 `play('f_end')` 即可，**分支全在 script.js 内部用 cond 解决**，H 不要自己判结局分支。
+
+---
+
+## 决议 003 — 剧本接入（Lead 裁定，D 交付后确认）
+
+### G 必须遵守的时序（否则说书人从「故意说反」退化成「随机说错」）
+`SJ.Level.complete()` 的顺序是「播 outro → 存档」，**outro 先于存档**。
+因此生杀结果必须在 outro 播放前就已经在内存里：
+
+```
+Boss 倒地 → SJ.Story.mercyChoice(id, cb) → cb 里已经能读到最新的 SJ.Save.data.mercy
+        → 演出结束 → SJ.Level.complete() → 播 outro（读到的是本回的值）→ 存档
+```
+- `mercyChoice` 内部**当场**写 `SJ.Save.data.mercy[id] = !killed` 并 `SJ.Save.save()`（决议 002）。
+- **不许把 mercy 攒到章末统一 flush。** G 不许自己写 `save.mercy`。
+
+### H 必须遵守的呈现约定
+1. **`cond`**：进入时与每次 advance 时都求值；false → 不显示该屏、直接跳 `next`（**不是中止整段**）。200 步跳转上限保护。
+2. **`mode:'card'`**：`lines[0]` = 主标题，`lines[1]` = 副标题。
+   **单行 card = 空白宣纸 + 一枚朱砂印**，印文读 node 的 `seal` 字段（全剧仅 `f_end_all_e` 有，印文「无名」）。
+3. **`mode:'narration'` + `speaker:'说书人'` = 关卡内画外音，不切茶馆插画**；
+   只有 `mode:'tea'` 才是整屏茶馆。第四回 `c4_mid` 的矛盾必须发生在雪山上，不能打断成过场。
+4. `speaker:'无名'` 的节点允许**单行**；`speaker:''` = 无署名旁白与题壁。
+5. `SJ.Story.ending()` 直接 `play('f_end')`，**不要自己判 mercy/known 分支**。
+
+### 已验收（Lead 独立复验）
+`node dev/script-check.js` 退出码 0；181 key / 452 屏行 / 最长行 16 汉字（≤18 ✓）；
+mode 分布 tea 54 / narration 73 / talk 45 / card 9；玩法术语黑名单 grep 干净；
+71552 次链式遍历无断链、无环、必终止。
