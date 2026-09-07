@@ -180,9 +180,21 @@
       });
       SJ.Audio.sfx('dash', { vol: 1 });
     },
+    // 冲锋一旦真的停下（崖边刹车 / 撞墙 —— World.moveX 会把 vx 归零），
+    // **必须同时杀掉 hitbox**。只置 s.t=99 的话人已经站住了，
+    // 判定还会跟着后摇再活半秒，玩家会被一个看上去早就结束的动作打中。
     onAct: function (e, s, dt) {
+      var moved = s.data.px === undefined ? 99 : Math.abs(e.x - s.data.px);
+      s.data.px = e.x;
+      if (!AI.ledge(e, e.facing) || (s.t > 0.02 && moved < 1.5)) {
+        s.t = 99;
+        e.vx = 0;
+        if (s.data.hb) { s.data.hb.dead = true; s.data.hb = null; }
+        SJ.FX.dust(e.cx(), e.footY(), -e.facing);
+        SJ.Game.shake(3, 0.12);
+        return;
+      }
       e.vx = e.facing * 430;
-      if (!AI.ledge(e, e.facing)) { s.t = 99; }
       SJ.FX.dust(e.cx() - e.facing * 14, e.footY(), -e.facing);
     },
     onEnd: function (e, s) { if (s.data.hb) s.data.hb.dead = true; e.vx *= 0.2; }

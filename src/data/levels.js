@@ -456,8 +456,8 @@
     checkpoints: [[100, 600], [2100, 560], [3300, 540], [4060, 580]],
 
     triggers: [
-      { x: 640, y: 510, w: 90, h: 90, once: true, event: { play: 'c3_t_wind' } },
-      { x: 690, y: 510, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c3_b' } },
+      { x: 560, y: 510, w: 90, h: 90, once: true, event: { play: 'c3_t_wind' } },
+      { x: 660, y: 510, w: 60, h: 90, interact: true, once: true, event: { play: 'wall_c3_b' } },
       { x: 1370, y: 490, w: 70, h: 100, once: true, event: { play: 'c3_t_raft' } },
       { x: 1740, y: 470, w: 90, h: 100, once: true, event: { play: 'c3_t_gong' } },
       { x: 2080, y: 470, w: 110, h: 100, once: true, when: 'afterWave:2', event: { play: 'c3_t_yan' } },
@@ -585,15 +585,15 @@
     triggers: [
       { x: 260, y: 1090, w: 110, h: 90, once: true, event: { play: 'c4_t_ink' } },
       { x: 470, y: 1090, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c4_b' } },
-      { x: 1350, y: 910, w: 90, h: 90, once: true, event: { play: 'c4_t_lost' } },
+      { x: 1410, y: 910, w: 110, h: 90, once: true, event: { play: 'c4_t_lost' } },
       // ★ 关卡内矛盾：半山腰，第二波打完之后，画外音说反第一回（STORY §2 / 决议 003 §3）
       { x: 2020, y: 850, w: 120, h: 90, once: true, when: 'afterWave:2', event: { play: 'c4_mid' } },
       { x: 2580, y: 690, w: 110, h: 90, once: true, event: { play: 'c4_t_deng' } },  // 第一次撞见提灯人
       { x: 2740, y: 690, w: 90, h: 90, interact: true, once: true, event: { play: 'wall_c4_a' } },
       // ★ 非战斗学招：站进风口 → 踏云（DESIGN §9.2）
       { x: 2800, y: 700, w: 160, h: 540, once: true, event: { play: 'c4_t_tiyun', gain: ['tiyun', 100] } },
-      { x: 3860, y: 250, w: 90, h: 90, once: true, event: { play: 'c4_t_men' } },
-      { x: 3950, y: 250, w: 80, h: 90, once: true, event: { play: 'c4_boss_pre', music: 'boss' } }
+      { x: 3930, y: 250, w: 90, h: 90, once: true, event: { play: 'c4_t_men' } },
+      { x: 4040, y: 250, w: 80, h: 90, once: true, event: { play: 'c4_boss_pre', music: 'boss' } }
     ],
 
     boss: 'baiyi',
@@ -873,14 +873,14 @@
       { x: 900, y: 470, w: 260, h: 90, once: true, when: 'wave:1', event: { play: 'c6_t_ghost' } },       // 2 叙事（波中）
       { x: 1290, y: 470, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c6_b' } },
       { x: 1400, y: 470, w: 110, h: 90, once: true, when: 'afterWave:1', event: { play: 'c6_t_wave1' } }, // 3 叙事（波后）
-      { x: 1600, y: 470, w: 110, h: 90, once: true, event: { play: 'c6_t_moon' } },                       // 4 场景
+      { x: 1600, y: 430, w: 110, h: 130, once: true, event: { play: 'c6_t_moon' } },                       // 4 场景
       { x: 2420, y: 470, w: 100, h: 90, once: true, event: { play: 'c6_t_mix' } },                        // 5 教学★
       { x: 3300, y: 470, w: 300, h: 90, once: true, when: 'wave:4', event: { play: 'c6_t_wave2' } },      // 6 叙事（波中）
       { x: 3540, y: 470, w: 110, h: 90, once: true, when: 'afterWave:4', event: { play: 'c6_t_flag' } },  // 7 场景
       { x: 3910, y: 470, w: 80, h: 90, interact: true, once: true, event: { play: 'wall_c6_a' } },
       { x: 3940, y: 470, w: 100, h: 90, once: true, event: { play: 'c6_t_all' } },                        // 8 教学★
       { x: 4200, y: 470, w: 300, h: 90, once: true, when: 'wave:5', event: { play: 'c6_t_wave3' } },      // 9 叙事（波中）
-      { x: 4800, y: 470, w: 110, h: 90, once: true, event: { play: 'c6_t_see' } },                        // 10 叙事
+      { x: 4800, y: 420, w: 110, h: 140, once: true, event: { play: 'c6_t_see' } },                        // 10 叙事
       { x: 4920, y: 470, w: 110, h: 90, once: true, event: { play: 'c6_t_last' } },                       // 11 叙事
       { x: 4950, y: 470, w: 80, h: 90, once: true, event: { play: 'c6_boss_pre', music: 'final' } }
     ],

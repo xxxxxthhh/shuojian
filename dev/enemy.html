@@ -445,11 +445,13 @@
         (f.stunT > 0 ? '  硬直' + f.stunT.toFixed(2) : '') +
         (f.armorT > 0 ? '  霸体' : '') +
         (f.openT > 0 ? '  破防' + f.openT.toFixed(1) : ''), 10, 34);
-      // Boss 血条：一道墨线
-      var w = 300 * SJ.clamp(f.hp / f.maxHp, 0, 1);
-      g.globalAlpha = 0.5;
-      g.fillStyle = SJ.C.inkLight; g.fillRect(SJ.W / 2 - 150, 500, 300, 3);
-      g.fillStyle = SJ.C.cinnabar; g.fillRect(SJ.W / 2 - 150, 500, w, 3);
+      // Boss 血条：一道墨线（只给 Boss，杂兵不画）
+      if (f.boss) {
+        var w = 300 * SJ.clamp(f.hp / f.maxHp, 0, 1);
+        g.globalAlpha = 0.5;
+        g.fillStyle = SJ.C.inkLight; g.fillRect(SJ.W / 2 - 150, 500, 300, 3);
+        g.fillStyle = SJ.C.cinnabar; g.fillRect(SJ.W / 2 - 150, 500, w, 3);
+      }
     }
     if (D.bot) {
       g.globalAlpha = 0.8; g.fillStyle = SJ.C.stone;

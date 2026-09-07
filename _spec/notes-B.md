@@ -145,7 +145,20 @@ SJ.Figure.draw(g, { ..., vx: e.vx, vy: e.vy, cloth: 0.55, key: e });
 粒子的 `screen` 标志决定它进哪一层。**默认 false（世界）**；
 「悟」、招名这种要钉在屏幕上的，传 `{screen:true}`。
 
-### 5.3 颜色默认焦墨
+### 5.3 `FX.splash` 想让墨点留在地上，**必须传 `groundY`**
+
+契约签名是 `FX.splash(x,y,dir,o)`，但 DESIGN 要的是「落地后晕开成墨点留在地上 2s」。
+fx.js 只依赖 const.js，问不到 `SJ.World`，所以**地面高度得你告诉它**：
+
+```js
+SJ.FX.splash(hx, hy, dir, { groundY: target.y + target.h });   // ← 这样才会落地晕开
+SJ.FX.splash(hx, hy, dir);                                     // 不传 = 溅在半空原地晕开
+```
+
+半空命中（跳斩、空连）想让墨溅留在空中就别传，是合理的；
+地面战斗请一律传 `groundY`，否则 DESIGN §1 要求的「落地晕开」看不到。
+
+### 5.4 颜色默认焦墨
 
 `slash` / `splash` / `ring` 的 `color` **默认 `SJ.C.ink`**。
 朱砂要显式传 `{color: SJ.C.cinnabar}`。
@@ -177,3 +190,6 @@ SJ.Figure.draw(g, { ..., vx: e.vx, vy: e.vy, cloth: 0.55, key: e });
 - `Ink.water` 只有横向波纹，没有倒影和岸线，第三回长河渡可能需要 G 再补。
 - 雪在米色纸上对比天生弱，`Ink.snow` 已经在雪点下垫了一圈极淡石青，
   但第四回还是建议 G 在天空压一层淡墨 wash，雪才跳得出来。
+- **角度符号未获 Lead 确认**：目前按「正=向前」实现（§1.1）。若 Lead 要字面版，
+  改 `figure.js` 的 `dv()` / `uv()` 两个函数符号即可，pose 表不用动。
+  **F 在确认前不要大批量写角度。**

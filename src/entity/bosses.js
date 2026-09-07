@@ -725,7 +725,10 @@
         if (e.life <= 0) { e.def.onDown(e); return; }
         if (e.mimic > 0) { e.mimic -= dt; AI.brake(e, dt); if (t) AI.face(e, t); return; }
         if (!t) { AI.brake(e, dt); return; }
-        if (beat(e, dt, 0.3, 0.9)) {
+        // 影自己排队：同时最多一个影在出手。三个影一起扑上来
+        // 会把画面变成一堆朱砂虚线，观势就读不出东西了。
+        var busy = SJ.Bosses.clones(e.host).some(function (c) { return c !== e && c.mv; });
+        if (!busy && beat(e, dt, 0.3, 0.9)) {
           var m = AI.pick(e, t, e.def.moves);
           if (m) { AI.start(e, m); return; }
         }

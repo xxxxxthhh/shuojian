@@ -117,7 +117,10 @@
       x: s.x, y: s.y,
       facing: s.facing || 1,
       scale: s.scale != null ? s.scale : 1,
-      pose: s.pose, p: s.p || 0, t: s.t || 0,
+      // pose 若是对象必须深拷贝：F 的 boss 用 blend() 产出对象并可能逐帧原地改写，
+      // 存引用的话所有残影都会跟着变成当前姿势。blend(x,x,0) 正好是一次深拷贝。
+      pose: (s.pose && typeof s.pose === 'object') ? SJ.Figure.blend(s.pose, s.pose, 0) : s.pose,
+      p: s.p || 0, t: s.t || 0,
       weapon: s.weapon, cloth: s.cloth,
       color: o.color || SJ.C.ink,
       life: o.life != null ? o.life : 0.26,

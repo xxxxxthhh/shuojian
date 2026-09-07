@@ -380,8 +380,13 @@
 
   F.poses = POSES;
 
+  var warned = {};
   F.pose = function (name, p, t) {
-    var f = POSES[name] || POSES.idle;
+    var f = POSES[name];
+    if (!f) {
+      if (!warned[name]) { warned[name] = 1; console.warn('[Figure] 未知 pose:', name, '→ 回退 idle'); }
+      f = POSES.idle;
+    }
     return f(SJ.clamp(p || 0, 0, 1), t || 0);
   };
 
@@ -435,7 +440,7 @@
   // ── 次级运动 ──────────────────────────────────────────────────
   // 主驱动是 o.vx/o.vy（每个实体都有）—— 无状态。
   // 传了 o.key 才额外做一个指数追随，衣摆/发带会晚 1-2 帧跟上。
-  var springs = {};
+  var springs = new Map();   // 键常常是实体对象，普通对象会塌成同一个 key
 
   function lag(o, t) {
     var vx = o.vx || 0, vy = o.vy || 0,
@@ -443,8 +448,8 @@
       ty = SJ.clamp(-vy * 0.009, -2.2, 2.2),
       st, dt, k;
     if (o.key != null) {
-      st = springs[o.key];
-      if (!st) st = springs[o.key] = { x: tx, y: ty, t: t };
+      st = springs.get(o.key);
+      if (!st) { st = { x: tx, y: ty, t: t }; springs.set(o.key, st); }
       dt = SJ.clamp(t - st.t, 0, 0.1); st.t = t;
       k = 1 - Math.exp(-dt * 14);
       st.x += (tx - st.x) * k; st.y += (ty - st.y) * k;
@@ -453,7 +458,7 @@
     return [tx, ty];
   }
 
-  F.clearMotionCache = function () { springs = {}; };
+  F.clearMotionCache = function () { springs = new Map(); };
 
   // ── 武器 ──────────────────────────────────────────────────────
 

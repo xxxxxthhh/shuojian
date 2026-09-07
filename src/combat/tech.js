@@ -112,6 +112,29 @@
 
   function cast(p, pose) { p.castPose = pose; p.setState('cast'); }
 
+  function inSolid(x, y, w, h) {
+    var s = SJ.World.solids, i, b;
+    for (i = 0; i < s.length; i++) {
+      b = s[i];
+      if (b.gone || b.oneway) continue;
+      if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) return true;
+    }
+    return false;
+  }
+
+  // 瞬移落点安全化：孤影/说剑穿到墙里会把玩家卡死，
+  // 落点被占就沿原路往回退，退不出来就原地不动。
+  function blink(p, tx, ty) {
+    var ox = p.x, oy = p.y, i, k, x, y;
+    for (i = 0; i <= 6; i++) {
+      k = 1 - i / 6;
+      x = ox + (tx - ox) * k;
+      y = oy + (ty - oy) * k;
+      if (!inSolid(x, y, p.w, p.h)) { p.x = x; p.y = y; return true; }
+    }
+    return false;
+  }
+
   // ── 十二招 ─────────────────────────────────────────────────
 
   var defs = [
@@ -227,11 +250,10 @@
             var foe = nearestFoe(p, 340);
             if (foe) {
               var side = p.cx() < foe.cx() ? 1 : -1;          // 穿过去，落到他背后
-              p.x = foe.cx() + side * 42 - p.w / 2;
-              p.y = foe.cy() - p.h / 2;
+              blink(p, foe.cx() + side * 42 - p.w / 2, foe.cy() - p.h / 2);
               p.facing = -side;
             } else {
-              p.x += p.facing * 170;
+              blink(p, p.x + p.facing * 170, p.y);
             }
             p.invuln = Math.max(p.invuln, 0.30);
             p.vy = -120;
@@ -560,7 +582,12 @@
       },
       update: function () {
         this.t += SJ.Game.rawDt;                  // 走真实时间：同帧的 hitstop 不能把它冻住
-        if (this.t >= DUR || (this.t > 0.6 && SJ.Input.any())) {
+        // 跳过只认「这一帧按下」，不能用 SJ.Input.any()（那是「按住」）：
+        // 完美观势触发学招时玩家正按着 K，trigger 学招时正按着 D，
+        // 用 any() 会让这一屏在 0.6s 就被自己的手按掉 —— 招名还没写完。
+        var skip = SJ.Input.pressed('confirm') || SJ.Input.pressed('attack') ||
+                   SJ.Input.pressed('jump') || SJ.Input.pressed('pause');
+        if (this.t >= DUR || (this.t > 1.05 && skip)) {
           learning = false;
           SJ.Game.pop();
           next();

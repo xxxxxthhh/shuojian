@@ -132,15 +132,30 @@ L.forEach(function (lv, i) {
     if (!positional && !t.when) E(T + ' 既没有位置也没有 when，永远不会触发');
     if (positional) {
       if (t.x < 0 || t.x + t.w > lv.w) E(T + ' 越出关卡宽度');
-      /* ══ 9. positional trigger 必须够得着 ══ */
-      var reachable = lv.solids.some(function (s) {
-        if (s[4] === 2) return false;
-        if (t.x + t.w < s[0] || t.x > s[0] + s[2]) return false;
-        return t.y < s[1] && t.y + t.h > s[1] - PLAYER_H;
-      }) || lv.hazards.some(function (hz) {   // 风口这类会把玩家送进区域的 hazard
+      /* ══ 9. positional trigger 必须够得着 ══
+       * 只问「有没有某一处够得着」是不够的：trigger 跨在台阶落差上或半截悬在岸沿外时，
+       * 会变成「只有从某一侧靠过去才碰得到」，玩家正常走过去反而不触发 —— 一个静默丢失的剧情拍。
+       * 所以按宽度采样：至少一半的横向范围上，站在那里的玩家要能碰到它。 */
+      var inAir = lv.hazards.some(function (hz) {   // 风口这类会把玩家送进区域的 hazard
         return hz.kind === 'updraft' && t.x < hz.x + hz.w && t.x + t.w > hz.x;
       });
-      if (!reachable) E(T + ' (' + (t.event.play || '?') + ') 与任何站得住的地面都不相交，玩家触发不到');
+      if (!inAir) {
+        var hitN = 0, totN = 0;
+        for (var sx = t.x + 4; sx < t.x + t.w; sx += 8) {
+          totN++;
+          // 这一列玩家会站在哪：取最高的那块（y 最小）够得着的地面
+          var ok = lv.solids.some(function (s) {
+            if (s[4] === 2) return false;
+            if (sx < s[0] || sx > s[0] + s[2]) return false;
+            return t.y < s[1] && t.y + t.h > s[1] - PLAYER_H;
+          });
+          if (ok) hitN++;
+        }
+        if (!hitN) E(T + ' (' + (t.event.play || '?') + ') 与任何站得住的地面都不相交，玩家触发不到');
+        else if (hitN / totN < 0.5)
+          E(T + ' (' + (t.event.play || '?') + ') 只有 ' + Math.round(hitN / totN * 100) +
+            '% 的宽度够得着（跨在落差上或悬在边沿外），玩家正常走过去很可能不触发');
+      }
     }
     var m = /^(wave|afterWave):(\d+)$/.exec(t.when || '');
     if (m && !lv.waves.some(function (w) { return w.id === +m[2]; }))

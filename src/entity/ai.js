@@ -71,11 +71,14 @@
     return 0;
   };
 
+  // 同时在出危险招的敌人数。分身（e.host）不计入 ——
+  // 否则白衣 P3 的三个影一动手就把本体自己的招额度吃光，本体反而站着不动。
+  // 分身自己的并发上限由 bosses.js 里的影单独管。
   AI.attackers = function () {
     var n = 0, L = SJ.Ent.list, i;
     for (i = 0; i < L.length; i++) {
       var e = L[i];
-      if (!e.dead && e.mv && e.mv.d.danger !== false) n++;
+      if (!e.dead && !e.host && e.mv && e.mv.d.danger !== false) n++;
     }
     return n;
   };

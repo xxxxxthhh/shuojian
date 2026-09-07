@@ -590,9 +590,10 @@
       var p = SJ.player;
       if (dev.ink && p) p.ink = p.maxInk;
 
+      // 顺序照决议 005 §3：Ent → Tech → Combat → FX（招式产生的 hitbox 要能当帧结算）
       SJ.Ent.updateAll(dt);
-      SJ.Combat.update(dt);
       SJ.Tech.update(dt);
+      SJ.Combat.update(dt);
       SJ.FX.update(dt);
       SJ.Camera.follow(p, dt, { offsetY: -20 });
 

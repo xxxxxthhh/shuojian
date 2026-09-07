@@ -12,6 +12,7 @@
   var tgs = [];       // 活着的 telegraph
   var burns = [];     // 点燃 DoT（fenshu / type:'fire'）
   var uid = 1;
+  var lastParry = null;   // {owner,t} 一次挥砍只结算一次格挡奖励
 
   // 命中反馈分级：hitstop 秒 / 震幅 / 墨点数 / 音效。
   // 停顿档位对齐 DESIGN §7：普攻 45ms、招式 90ms、破防 140ms。
@@ -150,7 +151,8 @@
         // 观势读取：守势型（danger:false）靠「看满」拿进度，这是无锋的唯一学习路径
         if (observing()) {
           tg.obs += dt;
-          if (!tg.danger && !tg.read && tg.obs >= tg.dur * 0.5) {
+          if (!tg.danger && !tg.read && tg.obs >= tg.dur * 0.5 &&
+              Math.abs(cx(tg.owner) - SJ.player.cx()) < 400) {
             tg.read = true;
             if (tg.moveId) SJ.Tech.gain(tg.moveId, 34);
             SJ.Audio.sfx('qi', { vol: 0.7 });
@@ -194,6 +196,7 @@
       hits.length = 0;
       tgs.length = 0;
       burns.length = 0;
+      lastParry = null;
       Combat.lastFoeMove = null;
     },
 
@@ -249,14 +252,24 @@
     // 敌方招式打到玩家 → 记下 moveId，说剑要复制它
     if (isPlayer && hb.moveId) Combat.lastFoeMove = hb.moveId;
 
-    // ①「完美观势」优先于一切
+    // ①「完美观势」优先于一切（必须排在无敌帧之前：身法残留的无敌不能吃掉格挡）
     if (isPlayer && p.parryWindow) {
       var tg = hb.owner ? Combat.tgOf(hb.owner, hb.moveId) : null;
       if (tg) tg.window = true;
-      p.onParry(hb.owner, hb);
-      if (hb.moveId) SJ.Tech.gain(hb.moveId, 34);
-      if (hb.owner) Combat.stun(hb.owner, 0.9, p);
-      parryFx(px, py, dir);
+
+      // 一次挥砍可能有多个 hitbox（力士三连踢）。伤害每个都要挡掉，
+      // 但奖励只能结算一次 —— 否则三脚被格挡 = 34×3 = 直接学会。
+      // 窗口用游戏时间 0.25s：多段招的分段间隔都在 0.2s 以内，
+      // 而我给 F 的建议是同一敌人两次起手式至少隔 0.9s，不会误伤真正的第二次格挡。
+      // （不能放大到 0.4s：观势时游戏时间只走 0.35×，0.4s 相当于真实 1.1s。）
+      var now = SJ.Game.time;
+      var fresh = !lastParry || lastParry.owner !== hb.owner || (now - lastParry.t) > 0.25;
+      if (fresh) {
+        lastParry = { owner: hb.owner, t: now };
+        p.onParry(hb.owner, hb);          // 回墨 + 无敌 + 敌人硬直（stun 在 onParry 内，别在这里再调一次）
+        if (hb.moveId) SJ.Tech.gain(hb.moveId, 34);
+        parryFx(px, py, dir);
+      }
       return;
     }
 
