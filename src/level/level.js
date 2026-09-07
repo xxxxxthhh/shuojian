@@ -157,6 +157,28 @@
     }
   }
 
+
+  /* ── 波次的「同层」判定（Lead 补）──────────────────────────────
+   * 实测软锁：第二回是三层客栈，而波次触发原本只判 x。玩家在地面走到 x=1500
+   * 会触发「三层那一波」——敌人刷在两层之上，gate 却锁在玩家身边，
+   * 玩家永远够不到他们，门永远不开，前后都走不了，且不报任何错。
+   * 修法：波次的敌人在哪一层，就要求玩家也在那一层才触发。
+   * 单层关卡的 spawn y 与玩家脚底本来就同高，此判定自动恒真，不影响其它七关。 */
+  function waveFloorY(w) {
+    var sp = R.def.spawns, y = null, i;
+    for (i = 0; i < sp.length; i++) {
+      if (sp[i].wave !== w.id) continue;
+      if (y === null || sp[i].y > y) y = sp[i].y;      // 取最低的那个作为该波的地面
+    }
+    return y;
+  }
+  var FLOOR_TOL = 130;                                  // 一层楼的高度量级，宽松到不误伤斜坡
+  function onSameFloor(p, w) {
+    var fy = waveFloorY(w);
+    if (fy === null) return true;                       // 没有 spawn 的波次（纯事件）不受限
+    return Math.abs((p.y + p.h) - fy) <= FLOOR_TOL;
+  }
+
   function updateWaves() {
     var p = SJ.player;
     if (R.active) {
@@ -171,7 +193,7 @@
     for (var i = 0; i < R.waves.length; i++) {
       var r = R.waves[i], w = r.def;
       if (r.started) continue;
-      if (p.x + p.w > w.x && p.x < w.x + w.w) { spawnWave(w); return; }
+      if (p.x + p.w > w.x && p.x < w.x + w.w && onSameFloor(p, w)) { spawnWave(w); return; }
     }
   }
 

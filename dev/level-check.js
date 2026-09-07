@@ -585,6 +585,25 @@ if (unused.length) W('这些入口 key 没有被任何关卡引用: ' + unused.j
 
 /* ══ 输出 ═══════════════════════════════════════════════════════════ */
 console.log('');
+/* ══ 17. 波次必须能从它自己那一层被触发 ═══════════════════════════
+ * 实测软锁：第二回三层客栈，波次触发原本只判 x —— 玩家在地面走到 x=1500
+ * 触发了「三层那一波」，敌人刷在两层之上，gate 却锁在玩家身边，永远够不到。
+ * 运行时已加同层判定；这条规则防止数据侧再造出「从自己那层也触发不了」的波次。 */
+L.forEach(function (lv, li) {
+  (lv.waves || []).forEach(function (w) {
+    var sp = (lv.spawns || []).filter(function (s) { return s.wave === w.id; });
+    if (!sp.length) return;
+    var floorY = Math.max.apply(null, sp.map(function (s) { return s.y; }));
+    // 触发 x 处，该层是否有站得住的地面（容差一层楼 130px）
+    var ok = (lv.solids || []).some(function (s) {
+      var x0 = s[0], x1 = s[0] + s[2], y = s[1];
+      return Math.abs(y - floorY) <= 130 && x1 > w.x && x0 < w.x + (w.w || 60);
+    });
+    if (!ok) E('[' + li + ' ' + lv.id + '] wave' + w.id + ' 的敌人在 y=' + floorY +
+      '，但触发点 x=' + w.x + ' 处那一层没有站得住的地面 —— 这一波无法从它自己那层被触发');
+  });
+});
+
 console.log('关卡数        : ' + L.length);
 console.log('Σ expectedSec : ' + totalSec + ' 秒（' + (totalSec / 60).toFixed(1) + ' 分）  下限 1800 ' +
             (totalSec >= 1800 ? '✓' : '✗'));

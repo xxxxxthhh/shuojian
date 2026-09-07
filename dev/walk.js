@@ -33,8 +33,6 @@ while(f<MAX){
       if(best>34) { if(tgt.cx()<p.cx()) held.left=true; else held.right=true; }
       const atking=/^atk/.test(p.state);
       if(!atking && f%6===0) edge.attack=true;
-      if(!atking && p && Math.abs(p.x-lastX)<0.5){ stuckFrames++; if(stuckFrames%24===12){edge.jump=true;held.jump=true;jumps++;} } else { stuckFrames=0; held.jump=false; }
-      if(p) lastX=p.x;
       if(tgt.cy()<p.cy()-24 && f%40===0){ edge.jump=true; held.jump=true; } else held.jump=false;
     } else {
       held.right=true;
@@ -50,6 +48,13 @@ while(f<MAX){
       lastX=p.x;
       if(p.hp<=0) { console.log(`  死亡 @f${f} x=${p.x|0}`); break; }
     }
+  }
+  // 卡住检测放在最外层：攻击状态下也要能跳，否则会永远顶着障碍挥空
+  if(p0()){
+    const px=p0().x;
+    if(Math.abs(px-lastX)<0.5){ stuckFrames++; if(stuckFrames%20===10){ edge.jump=true; held.jump=true; jumps++; } }
+    else { stuckFrames=0; held.jump=false; }
+    lastX=px;
   }
   SJ.Game._step(1/60); SJ.Game._render(g); clr(); f++;
   if(SJ.Level.current!==lv){ console.log(`  ✓ 第${lv}关(${def.id}) 通关 → 切到第${SJ.Level.current}关，用了 ${f} 帧 = ${(f/60).toFixed(1)}s（对话 ${dlg} 帧，跳 ${jumps} 次）`); break; }
