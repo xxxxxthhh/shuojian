@@ -80,7 +80,7 @@
   // ══════════════════════════════════════════════════════════
 
   M({
-    id: 'hengyun', name: '横云断',
+    id: 'hengyun', name: '横云断', tier: 'heavy',
     wind: 0.72, act: 0.30, rec: 0.62, cd: 4.2, range: [0, 330], weight: 1.8,
     poseW: 'atk3_wind', poseA: 'atk3_hit', poseR: 'atk3_rec', sfx: 'draw', sfxVol: 1,
     // 前冲斩，破防。hitbox 活 0.30s > 身法无敌 0.20s，高 96 从头罩到脚 ——
@@ -110,7 +110,7 @@
   });
 
   M({
-    id: 'liebo', name: '裂帛',
+    id: 'liebo', name: '裂帛', tier: 'light',
     wind: 0.70, act: 0.14, rec: 0.52, cd: 3.0, range: [90, 620], weight: 1.6,
     poseW: 'castWind', poseA: 'castHit', poseR: 'idle', sfx: 'qi',
     path: function () { return [[16, -18], [120, -18], [280, -18], [430, -18]]; },
@@ -125,7 +125,7 @@
   });
 
   M({
-    id: 'chengtian', name: '撑天',
+    id: 'chengtian', name: '撑天', tier: 'heavy',
     wind: 0.66, act: 0.18, rec: 0.55, cd: 3.4, range: [0, 150], weight: 1.5,
     poseW: 'crouch', poseA: 'upslash', poseR: 'atk2_rec', sfx: 'swing2',
     path: function () { return [[34, 40], [50, 4], [46, -44], [30, -84]]; },
@@ -146,7 +146,7 @@
   });
 
   M({
-    id: 'guying', name: '孤影',
+    id: 'guying', name: '孤影', tier: 'grab',
     wind: 0.55, act: 0.14, rec: 0.46, cd: 4.0, range: [0, 520], weight: 1.5,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', ground: false,
     path: function () { return [[8, -12], [56, -14], [104, -12]]; },
@@ -182,7 +182,7 @@
   });
 
   M({
-    id: 'wufeng', name: '无锋',
+    id: 'wufeng', name: '无锋', tier: 'light',
     wind: 0.55, act: 0.12, rec: 0.50, cd: 5.0, range: [0, 110], weight: 0.6,
     danger: false, poseW: 'guard', poseA: 'guard', poseR: 'idle',
     path: function () { return [[-16, -36], [16, -42], [26, -8], [8, 18], [-16, 8], [-16, -36]]; },
@@ -199,7 +199,7 @@
   });
 
   M({
-    id: 'fenshu', name: '焚书',
+    id: 'fenshu', name: '焚书', tier: 'heavy',
     wind: 0.68, act: 0.20, rec: 0.60, cd: 5.5, range: [0, 130], weight: 1.2,
     poseW: 'castWind', poseA: 'castHit', poseR: 'atk3_rec', sfx: 'fire',
     color: '#b03a2b',
@@ -228,7 +228,7 @@
   });
 
   M({
-    id: 'tiyun', name: '踏云', learn: false,
+    id: 'tiyun', name: '踏云', tier: 'light', learn: false,
     wind: 0.40, act: 0.10, rec: 0.30, cd: 5.0, range: [0, 400], weight: 0.4,
     danger: false, poseW: 'crouch', poseA: 'jump', poseR: 'fall',
     path: function () { return [[0, -10], [30, -70], [70, -110]]; },
@@ -236,7 +236,7 @@
   });
 
   M({
-    id: 'shuojian', name: '说剑', learn: false,
+    id: 'shuojian', name: '说剑', tier: 'heavy', learn: false,
     wind: 0.60, act: 0.12, rec: 0.40, cd: 6.0, range: [0, 400], weight: 0.5,
     poseW: 'castWind', poseA: 'castHit', poseR: 'idle',
     path: function () { return [[-20, -46], [30, -40], [92, -10]]; },
@@ -248,7 +248,7 @@
   // ══════════════════════════════════════════════════════════
 
   M({
-    id: 'b_sanlian', name: '三连刀', learn: false,
+    id: 'b_sanlian', name: '三连刀', tier: 'light', learn: false,
     wind: 0.50, act: 0.52, rec: 0.55, cd: 3.6, range: [0, 130], weight: 1.3,
     poseW: 'atk2_wind', poseA: 'atk2_hit', poseR: 'atk2_rec', sfx: 'swing1',
     path: function () { return [[-24, -44], [16, -54], [58, -26], [80, 6]]; },
@@ -273,7 +273,7 @@
   });
 
   M({
-    id: 'b_yuluo', name: '雨落', learn: false,
+    id: 'b_yuluo', name: '雨落', tier: 'grab', learn: false,
     wind: 0.58, act: 0.85, rec: 0.50, cd: 4.4, range: [70, 400], weight: 1.2,
     poseW: 'crouch', poseA: 'downslash', poseR: 'land', sfx: 'swing2',
     path: function (e) {
@@ -288,6 +288,7 @@
       // 再登记一道跟着他走的起手式，落点就是他脚下 —— 不然落地那一下没有前摇。
       SJ.Combat.telegraph({
         owner: e, moveId: s.moveId, dur: 0.52, danger: true,
+        tier: 'grab',                     // 决议 014：整招是跳扑，落地那一下也归 grab
         path: [[0, -60], [0, -10], [0, 26], [78, 28]]
       });
       s.data.hb = AI.hit(e, {
@@ -314,7 +315,7 @@
   });
 
   M({
-    id: 'b_dichui', name: '笛槌', learn: false,
+    id: 'b_dichui', name: '笛槌', tier: 'light', learn: false,
     wind: 0.46, act: 0.13, rec: 0.42, cd: 2.4, range: [0, 96], weight: 1.1,
     poseW: 'atk1_wind', poseA: 'atk1_hit', poseR: 'atk1_rec', sfx: 'swing1',
     path: function () { return [[-16, -44], [22, -46], [56, -12]]; },
@@ -329,7 +330,7 @@
   });
 
   M({
-    id: 'b_yinbo', name: '音波', learn: false,
+    id: 'b_yinbo', name: '音波', tier: 'light', learn: false,
     wind: 0.62, act: 0.22, rec: 0.55, cd: 4.0, range: [0, 300], weight: 1.2,
     poseW: 'castWind', poseA: 'castHit', poseR: 'idle', sfx: 'qi',
     // 原地爆一个环。贴地，跳起来就能躲 —— 教「跳」，不是逼观势
@@ -351,7 +352,7 @@
   });
 
   M({
-    id: 'b_sanyin', name: '三音', learn: false,
+    id: 'b_sanyin', name: '三音', tier: 'heavy', learn: false,
     wind: 0.80, act: 0.30, rec: 0.72, cd: 7.0, range: [110, 640], weight: 2, priority: true,
     poseW: 'castWind', poseA: 'castHit', poseR: 'idle', sfx: 'qi',
     // 高中低三道同时来：跳不过、蹲不下、冲不穿。铁笛先生的「必须观势」
@@ -375,7 +376,7 @@
   });
 
   M({
-    id: 'b_hengsao', name: '横扫', learn: false,
+    id: 'b_hengsao', name: '横扫', tier: 'heavy', learn: false,
     wind: 0.58, act: 0.18, rec: 0.52, cd: 2.8, range: [0, 210], weight: 1.4,
     poseW: 'atk2_wind', poseA: 'atk2_hit', poseR: 'atk2_rec', sfx: 'swing2',
     // 长篙：范围极大，但完全贴着地。跳起来就没事 —— 老翁教你「腿脚」
@@ -393,7 +394,7 @@
   });
 
   M({
-    id: 'b_dianshui', name: '点水', learn: false,
+    id: 'b_dianshui', name: '点水', tier: 'light', learn: false,
     wind: 0.50, act: 0.14, rec: 0.40, cd: 2.2, range: [80, 240], weight: 1.2,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', sfx: 'swing1',
     path: function () { return [[12, -18], [90, -16], [176, -14]]; },
@@ -408,7 +409,7 @@
   });
 
   M({
-    id: 'b_xuanfeng', name: '旋风扫', learn: false,
+    id: 'b_xuanfeng', name: '旋风扫', tier: 'heavy', learn: false,
     wind: 0.85, act: 0.90, rec: 0.75, cd: 8.0, range: [0, 260], weight: 2, priority: true,
     poseW: 'crouch', poseA: 'atk2_hit', poseR: 'atk3_rec', sfx: 'draw', lockFace: true,
     // 两圈，两侧都扫，持续 0.9s。跑不出去、滚不过去（0.20s 无敌帧不够）。
@@ -444,7 +445,7 @@
   });
 
   M({
-    id: 'b_langtou', name: '浪头', learn: false,
+    id: 'b_langtou', name: '浪头', tier: 'light', learn: false,
     wind: 0.60, act: 0.16, rec: 0.50, cd: 4.5, range: [120, 620], weight: 1.2,
     poseW: 'atk3_wind', poseA: 'downslash', poseR: 'atk3_rec', sfx: 'water',
     path: function () { return [[16, -40], [50, 10], [190, 22], [340, 22]]; },
@@ -459,7 +460,7 @@
   });
 
   M({
-    id: 'b_kuaijian', name: '快剑', learn: false,
+    id: 'b_kuaijian', name: '快剑', tier: 'light', learn: false,
     wind: 0.42, act: 0.34, rec: 0.40, cd: 2.0, range: [0, 150], weight: 1.6,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', sfx: 'swing2',
     path: function () { return [[4, -26], [56, -18], [104, -22], [56, -6], [110, -2]]; },
@@ -481,7 +482,7 @@
   });
 
   M({
-    id: 'b_fenshen', name: '分身', learn: false,
+    id: 'b_fenshen', name: '分身', tier: 'light', learn: false,
     wind: 0.70, act: 0.16, rec: 0.50, cd: 12.0, range: [0, 620], weight: 3,
     danger: false, priority: true,
     poseW: 'castWind', poseA: 'castHit', poseR: 'idle', sfx: 'qi',
@@ -500,7 +501,7 @@
   });
 
   M({
-    id: 'b_bianzhao', name: '遍照', learn: false,
+    id: 'b_bianzhao', name: '遍照', tier: 'heavy', learn: false,
     wind: 0.78, act: 0.16, rec: 0.62, cd: 9.0, range: [0, 620], weight: 2.4, priority: true,
     poseW: 'atk3_wind', poseA: 'atk3_hit', poseR: 'atk3_rec', sfx: 'draw',
     // 本体与所有分身同时起手，只有一道是朱砂（danger:true）。
@@ -515,6 +516,13 @@
       for (i = 0; i < cs.length; i++) {
         s.data.fake.push(SJ.Combat.telegraph({
           owner: cs[i], moveId: null, dur: 0.78, danger: false,
+          // 真伪之别钉在 **danger** 上，不在 tier 上，也不靠显式 color：
+          // 假影 danger:false → combat.js 的 tgStyle 强制石青（守势型不吃 tier）；
+          // 本体 danger:true + tier heavy → 朱砂加重。
+          // 这里的 light 只是「别让假影冒充大招」的补充。
+          // **谁都不许为了「统一」把假影改成 heavy，更不许给它 danger:true** ——
+          // 那等于把遍照这道题的答案删掉（白衣的「必须观势」考的就是这一眼）。
+          tier: 'light',
           path: [[-30, -52], [22, -46], [92, -14], [140, 6]]
         }));
         cs[i].act = 'move';
@@ -547,7 +555,7 @@
   // ── 守阁人：他的「招」全是守势 ────────────────────────────────
 
   M({
-    id: 'b_shou', name: '守', learn: false, danger: false,
+    id: 'b_shou', name: '守', tier: 'light', learn: false, danger: false,
     wind: 1.20, act: 0.10, rec: 1.00, cd: 0.90, range: [0, 900], weight: 1,
     poseW: 'guard', poseA: 'guard', poseR: 'guard',
     // 决议 9.1：守阁人的「起手式」就是他的守势本身。
@@ -561,7 +569,7 @@
   });
 
   M({
-    id: 'b_zhenjiao', name: '震脚', learn: false,
+    id: 'b_zhenjiao', name: '震脚', tier: 'heavy', learn: false,
     wind: 0.66, act: 0.16, rec: 0.60, cd: 5.0, range: [0, 130], weight: 1,
     poseW: 'crouch', poseA: 'land', poseR: 'guard', sfx: 'swing3', lockFace: true,
     path: function () { return [[0, -34], [10, 4], [10, 26]]; },
@@ -585,7 +593,7 @@
   });
 
   M({
-    id: 'b_tuibu', name: '退步', learn: false, danger: false,
+    id: 'b_tuibu', name: '退步', tier: 'light', learn: false, danger: false,
     wind: 0.40, act: 0.30, rec: 0.30, cd: 3.5, range: [0, 90], weight: 1.1,
     poseW: 'guard', poseA: 'walk', poseR: 'guard',
     path: function () { return [[-10, -20], [-60, -14], [-100, -10]]; },
@@ -594,7 +602,7 @@
   });
 
   M({
-    id: 'b_heshi', name: '合十', learn: false, danger: false,
+    id: 'b_heshi', name: '合十', tier: 'light', learn: false, danger: false,
     wind: 0.90, act: 0.60, rec: 0.60, cd: 9.0, range: [0, 900], weight: 1.4,
     poseW: 'bow', poseA: 'bow', poseR: 'guard', sfx: 'bell',
     path: function () { return [[-14, -46], [0, -56], [14, -46], [0, -20], [-14, -46]]; },
@@ -637,9 +645,11 @@
     // 「我这一刀，练了三年。只出一次。看仔细了。」
     // 教的是「观势」这件事本身。P1 起手全部 ≥0.7s，慢到你不可能没看见。
     yuzhongdao: {
-      id: 'yuzhongdao', name: '雨中刀', boss: true,
-      hp: 300, speed: 150, w: 28, h: 56, weapon: 'dao', scale: 0.95,
-      superArmor: true, knockMul: 0.45, z: 6, shiftSec: 1.1,
+      id: 'yuzhongdao', name: '雨中刀', mass: 'mid', boss: true,
+      hp: 300, speed: 150, w: 28, h: 56, weapon: 'dao', scale: 0.95, lineScale: 1.05,
+      superArmor: true, knockMul: 0.45, z: 6,
+      shiftSec: 1.1,
+      shiftPose: 'crouch',
       phases: [0.5],
       sets: [
         ['poyu', 'k_hengzhan', 'hengyun'],
@@ -652,9 +662,11 @@
     // ── 二回 · 铁笛先生 ──────────────────────────────────────
     // 「也好。省我一句词。」远程压迫。逼你在音波之间找空隙近身。
     dizi: {
-      id: 'dizi', name: '铁笛先生', boss: true,
-      hp: 360, speed: 140, w: 26, h: 54, weapon: 'di', scale: 0.94,
-      superArmor: true, knockMul: 0.4, z: 6, shiftSec: 1.1,
+      id: 'dizi', name: '铁笛先生', mass: 'mid', boss: true,
+      hp: 360, speed: 140, w: 26, h: 54, weapon: 'di', scale: 0.94, lineScale: 1.06,
+      superArmor: true, knockMul: 0.4, z: 6,
+      shiftSec: 1.1,
+      shiftPose: 'castWind',
       phases: [0.55],
       sets: [
         ['liebo', 'b_dichui', 'b_yinbo'],
@@ -673,9 +685,11 @@
     // 「四十年，我渡过八百多人。回来的，一个没有。」
     // 长篙 = 超长范围。P2 的旋风扫是全游戏最长的起手式（0.85s），也是最躲不掉的一招。
     laoweng: {
-      id: 'laoweng', name: '渡口老翁', boss: true,
+      id: 'laoweng', name: '渡口老翁', mass: 'heavy', boss: true,
       hp: 400, speed: 115, w: 30, h: 58, weapon: 'gan', scale: 1.0,
-      superArmor: true, knockMul: 0.35, z: 6, shiftSec: 1.2,
+      superArmor: true, knockMul: 0.35, z: 6,
+      shiftSec: 1.2,
+      shiftPose: 'guard',
       phases: [0.55],
       sets: [
         ['b_hengsao', 'b_dianshui', 'chengtian'],
@@ -688,9 +702,11 @@
     // ── 四回 · 白衣 ──────────────────────────────────────────
     // 「快到你看见的时候，我已经走了。」三阶段：快剑 → 分身 → 遍照
     baiyi: {
-      id: 'baiyi', name: '白衣', boss: true,
-      hp: 380, speed: 210, w: 26, h: 54, weapon: 'jian', scale: 0.92,
-      color: '#35322c', superArmor: true, knockMul: 0.5, z: 6, shiftSec: 1.0,
+      id: 'baiyi', name: '白衣', mass: 'light', boss: true,
+      hp: 380, speed: 210, w: 26, h: 54, weapon: 'jian', scale: 0.92, lineScale: 1.09,
+      color: '#35322c', superArmor: true, knockMul: 0.5, z: 6,
+      shiftSec: 1.0,
+      shiftPose: 'observe',
       phases: [0.62, 0.30],
       sets: [
         ['b_kuaijian', 'guying', 'k_hengzhan'],
@@ -708,8 +724,8 @@
 
     // 白衣的影 —— 一击即散。砍中的可能不是本体。
     baiyi_ying: {
-      id: 'baiyi_ying', name: '影', hp: 1, speed: 210, w: 26, h: 54,
-      weapon: 'jian', scale: 0.92, z: 4, staggerMax: 99, knockMul: 0,
+      id: 'baiyi_ying', name: '影', mass: 'light', hp: 1, speed: 210, w: 26, h: 54,
+      weapon: 'jian', scale: 0.92, lineScale: 1.09, z: 4, staggerMax: 99, knockMul: 0,
       moves: ['b_kuaijian'],
       init: function (e) { e.alpha = 0.55; e.life = 9; },
       onDown: function (e) {
@@ -741,10 +757,12 @@
     // 全游戏唯一一个「观势一个防御动作」的设计（DESIGN §9.1）。
     // 他不出伤害。压力来自墨：震脚抽墨、合十回血。读不出无锋 = 僵持，不会死。
     shouge: {
-      id: 'shouge', name: '守阁人', boss: true,
+      id: 'shouge', name: '守阁人', mass: 'heavy', boss: true,
       hp: 320, speed: 84, w: 32, h: 58, weapon: null, scale: 1.02, lineScale: 1.2,
-      superArmor: true, knockMul: 0.18, z: 6, shiftSec: 1.0,
-      guardPose: 'guard', shiftPose: 'guard',
+      superArmor: true, knockMul: 0.18, z: 6,
+      guardPose: 'guard',
+      shiftSec: 1.0,
+      shiftPose: 'bow',
       phases: [0.68, 0.34],
       sets: [
         ['b_shou', 'b_tuibu'],
@@ -832,9 +850,11 @@
     // P3 现学玩家用过的招，并以 moveId:'shuojian' 打出来 ——
     // 玩家格开自己的招，就学会了「说剑」。
     shixiong: {
-      id: 'shixiong', name: '师兄', boss: true,
-      hp: 520, speed: 180, w: 28, h: 56, weapon: 'jian', scale: 0.97,
-      superArmor: true, knockMul: 0.35, z: 6, shiftSec: 1.3,
+      id: 'shixiong', name: '师兄', mass: 'mid', boss: true,
+      hp: 520, speed: 180, w: 28, h: 56, weapon: 'jian', scale: 0.97, lineScale: 1.03,
+      superArmor: true, knockMul: 0.35, z: 6,
+      shiftSec: 1.3,
+      shiftPose: 'castWind',
       phases: [0.66, 0.33],
       sets: [
         ['poyu', 'k_hengzhan', 'hengyun', 'b_sanlian'],

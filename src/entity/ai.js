@@ -16,6 +16,8 @@
   // 起手式下限（DESIGN §3.2）。低于它玩家来不及反应，一律夹上去并告警。
   var MIN_WIND = 0.35;
 
+  AI.MIN_WIND = MIN_WIND;
+
   // 全局招式注册表：id -> 招式定义。师兄复制玩家的招就是在这里查表。
   AI.moves = {};
 
@@ -120,6 +122,7 @@
   // 沿「原点 → 落点」回退 6 档，取第一个不重叠的位置；全都不行就原地不动。
   AI.blink = function (e, tx, ty) {
     var ox = e.x, oy = e.y, i, k;
+    e._tp = 1;                             // 自己挪的，下一帧的瞬移守卫别管
     for (i = 0; i <= 6; i++) {
       k = 1 - i / 6;
       e.x = ox + (tx - ox) * k;
@@ -203,11 +206,14 @@
     data = data || {};
     var wind = data.wind !== undefined ? data.wind
              : (m.wind === undefined ? 0.6 : m.wind);
+    wind *= (e.windMul || 1);
+    // 决议 018：夹紧必须在 windMul **之后**。在之前夹，enemies.js 承诺的
+    // 「下限 0.35s 由 AI.start 兜底」对最终值根本不成立 —— 第六回按注释把 windMul
+    // 调到 0.62，0.42s 的快剑会变成 0.26s，而且不报错。现状最短 0.361s，挪动改变为零。
     if (m.danger !== false && wind < MIN_WIND) {
       console.warn('[F] 起手式短于 0.35s，已夹紧：', m.id, wind);
       wind = MIN_WIND;
     }
-    wind *= (e.windMul || 1);
 
     var s = e.mv = {
       d: m, ph: 'wind', t: 0, wind: wind, tg: null, n: 0,
@@ -225,7 +231,10 @@
     if (path && path.length > 1) {
       s.tg = SJ.Combat.telegraph({
         owner: e, moveId: mid, dur: wind, path: path,
-        danger: m.danger !== false, color: m.color || null
+        danger: m.danger !== false, color: m.color || null,
+        // 决议 014：分层只是画法，path/dur/danger 的语义一个不动。
+        // 缺省 light 是兜底，不是许可 —— dev/enemy-check.js 要求招表里显式写。
+        tier: m.tier || 'light'
       });
     }
     if (m.sfx) SJ.Audio.sfx(m.sfx, { vol: m.sfxVol || 0.7 });
@@ -322,8 +331,19 @@
 
   function poseSpec(e) {
     var m = e.mv;
-    if (e.act === 'down') return { p: e.at > 0.45 ? 'dead' : 'down', k: SJ.clamp(e.at / 0.5, 0, 1) };
-    if (e.act === 'stun') return { p: 'hurt', k: SJ.clamp(1 - e.stunT / 0.5, 0, 1) };
+    // Boss 是「倒地未死」（DESIGN §3.3）：撑在一只手上、头还抬着，
+    // 生杀抉择就看这一下 —— 所以永远停在 down，不许躺平成 dead。
+    if (e.act === 'down') {
+      if (e.boss) return { p: 'down', k: SJ.clamp(e.at / 0.5, 0, 1) };
+      return { p: e.at > 0.45 ? (e.mem.deadPose || 'dead') : 'down', k: SJ.clamp(e.at / 0.5, 0, 1) };
+    }
+    // 受击按体重分层：轻的整段后仰，中的仰完架回来，重的沉肩硬吃、不后仰。
+    if (e.act === 'stun') {
+      var sk = SJ.clamp(1 - e.stunT / 0.5, 0, 1);
+      if (e.mass === 'heavy') return { p: 'crouch', k: sk };
+      if (e.mass === 'mid' && sk > 0.55) return { p: 'guard', k: (sk - 0.55) / 0.45 };
+      return { p: 'hurt', k: sk };
+    }
     if (e.act === 'shift') return { p: e.def.shiftPose || 'guard', k: SJ.clamp(e.at / 0.5, 0, 1) };
     if (e.act === 'guard') return { p: e.def.guardPose || 'guard', k: SJ.clamp(e.at / 0.35, 0, 1) };
     if (m) {
@@ -405,6 +425,11 @@
       phase: 1, shiftT: 0, _defeated: false,
       onDefeat: null,
       figOpts: null,
+      // 体重（轻/中/重）：只影响受击姿势与墨点，不影响击退与伤害
+      mass: def.mass || 'mid',
+      // 瞬移守卫用（T1 的 rescueFoes 会把掉出世界的敌人传送到玩家身边）。
+      // _tp=1 表示「这一帧的位移是我自己要的」，首帧先跳过。
+      _lx: 0, _ly: 0, _tp: 1,
       dead: false
     };
 
@@ -413,6 +438,10 @@
     e.footY = function () { return this.y + this.h; };
 
     // Boss 阶段切换：清场 → 换势 → 继续。突兀的阶段转换是「不好玩」的第一来源。
+    //
+    // 换势的这一段（def.shiftSec，1.0–1.3s，决议 019 不缩短）：
+    // 停手、不起手式、无敌。玩家在这段里打上来不掉血，但**必须有回音** ——
+    // 那条「挡开」反馈归 combat.js（决议 019：T3 不在 ai.js 侧绕）。
     e.setPhase = function (n) {
       if (n === this.phase || this.act === 'down') return;
       this.phase = n;
@@ -423,6 +452,17 @@
       this.shiftT = this.def.shiftSec || 1.0;
       this.act = 'shift'; this.at = 0;
       this.vx = 0;
+
+      // 影/分身也得停手：只停本体的话，白衣 P2→P3 换势期间三个影照打，
+      // 「他换了个打法」这句话就没人听得见。mimic 是影自己的「站住」计时。
+      if (SJ.Bosses && SJ.Bosses.clones) {
+        var cs = SJ.Bosses.clones(this), ci;
+        for (ci = 0; ci < cs.length; ci++) {
+          AI.interrupt(cs[ci]);
+          cs[ci].mimic = Math.max(cs[ci].mimic || 0, this.shiftT);
+        }
+      }
+
       SJ.Game.slowmo(0.35, 0.30);
       SJ.Game.shake(7, 0.4);
       SJ.FX.ring(this.cx(), this.cy(), { r: 10, r1: 150, color: SJ.C.ink, life: 0.7, w: 3 });
@@ -430,6 +470,12 @@
         n: 16, color: SJ.C.ink, speed: 260, spread: Math.PI * 2,
         life: 0.7, size: 3, gravity: 400, drag: 2
       });
+      // 甩一把墨：决议 013 —— 第三参是弧度角，不是 ±1。
+      // groundY 也要给，否则墨点在半空原地化开，落不到纸上。
+      var gy = SJ.World.groundAt(this.cx(), this.cy());
+      SJ.FX.splash(this.cx(), this.cy() - 6,
+        this.facing > 0 ? -0.6 : -(Math.PI - 0.6),
+        { n: 11, color: SJ.C.ink, speed: 310, groundY: gy == null ? this.footY() : gy });
       SJ.Audio.sfx('qi', { vol: 1 });
       if (this.def.onPhase) this.def.onPhase(this, n);
     };
@@ -446,9 +492,43 @@
 
   // ── 受击 ────────────────────────────────────────────────────
 
+  // 受击的墨：按体重分层。轻的细碎飞散，重的少而钝、直接落到脚边的纸上。
+  // **击退距离不动**（那是数值），这里只改墨。
+  function hurtInk(e, dir, mass) {
+    var x = e.cx() + dir * 6, y = e.cy() - 4;
+    if (mass === 'light') {
+      SJ.FX.burst(x, y, {
+        n: 5, color: SJ.C.ink, speed: 240, spread: 2.2,
+        angle: dir > 0 ? -0.5 : -(Math.PI - 0.5),
+        life: 0.36, size: 1.7, gravity: 700, drag: 2.2
+      });
+    } else if (mass === 'heavy') {
+      // groundY 取命中点正下方真正的地面（与 combat.js 的 groundLine 同口径）——
+      // 被浮空时脚底本身就在半空，墨该继续落到纸上，不是跟着人挂在空中
+      var gy = SJ.World.groundAt(x, y);
+      SJ.FX.splash(x, y, dir > 0 ? -0.9 : -(Math.PI - 0.9),
+        { n: 2, color: SJ.C.ink, speed: 130, groundY: gy == null ? e.footY() : gy });
+      SJ.FX.burst(x, e.cy() + e.h * 0.3, {
+        n: 3, color: SJ.C.ink2, speed: 90, spread: 1.4,
+        angle: -Math.PI / 2, life: 0.5, size: 3.2, gravity: 900
+      });
+    } else {
+      SJ.FX.burst(x, y, {
+        n: 3, color: SJ.C.ink, speed: 170, spread: 1.8,
+        angle: dir > 0 ? -0.6 : -(Math.PI - 0.6),
+        life: 0.4, size: 2.4, gravity: 800, drag: 1.8
+      });
+    }
+  }
+
   function hurt(e, dmg, src, opt) {
     opt = opt || {};
     if (e.act === 'down' || e.dead) return;
+
+    // ⓪ 换势（Boss 阶段转换）：这段停顿是给玩家看的一句话，不许被打断。
+    //    伤害由 invuln 挡（决议 019：静默吃掉玩家 hitbox 的「挡开」反馈归 combat.js）；
+    //    这里只挡「硬直」这条路 —— 没有它，一次 Combat.stun 就能把换势掐掉。
+    if (e.act === 'shift') return;
 
     // ① 完美观势的硬直。combat.js 会走两条路进来（onParry 与 strike），
     //    所以必须幂等：取最大值，不叠加、不掉血、不击退。
@@ -503,6 +583,7 @@
       e.stunT = Math.max(e.stunT, stun);
       e.act = 'stun'; e.at = 0;
     }
+    if (dmg > 0 && !opt.silent) hurtInk(e, dir, e.mass);
     if (e.def.onHurt) e.def.onHurt(e, dmg, src, opt);
   }
 
@@ -510,6 +591,8 @@
     e.hp = 0;
     AI.interrupt(e);
     e.act = 'down'; e.at = 0;
+    // 死姿两种，随机。Boss 不用 —— 他倒地未死，姿势由 poseSpec 钉死在「撑手抬头」。
+    e.mem.deadPose = Math.random() < 0.5 ? 'dead' : 'sit';
     e.stunT = 0;
     e.vx = -e.facing * (e.boss ? 90 : 150);
     e.vy = -220;
@@ -537,6 +620,21 @@
     e.gcd = Math.max(0, e.gcd - dt);
     if (e.armorT === 0 && e.staggers > 0 && !e.mv) e.staggers = Math.max(0, e.staggers - dt * 0.5);
     for (var k in e.cds) if (e.cds[k] > 0) e.cds[k] -= dt;
+
+    // 瞬移守卫。T1 的 rescueFoes()（level.js:151）会把掉出世界的敌人传送到
+    // 玩家身边 —— 被传送的那一刻，正在跑的招必须作废：
+    //   · 冲锋的 hitbox 是 follow:e，跟着人一起贴到玩家脸上（k_zhuang / 横云断 / 遍照）
+    //   · 起手式画在新位置上，玩家刚读到一半的反应窗口被凭空吃掉
+    //   · 算好落点的招（雨落）在半空改了落点
+    // 三种都不报错，只是不公平。_tp 是「这一下位移是我自己要的」（AI.blink 会设）。
+    // 倒地 / 换势 / 硬直中只清招不动 act —— 倒地的 Boss 站起来会毁掉生杀抉择。
+    if (e._tp) e._tp = 0;
+    else if (Math.abs(e.x - e._lx) + Math.abs(e.y - e._ly) > 240) {
+      AI.interrupt(e);
+      e.vx = 0; e.vy = 0; e.think = 0;
+      if (e.act === 'move') { e.act = 'idle'; e.at = 0; }
+    }
+    e._lx = e.x; e._ly = e.y;
 
     if (e.act === 'down') {
       physics(e, dt);

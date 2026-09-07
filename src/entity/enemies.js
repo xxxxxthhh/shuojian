@@ -44,10 +44,18 @@
   // ══════════════════════════════════════════════════════════
   // 招式注册表 · 杂兵来源的四招（DESIGN §6）
   // path 相对 owner 中心，x 按 facing 镜像，y 向下为正（决议 005 §2）
+  //
+  // tier（决议 014，T3 标 / T2 画）：只是画法，玩家能不能格挡的**规则一个字不改**。
+  //   light —— 可格挡的普通招。墨线。
+  //   heavy —— 站着挡不划算的大招：破防 / 浮空 / 贯穿大范围 / 判定活得比身法无敌帧长。
+  //             出这些招的要么是 superArmor 的 Boss，要么招本身带上面那几条。朱砂线。
+  //   grab  —— 威胁在「他到你面前了」：瞬移、冲锋、跳扑。双线。
+  // 一招同时够两档时 heavy > grab（横云断、遍照都是「只能观势」，不是「往后退」）。
+  // dev/enemy-check.js 会真的把每招跑一遍，按 hitbox 与实际位移复核这三条。
   // ══════════════════════════════════════════════════════════
 
   M({
-    id: 'poyu', name: '破雨',
+    id: 'poyu', name: '破雨', tier: 'light',
     wind: 0.70, act: 0.16, rec: 0.40, cd: 1.9, range: [34, 168], weight: 1.4,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', sfx: 'draw',
     path: function () { return [[6, -10], [40, -12], [78, -10], [108, -8]]; },
@@ -64,7 +72,7 @@
   });
 
   M({
-    id: 'chuanyang', name: '穿杨',
+    id: 'chuanyang', name: '穿杨', tier: 'light',
     wind: 0.78, act: 0.10, rec: 0.52, cd: 2.6, range: [130, 520], weight: 1.6,
     poseW: 'bow', poseA: 'bow', poseR: 'idle', sfx: 'draw',
     path: function (e, s) {
@@ -81,7 +89,7 @@
   });
 
   M({
-    id: 'zhenshan', name: '镇山',
+    id: 'zhenshan', name: '镇山', tier: 'heavy',
     wind: 0.80, act: 0.22, rec: 0.55, cd: 3.4, range: [0, 190], weight: 1.5,
     poseW: 'atk3_wind', poseA: 'downslash', poseR: 'atk3_rec', sfx: 'swing3',
     lockFace: true,
@@ -108,7 +116,7 @@
   });
 
   M({
-    id: 'lianhuan', name: '连环腿',
+    id: 'lianhuan', name: '连环腿', tier: 'light',
     wind: 0.65, act: 0.56, rec: 0.50, cd: 3.2, range: [0, 108], weight: 1.3,
     poseW: 'crouch', poseA: 'atk2_hit', poseR: 'atk2_rec', sfx: 'swing1',
     path: function () { return [[26, 12], [50, -12], [58, -44], [46, -72]]; },
@@ -137,7 +145,7 @@
   // ── 杂兵专用招（learn:false → 观势读不出招名，只是威胁）──────────
 
   M({
-    id: 'k_hengzhan', name: '横斩', learn: false,
+    id: 'k_hengzhan', name: '横斩', tier: 'light', learn: false,
     wind: 0.58, act: 0.13, rec: 0.34, cd: 2.2, range: [0, 96], weight: 1,
     poseW: 'atk2_wind', poseA: 'atk2_hit', poseR: 'atk2_rec', sfx: 'swing1',
     path: function () { return [[-28, -46], [8, -58], [50, -34], [72, 4]]; },
@@ -153,7 +161,7 @@
   });
 
   M({
-    id: 'k_ci', name: '直刺', learn: false,
+    id: 'k_ci', name: '直刺', tier: 'light', learn: false,
     wind: 0.55, act: 0.14, rec: 0.40, cd: 2.0, range: [60, 200], weight: 1.2,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', sfx: 'swing2',
     path: function () { return [[10, -14], [70, -14], [142, -12]]; },
@@ -168,7 +176,7 @@
   });
 
   M({
-    id: 'k_zhuang', name: '冲撞', learn: false,
+    id: 'k_zhuang', name: '冲撞', tier: 'grab', learn: false,
     wind: 0.62, act: 0.50, rec: 0.48, cd: 4.0, range: [90, 340], weight: 1.1,
     poseW: 'crouch', poseA: 'run', poseR: 'land', sfx: 'swing3', lockFace: true,
     path: function () { return [[20, 0], [110, -6], [210, -2]]; },
@@ -201,7 +209,7 @@
   });
 
   M({
-    id: 'k_fanji', name: '反手掌', learn: false,
+    id: 'k_fanji', name: '反手掌', tier: 'light', learn: false,
     wind: 0.50, act: 0.12, rec: 0.46, cd: 3.0, range: [0, 84], weight: 1,
     poseW: 'guard', poseA: 'atk1_hit', poseR: 'atk1_rec', sfx: 'swing1',
     path: function () { return [[-10, -30], [22, -34], [58, -22]]; },
@@ -216,7 +224,7 @@
   });
 
   M({
-    id: 'k_shan', name: '闪', learn: false,
+    id: 'k_shan', name: '闪', tier: 'grab', learn: false,
     wind: 0.52, act: 0.14, rec: 0.44, cd: 3.6, range: [0, 460], weight: 1.4,
     poseW: 'atk1_wind', poseA: 'thrust', poseR: 'atk1_rec', ground: false,
     path: function () { return [[4, -10], [46, -12], [92, -10]]; },
@@ -258,7 +266,7 @@
   });
 
   M({
-    id: 'k_denghuo', name: '灯火', learn: false,
+    id: 'k_denghuo', name: '灯火', tier: 'light', learn: false,
     wind: 0.60, act: 0.16, rec: 0.46, cd: 2.8, range: [0, 120], weight: 1,
     poseW: 'atk2_wind', poseA: 'atk2_hit', poseR: 'atk2_rec', sfx: 'fire',
     color: '#c8a55b',
@@ -376,8 +384,8 @@
 
     // 刀客 —— 第一个会起手式的人。第一回用 windMul 1.15（破雨 0.80s）
     daoke: {
-      id: 'daoke', name: '刀客', hp: 30, speed: 150, w: 26, h: 52,
-      weapon: 'dao', scale: 0.86, staggerMax: 2,
+      id: 'daoke', name: '刀客', mass: 'light', hp: 30, speed: 150, w: 26, h: 52,
+      weapon: 'dao', scale: 0.86, lineScale: 1.16, staggerMax: 2,
       moves: ['poyu', 'k_hengzhan'],
       ai: 'melee',
       think: function (e, dt, t) {
@@ -396,8 +404,8 @@
 
     // 弓手 —— 远程压制。近身就后跳，逼你先处理他，或者学会反弹
     gongshou: {
-      id: 'gongshou', name: '弓手', hp: 22, speed: 130, w: 24, h: 50,
-      weapon: 'gong', scale: 0.84, staggerMax: 1,
+      id: 'gongshou', name: '弓手', mass: 'light', hp: 22, speed: 130, w: 24, h: 50,
+      weapon: 'gong', scale: 0.84, lineScale: 1.19, staggerMax: 1,
       moves: ['chuanyang'],
       ai: 'ranged',
       think: function (e, dt, t) {
@@ -423,8 +431,8 @@
 
     // 枪兵 —— 中距离戳，逮到机会就镇山。和弓手一起出现时威胁在组合不在单体
     qiangbing: {
-      id: 'qiangbing', name: '枪兵', hp: 40, speed: 120, w: 28, h: 54,
-      weapon: 'qiang', scale: 0.92, staggerMax: 2, knockMul: 0.8,
+      id: 'qiangbing', name: '枪兵', mass: 'mid', hp: 40, speed: 120, w: 28, h: 54,
+      weapon: 'qiang', scale: 0.92, lineScale: 1.09, staggerMax: 2, knockMul: 0.8,
       moves: ['k_ci', 'zhenshan'],
       ai: 'spacer',
       think: function (e, dt, t) {
@@ -439,7 +447,7 @@
 
     // 力士 —— 慢、重、扛揍。教「别贪刀」
     lishi: {
-      id: 'lishi', name: '力士', hp: 55, speed: 98, w: 34, h: 58,
+      id: 'lishi', name: '力士', mass: 'heavy', hp: 55, speed: 98, w: 34, h: 58,
       weapon: null, scale: 1.0, lineScale: 1.25,
       staggerMax: 3, armorSec: 1.2, knockMul: 0.55,
       moves: ['lianhuan', 'k_zhuang'],
@@ -457,7 +465,7 @@
     // 僧人 —— 只格挡。正面 90% 减伤；普攻第三段的破防能撬开他，
     // 「无锋」也能。他是提示，守阁人才是墙。
     sengren: {
-      id: 'sengren', name: '僧人', hp: 45, speed: 92, w: 30, h: 56,
+      id: 'sengren', name: '僧人', mass: 'heavy', hp: 45, speed: 92, w: 30, h: 56,
       weapon: null, scale: 0.96, lineScale: 1.1,
       staggerMax: 3, knockMul: 0.5, guardPose: 'guard',
       moves: ['k_fanji'],
@@ -510,8 +518,8 @@
 
     // 刺客 —— 瞬移。挨打就闪走，闪到你背后，但落地后仍留 0.46s 起手
     cike: {
-      id: 'cike', name: '刺客', hp: 24, speed: 190, w: 24, h: 50,
-      weapon: 'jian', scale: 0.84, staggerMax: 1, knockMul: 1.2,
+      id: 'cike', name: '刺客', mass: 'light', hp: 24, speed: 190, w: 24, h: 50,
+      weapon: 'jian', scale: 0.84, lineScale: 1.19, staggerMax: 1, knockMul: 1.2,
       moves: ['k_shan', 'poyu'],
       ai: 'blink',
       onHurt: function (e) {
@@ -533,8 +541,8 @@
 
     // 提灯人 —— 雪山。e.light 由 G 读去做雾里的照明范围
     denglong: {
-      id: 'denglong', name: '提灯人', hp: 30, speed: 96, w: 26, h: 52,
-      weapon: null, scale: 0.88, staggerMax: 2,
+      id: 'denglong', name: '提灯人', mass: 'mid', hp: 30, speed: 96, w: 26, h: 52,
+      weapon: null, scale: 0.88, lineScale: 1.14, staggerMax: 2,
       moves: ['k_denghuo'],
       ai: 'lamp',
       init: function (e) { e.light = { r: 168, warm: 1, x: 0, y: 0 }; },

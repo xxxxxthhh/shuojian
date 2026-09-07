@@ -211,6 +211,8 @@
     r4.appendChild(toggle('无敌', 'god'));
     r4.appendChild(toggle('满墨', 'ink'));
     var bc = el('button', '清场', r4); bc.onclick = clearFoes;
+    var bs = el('button', '敌人总表', r4);
+    bs.onclick = function () { (SJ.Game.scene === sheet ? toArena : toSheet)(); };
 
     el('h3', 'Boss 阶段');
     var r5 = el('div'); r5.className = 'row';
@@ -460,6 +462,113 @@
     g.globalAlpha = 1;
   }
 
+
+  // ── 敌人总表（T3）─────────────────────────────────────────
+  // 按游戏内真实缩放画 13 个角色 × 待机/起手/受击。
+  // 要看的是**小尺寸下的线宽**：figure.js 的笔宽是 w * lineScale，
+  // 整个人又被 g.scale(scale) 缩过一道，所以纸上的实际墨重 = scale × lineScale。
+  // 方案 A = 现状（Lead 已拍板落地：轻的抬到有效墨重 1.0，刻意加重的不动）；
+  // 方案 B = 裸线宽（lineScale 全当 1.0）——留着是为了随时看见「不抬会细成什么样」。
+  var SH = { page: 0, zoom: 1, plan: 'A' };
+
+  function sheetRoster(page) {
+    var out = [], i, d;
+    if (page === 0) {
+      for (i = 0; i < MOBS.length; i++) {
+        d = SJ.Enemies.defs[MOBS[i][0]];
+        if (d) out.push({ name: MOBS[i][1], def: d });
+      }
+    } else {
+      for (i = 0; i < BOSSES.length; i++) {
+        d = SJ.Bosses.defs[BOSSES[i][0]];
+        if (d) out.push({ name: BOSSES[i][1], def: d });
+      }
+      if (SJ.Bosses.defs.baiyi_ying) out.push({ name: '影', def: SJ.Bosses.defs.baiyi_ying });
+    }
+    return out;
+  }
+
+  // 这个角色的第一招的起手姿势（招表里读，别写死）
+  function sheetWindPose(d) {
+    var mid = (d.moves && d.moves[0]) || (d.sets && d.sets[0] && d.sets[0][0]);
+    var m = mid && SJ.AI.moves[mid];
+    return (m && m.poseW) || 'atk1_wind';
+  }
+  function sheetHurtPose(d) { return d.mass === 'heavy' ? 'crouch' : 'hurt'; }
+  function sheetLS(d) {
+    return SH.plan === 'A' ? (d.lineScale || 1) : 1;
+  }
+
+  var sheet = {
+    update: function () { },
+    draw: function (g) {
+      var t = SJ.Game.time, list = sheetRoster(SH.page), i, r;
+      SJ.Ink.paper(g, 0, 0);
+
+      g.fillStyle = SJ.C.ink;
+      g.font = '15px ui-serif,serif';
+      g.fillText('敌人总表 · ' + (SH.page === 0 ? '杂兵' : 'Boss') +
+        ' · ' + (SH.plan === 'A' ? '现状' : '裸线宽 1.0') + (SH.zoom > 1 ? ' · ×' + SH.zoom : '') +
+        '   （1/2 换页 · L 现状↔裸线宽 · Z 放大 · S 回试炼场）', 16, 24);
+      g.font = '11px ui-monospace,monospace';
+      g.fillStyle = SJ.C.inkLight;
+      g.fillText('列 = 角色，行 = 待机 / 起手 / 受击。右上角是 scale × lineScale = 纸上实际墨重。', 16, 42);
+
+      var cols = list.length, cw = SJ.W / cols, rowY = [170, 310, 450];
+      var rows = ['待机', '起手', '受击'];
+      for (i = 0; i < rows.length; i++) {
+        g.fillStyle = SJ.C.inkLight;
+        g.font = '11px ui-serif,serif';
+        g.fillText(rows[i], 4, rowY[i] - 4);
+        SJ.Ink.stroke(g, [[10, rowY[i] + 1], [SJ.W - 10, rowY[i] + 1]],
+          { w0: 1, w1: 1, color: SJ.C.ink2, alpha: 0.22, seed: i * 5 });
+      }
+
+      for (i = 0; i < cols; i++) {
+        r = list[i];
+        var d = r.def, x = cw * (i + 0.5), sc = (d.scale || 0.86) * SH.zoom, ls = sheetLS(d);
+        var poses = ['idle', sheetWindPose(d), sheetHurtPose(d)];
+
+        g.fillStyle = SJ.C.ink;
+        g.font = '12px ui-serif,serif';
+        g.textAlign = 'center';
+        g.fillText(r.name, x, 66);
+        g.font = '10px ui-monospace,monospace';
+        g.fillStyle = SJ.C.inkLight;
+        g.fillText('s' + (d.scale || 0.86).toFixed(2) + ' × l' + ls.toFixed(2), x, 80);
+        g.fillStyle = ((d.scale || 0.86) * ls) < 0.95 ? SJ.C.cinnabar : SJ.C.stone;
+        g.fillText('墨重 ' + ((d.scale || 0.86) * ls).toFixed(2) + ' · ' + (d.mass || '?'), x, 92);
+        g.textAlign = 'left';
+
+        for (var k = 0; k < 3; k++) {
+          SJ.Figure.draw(g, {
+            x: x, y: rowY[k], facing: 1, scale: sc,
+            // 受击取 p=0.22（刚被打到、还在后仰）；p 拉到 0.6 之后 hurt 已经收回来了，
+            // 看着跟待机一样，就白画了
+            pose: poses[k], p: k === 0 ? 0 : k === 1 ? 0.62 : 0.22, t: t * 0.6 + i,
+            weapon: d.weapon === undefined ? null : d.weapon,
+            color: d.color || SJ.C.ink, alpha: 1, lineScale: ls, cloth: 0.35
+          });
+        }
+      }
+    }
+  };
+
+  function toSheet() {
+    SJ.Ent.clear();
+    SJ.Combat.clear();
+    SJ.FX.clear();
+    // 面板压在画布右侧四分之一上，总表最后两列会被挡住 —— 进总表就收起来
+    SH.panelWas = D.hidePanel;
+    D.hidePanel = true; panel.className = 'hide';
+    SJ.Game.setScene(sheet);
+  }
+  function toArena() {
+    D.hidePanel = !!SH.panelWas; panel.className = D.hidePanel ? 'hide' : '';
+    SJ.Ent.clear(); SJ.Combat.clear();
+    SJ.Game.setScene(scene);
+  }
+
   // ── 启动 ──────────────────────────────────────────────────
   SJ.Save.load();
   if (!SJ.Save.data.slots) SJ.Save.data.slots = [null, null, null, null];
@@ -468,6 +577,21 @@
   renderSlots();
   SJ.Game.init(document.getElementById('c'));
   SJ.Game.setScene(scene);
+  // Lead 补：无头截图入口  #sheet:<页 1|2>:<方案 A|B>  例如 enemy.html#sheet:1:B
+  (function () {
+    var m = /^#sheet(?::(\d))?(?::([AB]))?/.exec(location.hash || '');
+    if (!m) return;
+    if (m[1]) SH.page = (m[1] | 0) - 1;
+    if (m[2]) SH.plan = m[2];
+    toSheet();
+    // ?post=<name> 时 2s 后把画布 POST 给 dev/qa_server.py（/save），供无头截图
+    var q = /[?&]post=([\w:-]+)/.exec(location.search || '');
+    if (q) setTimeout(function () {
+      var png = document.getElementById('c').toDataURL('image/png');
+      fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: q[1], png: png, stats: {} }) });
+    }, 2000);
+  })();
 
   var started = false;
   function boot() { if (started) return; started = true; SJ.Audio.init(); }
@@ -478,6 +602,14 @@
     if (e.code === 'KeyH') {
       D.hidePanel = !D.hidePanel;
       panel.className = D.hidePanel ? 'hide' : '';
+    }
+    if (e.code === 'KeyS') { (SJ.Game.scene === sheet ? toArena : toSheet)(); return; }
+    if (SJ.Game.scene === sheet) {
+      if (e.code === 'Digit1') SH.page = 0;
+      if (e.code === 'Digit2') SH.page = 1;
+      if (e.code === 'KeyL') SH.plan = SH.plan === 'A' ? 'B' : 'A';
+      if (e.code === 'KeyZ') SH.zoom = SH.zoom > 1 ? 1 : 2;
+      return;
     }
     if (e.code === 'KeyR') SJ.player.respawn(200, GY - 60);
     if (e.code === 'KeyQ') printStats();
