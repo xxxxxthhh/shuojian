@@ -764,3 +764,48 @@ SJ.FX.splash(hx, hy, angleInRadians, { groundY: <落地高度> });
 
 **这两个都属于「传错不报错、效果静默消失」的形状**，与决议 005 §3 的 `Combat.draw` 同类。
 `dev/player-check.js` §7d 已钉死一条断言：**左右两侧的甩出角必须异号**。
+
+---
+
+# 增强波次（2026-09-07 晚）—— Lead 预先定下的跨组接口
+
+> 参与者：T1 可靠性 / T2 战斗与人物 / T3 敌人与 Boss / T4 呈现。所有权见 `_spec/REVIEW.md` §3。
+> 下面四条是 Lead 直接裁定的接口，**不必再申请**；其它跨文件签名改动照旧先发决议。
+
+## 决议 014 — 预警分层 `telegraph.tier`（T3 打标签，T2 画）
+
+`SJ.Combat.telegraph(o)` 新增可选字段 **`o.tier`**，取值 `'light' | 'heavy' | 'grab'`，缺省 `'light'`（完全向后兼容）。
+- `light`：可格挡的普通招 —— 现状画法（墨线）。
+- `heavy`：superArmor / 不可格挡的大招 —— **朱砂**线，线宽 ×1.4。
+- `grab`：突进 / 抓取 —— **双线**（墨线 + 外圈淡线）。
+T3 在 enemies/bosses 的招式表里给每招标 tier；T2 在 combat.js 的 telegraph 绘制里按 tier 分画。
+两边都不得改 `path / dur / danger` 的语义。玩家能否格挡的**规则**不变，只是画法。
+
+## 决议 015 — `SJ.Scenery.draw(bg, g, camX, camY, t, def)`（T4 实现，T1 接线）
+
+新文件 `src/render/scenery.js`，加载顺序在 `fx.js` 之后、`audio.js` 之前（Lead 负责挂进 index.html / check.html 符号表）。
+```js
+SJ.Scenery = {
+  draw: function (bg, g, camX, camY, t, def) { ... }   // bg = levels.js 的 def.bg 字符串
+};
+```
+- 由 `level.js` 的 `drawBackground` 在 `SJ.Ink.paper(...)` **之后**调用一次，替换现有 `switch (def.bg)` 里的远景绘制；
+  近景 deco / solids 仍由 level.js 画。若 `SJ.Scenery` 不存在或 `draw` 抛错，level.js 必须退回旧 switch（try/catch），游戏不许因为呈现层挂掉。
+- 必须遵守 DESIGN §1：任何一屏纸色留白 ≥ 50%。T4 自证方式：`dev/drawcount.js` 风格的批量像素统计。
+- `def.env / def.weather` 只读。
+
+## 决议 016 — 存档新增 `techProgress`（T2）
+
+`SJ.Save.defaults()` 加字段 **`techProgress: {}`**（moveId → 0–100）。`load()` 时缺省 `{}`（旧档兼容，玩家现有存档必须能直接读）。
+`SJ.Tech.progress` 的**唯一真源仍在 Tech**：Tech 在进度变化时写回 `SJ.Save.data.techProgress` 并调用现有保存路径；关卡载入时从 Save 读回。
+`resetProgress()` 同时清 Save 字段。决议 010（始 → Save.reset + Tech.resetProgress）不变。
+
+## 决议 017 — `SJ.Audio.setVolume(v) / getVolume()`（T4）
+
+`v ∈ [0,1]`，作用于 `master.gain`（当前写死 0.9 → 缺省仍 0.9）。存 `localStorage['sj_volume']`，**不进 Save 结构**。
+`muted` 开关保留，语义不变。菜单里的「静音」项替换为音量条（← → 调、J 确认）。
+
+## 三条硬规则（每个 teammate 都受约束）
+1. **不改玩法、不改数值规则、不改存档结构**（决议 016 除外）。用户正在探索期。
+2. **新建文件 → 告诉 Lead → Lead 挂进 index.html 和 check.html**。
+3. **任何跨文件签名改动 → 先发决议**；四份 checker 交付前必须全绿。
