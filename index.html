@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>说剑</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+  body { display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; background:#000; touch-action:none; outline:none; }
+  * { -webkit-user-select:none; -moz-user-select:none; user-select:none;
+      -webkit-tap-highlight-color:transparent; }
+</style>
+</head>
+<body>
+<canvas id="sj" width="960" height="540"></canvas>
+
+<!-- 加载顺序见 CONTRACTS.md。注：契约原文的顺序漏了 core/game.js，此处补在 save 之后。 -->
+<script src="src/core/const.js"></script>
+<script src="src/core/input.js"></script>
+<script src="src/core/camera.js"></script>
+<script src="src/core/world.js"></script>
+<script src="src/core/ent.js"></script>
+<script src="src/core/save.js"></script>
+<script src="src/core/game.js"></script>
+
+<script src="src/render/ink.js"></script>
+<script src="src/render/figure.js"></script>
+<script src="src/render/fx.js"></script>
+
+<script src="src/audio/audio.js"></script>
+
+<script src="src/combat/combat.js"></script>
+<script src="src/combat/tech.js"></script>
+
+<script src="src/entity/player.js"></script>
+<script src="src/entity/enemies.js"></script>
+<script src="src/entity/bosses.js"></script>
+
+<script src="src/data/script.js"></script>
+<script src="src/data/levels.js"></script>
+
+<script src="src/story/story.js"></script>
+<script src="src/ui/hud.js"></script>
+<script src="src/ui/menus.js"></script>
+<script src="src/level/level.js"></script>
+
+<script src="src/main.js"></script>
+</body>
+</html>

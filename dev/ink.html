@@ -1,0 +1,166 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<title>说剑 · 笔触画廊</title>
+<style>
+  html,body{margin:0;background:#2a2724;color:#c9c0ae;
+    font:13px/1.6 "Songti SC",serif;}
+  #wrap{padding:18px 20px 60px;}
+  h1{font:600 17px/1 "Songti SC",serif;letter-spacing:.35em;color:#e6dcc6;margin:0 0 14px}
+  canvas{display:block;box-shadow:0 6px 26px rgba(0,0,0,.5);border-radius:2px}
+  .bar{margin:10px 0 16px;color:#8d8474;font-size:12px;letter-spacing:.05em}
+</style></head><body><div id="wrap">
+<h1>笔　触</h1>
+<div class="bar">Ink.* 全函数画廊 · 所有随机取自 seed，逐帧稳定</div>
+<canvas id="cv" width="1240" height="1580"></canvas>
+<div class="bar" style="margin-top:14px">构　图 · 远山 + 竹 + 雨 + 印（960×540 实际游戏分辨率）</div>
+<canvas id="sc" width="960" height="540"></canvas>
+</div>
+
+<!-- A 的 const.js 若已存在则用真的；404 无害，下面补最小兜底 -->
+<script src="../src/core/const.js"></script>
+<script>
+(function(SJ){
+  SJ.W = SJ.W || 960; SJ.H = SJ.H || 540;
+  SJ.C = SJ.C || { paper:'#efe7d8', paperDark:'#e2d7c1', ink:'#1b1a17', ink2:'#35322c',
+      inkLight:'#6f6a60', feibai:'rgba(27,26,23,0.12)',
+      cinnabar:'#b03a2b', stone:'#4a6f7c', gamboge:'#c8a55b' };
+  SJ.FONT = SJ.FONT || '"Songti SC","STSong","Kaiti SC",serif';
+  SJ.hash = SJ.hash || function(i){ var x=Math.sin(i*127.1+311.7)*43758.5453; return x-Math.floor(x); };
+  SJ.noise = SJ.noise || function(x){ var i=Math.floor(x),f=x-i,u=f*f*(3-2*f);
+      return (SJ.hash(i)*2-1)*(1-u)+(SJ.hash(i+1)*2-1)*u; };
+  SJ.lerp = SJ.lerp || function(a,b,t){return a+(b-a)*t;};
+  SJ.clamp = SJ.clamp || function(v,a,b){return v<a?a:v>b?b:v;};
+  SJ.rand = SJ.rand || function(a,b){return a+Math.random()*(b-a);};
+  SJ.ease = SJ.ease || { out:function(t){return 1-Math.pow(1-t,3);},
+      in:function(t){return t*t*t;},
+      io:function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;} };
+})(window.SJ = window.SJ || {});
+</script>
+<script src="../src/render/ink.js"></script>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), g=cv.getContext('2d');
+  var sc=document.getElementById('sc'), sg=sc.getContext('2d');
+  var C=SJ.C, Ink=SJ.Ink, T0=performance.now();
+
+  var COLS=4, PAD=8, CW=(1240-PAD*(COLS+1))/COLS, CH=196, cells=[];
+  function cell(title,fn,anim){ cells.push({t:title,f:fn,a:!!anim}); }
+
+  // ── 笔触 ──
+  cell('stroke 直线 w0=9→3',function(g,w,h){ Ink.stroke(g,[[26,h/2],[w-26,h/2]],{w0:9,w1:3,seed:1}); });
+  cell('stroke 长撇 w0=14→0.6',function(g,w,h){ Ink.stroke(g,[[w-34,22],[w*0.55,h*0.42],[30,h-26]],{w0:14,w1:0.6,seed:4}); });
+  cell('stroke wobble=1.4',function(g,w,h){ Ink.stroke(g,[[24,h*0.7],[w*0.4,h*0.3],[w-24,h*0.55]],{w0:8,w1:2,wobble:1.4,seed:5}); });
+  cell('arcStroke 挥砍弧',function(g,w,h){ Ink.arcStroke(g,w/2,h+34,110,-Math.PI*0.92,-Math.PI*0.08,13,{seed:2}); });
+
+  cell('blob 墨团（山石/树冠）',function(g,w,h){
+    Ink.blob(g,w*0.32,h*0.5,32,3,{alpha:.88});
+    Ink.blob(g,w*0.68,h*0.42,20,9,{alpha:.5});
+    Ink.blob(g,w*0.72,h*0.72,13,17,{alpha:.3});
+  });
+  cell('splat 飞溅',function(g,w,h){ Ink.splat(g,w/2,h/2,11,5,{n:7}); });
+  cell('wash 淡墨渲染',function(g,w,h){
+    Ink.wash(g,10,h*0.15,w-20,h*0.35,{alpha:.30});
+    Ink.wash(g,10,h*0.58,w-20,h*0.32,{alpha:.26,color:C.stone,flip:true});
+  });
+  cell('seal 朱砂印',function(g,w,h){
+    Ink.seal(g,w*0.5-52,h*0.5-52,46,'说剑');
+    Ink.seal(g,w*0.5+12,h*0.5-20,34,'无名');
+  });
+
+  // ── 景 ──
+  cell('mountains depth 0/1/2',function(g,w,h){
+    g.save(); g.translate(0,h-SJ.H*0.72); g.scale(w/SJ.W,0.86);
+    Ink.mountains(g,120,2); Ink.mountains(g,120,1); Ink.mountains(g,120,0); g.restore();
+  });
+  cell('bamboo depth 0/1/2',function(g,w,h){
+    g.save(); g.scale(w/SJ.W,h/SJ.H*1.05); g.translate(0,-10);
+    Ink.bamboo(g,300,2,{baseY:SJ.H*0.97}); Ink.bamboo(g,300,1,{baseY:SJ.H*0.99}); Ink.bamboo(g,300,0,{baseY:SJ.H});
+    g.restore();
+  });
+  cell('pine 松',function(g,w,h){ Ink.pine(g,w*0.36,h-14,1.25,3); Ink.pine(g,w*0.72,h-10,0.8,11); });
+  cell('water 水纹',function(g,w,h){ Ink.water(g,14,h*0.3,w-28,h*0.5,(performance.now()-T0)/1000,{n:8}); },true);
+  cell('rain 雨',function(g,w,h){
+    g.save(); g.scale(w/SJ.W,h/SJ.H); Ink.rain(g,0,(performance.now()-T0)/1000,1,-0.34); g.restore(); },true);
+  cell('snow 雪',function(g,w,h){
+    g.fillStyle='#cfc4ae'; g.fillRect(0,0,w,h);
+    g.save(); g.scale(w/SJ.W,h/SJ.H); Ink.snow(g,0,(performance.now()-T0)/1000,1,-0.22); g.restore(); },true);
+  cell('lantern 灯火',function(g,w,h){
+    Ink.lantern(g,w*0.34,h*0.45,15,(performance.now()-T0)/1000);
+    Ink.lantern(g,w*0.7,h*0.6,10,(performance.now()-T0)/1000+1.7); },true);
+  cell('vtext / htext 毛笔字',function(g,w,h){
+    Ink.vtext(g,'醒木一响\n江湖夜雨',w-40,32,19,{seed:2});
+    Ink.htext(g,'说剑',w*0.30,h*0.72,26,{seed:5,color:C.ink2});
+  });
+
+  cell('brushReveal 逐笔写字',function(g,w,h){
+    var p=/static/.test(location.search)?0.58:((performance.now()-T0)/3400)%1.35;
+    Ink.brushReveal(g,'横云断',w*0.5+22,40,30,SJ.clamp(p,0,1),{seed:3});
+  },true);
+  cell('vtext 竖排长句（留白）',function(g,w,h){
+    Ink.vtext(g,'夫为剑者\n示之以虚\n开之以利',w-34,26,17,{seed:8,alpha:.82});
+  });
+  cell('朱砂/藤黄/石青 用量示意',function(g,w,h){
+    Ink.stroke(g,[[24,h-40],[w*0.4,40],[w-30,h*0.55]],{w0:7,w1:1,color:C.ink,seed:6});
+    Ink.stroke(g,[[30,h*0.3],[w*0.5,h*0.5]],{w0:4,w1:.6,color:C.cinnabar,alpha:.85,seed:7});
+    Ink.lantern(g,w*0.82,h*0.3,9,(performance.now()-T0)/1000);
+  },true);
+  cell('feibai 飞白特写 w0=20',function(g,w,h){
+    Ink.stroke(g,[[22,h*0.66],[w*0.45,h*0.4],[w-24,h*0.5]],{w0:20,w1:5,seed:12,hairs:4});
+  });
+
+  function drawCell(c,i){
+    var col=i%COLS, row=(i/COLS)|0,
+        x=PAD+col*(CW+PAD), y=PAD+row*(CH+PAD);
+    g.save();
+    g.fillStyle=C.paper; g.fillRect(x,y,CW,CH);
+    g.save(); g.beginPath(); g.rect(x,y,CW,CH); g.clip(); g.translate(x,y);
+    c.f(g,CW,CH); g.restore();
+    g.fillStyle='#9a8f79'; g.font='11px '+SJ.FONT; g.textAlign='left'; g.textBaseline='alphabetic';
+    g.fillText(c.t,x+7,y+CH-7);
+    g.restore();
+  }
+  function drawGrid(){
+    g.fillStyle='#2a2724'; g.fillRect(0,0,cv.width,cv.height);
+    cells.forEach(drawCell);
+  }
+  function drawAnim(){ cells.forEach(function(c,i){ if(c.a) drawCell(c,i); }); }
+
+  // ── 完整构图：远山 + 竹 + 雨 + 印 ──
+  function drawScene(){
+    var t=/static|scene/.test(location.search)?7.5:(performance.now()-T0)/1000, camX=t*16;
+    var GY=SJ.H*0.86;                      // 地平线
+    Ink.paper(sg,camX,0);
+    // 远：两道山脊，飘在上半屏，往下化开
+    Ink.mountains(sg,camX,2,{baseY:SJ.H*0.46});
+    Ink.mountains(sg,camX,1,{baseY:SJ.H*0.56});
+    // 中：一层淡竹
+    Ink.bamboo(sg,camX,1,{baseY:GY+4,h:SJ.H*0.66});
+    // 地线
+    Ink.stroke(sg,[[-20,GY+2],[SJ.W*0.42,GY-4],[SJ.W+20,GY]],
+      {w0:4.5,w1:2.2,color:C.ink,alpha:.42,taper:false,hairs:0,seed:77,wobble:1.2,core:false});
+    // 近：一丛焦墨竹只占右侧，左边整片留白
+    Ink.bamboo(sg,camX*1.0,0,{baseY:GY+2,h:SJ.H*0.80,gap:210});
+    Ink.rain(sg,camX,t,0.7,-0.34);
+    Ink.vtext(sg,'竹林听雨',SJ.W-44,38,21,{seed:4,alpha:.86});
+    Ink.seal(sg,SJ.W-62,152,32,'说剑');
+  }
+
+  // ?scene=1 只画构图（放在页首，免得截图要滚动）
+  if (/scene/.test(location.search)) {
+    cv.style.display='none';
+    document.querySelectorAll('.bar')[0].style.display='none';
+    drawScene(); return;
+  }
+  drawGrid();
+  if (/static/.test(location.search)) { drawScene(); return; }
+  var fr=0, fps=0, last=performance.now();
+  (function loop(){
+    drawAnim(); drawScene();
+    fr++; var n=performance.now();
+    if(n-last>500){ fps=Math.round(fr*1000/(n-last)); fr=0; last=n; }
+    sg.save(); sg.fillStyle='rgba(27,26,23,.5)'; sg.font='11px monospace';
+    sg.textAlign='left'; sg.textBaseline='alphabetic';
+    sg.fillText(fps+' fps',8,SJ.H-8); sg.restore();
+    requestAnimationFrame(loop);
+  })();
+})();
+</script></body></html>

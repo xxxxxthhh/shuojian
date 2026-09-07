@@ -285,7 +285,7 @@ SJ.Menu.title() ; SJ.Menu.pause() ; SJ.Menu.slots() ; SJ.Menu.gameover() ; SJ.Me
 ```
 
 ## index.html  【Lead】
-按依赖顺序加载：const → input → camera → world → ent → save → ink → figure → fx → audio
+按依赖顺序加载：const → input → camera → world → ent → save → **game** → ink → figure → fx → audio
 → combat → tech → player → enemies → bosses → data/script → data/levels → story → hud → menus → level → main.js
 
 ## src/main.js  【Lead】
@@ -456,3 +456,75 @@ mode 分布 tea 54 / narration 73 / talk 45 / card 9；玩法术语黑名单 gre
 `c5_t_page` / `c4_mid` 都是 `mode:'narration'` + `speaker:'说书人'`，
 **渲染成关卡内画外音，绝不能切茶馆插画**（决议 003 §3）。
 切成过场 = 说书人在解说；保持画外音 = 无名在读。差别是整段戏的成败。
+
+---
+
+## 决议 005 — 战斗接口与每帧调用顺序（E 提案，Lead 裁定并扩写）
+
+### 1. 完美观势的敌人硬直：复用 `hurt`，不新增 API
+```js
+src.hurt(0, player, { parried:true, stun:0.9, moveId });
+```
+F 的敌人本来就要处理 `opt.stun`，零新增约定。**不要发明 `e.stun` / `e.onStun`。**
+
+### 2. `telegraph.path` 的坐标原点（E 与 F 必须一致）
+**相对 owner 的中心点，x 按 `owner.facing` 镜像，y 向下为正：**
+```js
+绝对点 = [ owner.cx() + px * owner.facing , owner.cy() + py ]
+```
+不一致的后果是所有敌人的起手式轨迹画反或画歪 —— 而轨迹是「观势」唯一的视觉教学手段。
+
+### 3. 每帧调用顺序（G 必须在 `Level.update/draw` 里照此实现）
+**漏掉任何一行都不会报错，只会让某个系统静默消失。**
+
+`SJ.Level.update(dt)`：
+```
+1. SJ.Ent.updateAll(dt)     // 玩家与敌人；产生 hitbox 与 telegraph
+2. SJ.Tech.update(dt)       // 招式执行；也产生 hitbox —— 必须在 Combat 之前
+3. SJ.Combat.update(dt)     // 统一结算所有 hitbox 与观势格挡
+4. SJ.FX.update(dt)
+5. SJ.Camera.follow(SJ.player, dt)
+6. 关卡自身：trigger 判定 / 波次推进 / pickup 拾取 / 检查点
+```
+
+`SJ.Level.draw(g)`：
+```
+1. 背景（SJ.Ink.*，视差，camera 外或按 depth 自行处理）
+2. SJ.Camera.apply(g)
+3.   地形 solids / deco / pickups
+4.   SJ.Ent.drawAll(g)
+5.   SJ.Combat.draw(g)      // 起手式轨迹，世界坐标 —— 必须在 camera 变换内
+6.   SJ.FX.draw(g)          // 世界坐标粒子
+7. SJ.Camera.restore(g)
+8. 墨褪色覆盖层（读 SJ.Player.inkTint()，见决议 003）
+9. SJ.HUD.draw(g, SJ.player)   // 在褪色之后 —— HUD 不受褪色影响
+```
+`SJ.FX.drawScreen(g)` 与 flash/fade 由 `SJ.Game` 在 scene.draw 之后调，G 不用管。
+
+### 4. 归属澄清（避免重复实现）
+- `fenshu` 的**点燃 DoT** 与 `SJ.Combat.stun` 辅助函数在 `combat.js`（E）。
+  **F 不要重复实现**，敌人要点燃只需给 hitbox 传 `type:'fire'`。
+- 「悟」的全屏定格用 `SJ.Game.push(overlay)`（Game 只更新栈顶、仍绘制全栈），计时走 `rawDt`。
+
+---
+
+## 决议 006 — playtimeSec 的归属（A 提出，Lead 裁定）
+
+`SJ.Save.data.playtimeSec` **由 `SJ.Game` 单独累加，是唯一写入者**：
+
+```js
+// Game 主循环内，每帧：
+if (SJ.Game.scene && SJ.Game.scene.countsPlaytime !== false) {
+  SJ.Save.data.playtimeSec += SJ.Game.rawDt;
+}
+```
+
+三条理由：
+1. **必须用 `rawDt`**。`dt` 被 slowmo 与 hitstop 缩放过，用它会把「玩了 30 分钟」记成 20 分钟——
+   而这个数字正是 DESIGN §9.6 用来验收时长的，失真就没有意义了。
+2. **必须覆盖剧情段落**。全剧 188 个剧本节点占的时间不小；
+   若放在 `Level.update` 里累加，对话叠加层在栈顶时 `Level.update` 不跑，这段时间会凭空消失。
+3. **单一写入者**。放 Game 里只有一处 `+=`，不会出现两个模块各加一次。
+
+**H 必须给标题画面与暂停菜单的 scene 设 `countsPlaytime = false`**（挂机不算游玩时间）。
+其余 scene 默认计入，不用管。

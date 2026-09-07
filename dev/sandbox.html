@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<title>说剑 · 手感沙盒 (A)</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;}
+  body{display:flex;align-items:center;justify-content:center;}
+  canvas{display:block;background:#000;}
+  *{-webkit-user-select:none;user-select:none;}
+</style>
+</head>
+<body>
+<canvas id="sj" width="960" height="540"></canvas>
+
+<script src="../src/core/const.js"></script>
+<script src="../src/core/input.js"></script>
+<script src="../src/core/camera.js"></script>
+<script src="../src/core/world.js"></script>
+<script src="../src/core/ent.js"></script>
+<script src="../src/core/save.js"></script>
+<script src="../src/core/game.js"></script>
+
+<script>
+(function (SJ) {
+  'use strict';
+
+  // ---------- DESIGN §7 手感数值 ----------
+  var WALK = 240, ACCEL = 3000, FRICTION = 3200;
+  var JUMP = -720, JUMP_CUT = -420, JUMP2 = -640;
+  var COYOTE = 0.10, BUFFER = 120;   // ms
+
+  var SOLIDS = [
+    [0,    560,  640, 160, 0],   // 地面 A
+    [760,  560, 1640, 160, 0],   // 地面 B（中间 120px 坑）
+    [300,  320,  200,  24, 0],   // 低天花板：测顶头
+    [560,  470,   90,  90, 0],   // 台阶
+    [900,  476,  260,  14, 1],   // 单向平台（宽，测下穿）
+    [1220, 390,  180,  14, 1],
+    [1500, 300,  180,  14, 1],
+    [1760, 430,  120, 130, 0],   // 实心柱：测撞墙
+    [1980, 470,  200,  14, 1]
+  ];
+
+  function makeBody(x, y) {
+    return { x: x, y: y, w: 24, h: 44, vx: 0, vy: 0, facing: 1,
+             onGround: false, coyote: 0, jumps: 0,
+             restY: y, minY: 0, lastApex: 0, airborne: false };
+  }
+
+  // 纯物理步进：只读 SJ.Input，不碰摄像机 —— 自检与实机共用同一份代码
+  function stepBody(p, dt) {
+    var I = SJ.Input, ax = I.axis();
+    if (ax) p.facing = ax;
+    if (p.onGround) p.restY = p.y;   // 起跳那一帧的移动也要算进顶点高度
+
+    var target = ax * WALK;
+    var rate = (ax === 0) ? FRICTION : ACCEL;
+    p.vx += SJ.clamp(target - p.vx, -rate * dt, rate * dt);
+    p.vy = Math.min(p.vy + SJ.GRAVITY * dt, SJ.MAXFALL);
+
+    if (p.onGround) { p.coyote = COYOTE; p.jumps = 0; }
+    else p.coyote = Math.max(0, p.coyote - dt);
+
+    var wantJump = I.buffered('jump', BUFFER);
+    if (wantJump && I.down('down') && p.onGround) {
+      p.dropThrough = true;
+      I.consume('jump');
+    } else if (wantJump) {
+      if (p.onGround || p.coyote > 0) {
+        p.vy = JUMP; p.jumps = 1; p.coyote = 0; I.consume('jump');
+      } else if (p.jumps === 1) {
+        p.vy = JUMP2; p.jumps = 2; I.consume('jump');
+      }
+    }
+    if (I.released('jump') && p.vy < JUMP_CUT) p.vy = JUMP_CUT;
+
+    SJ.World.moveX(p, p.vx * dt);
+    SJ.World.moveY(p, p.vy * dt);
+
+    // 起跳高度测量
+    if (!p.onGround && !p.airborne) { p.airborne = true; p.minY = p.restY; }
+    if (p.airborne) {
+      if (p.y < p.minY) p.minY = p.y;
+      if (p.onGround) { p.airborne = false; p.lastApex = p.restY - p.minY; }
+    }
+    return p;
+  }
+
+  // ---------------- 自检 ----------------
+  var results = [];
+
+  function key(type, code) {
+    window.dispatchEvent(new KeyboardEvent(type, { code: code, bubbles: true }));
+  }
+  function tick(p, n) {
+    for (var i = 0; i < (n || 1); i++) { stepBody(p, 1 / 60); SJ.Input.update(); }
+  }
+  function fresh(x, y) {
+    SJ.World.load({ solids: SOLIDS });
+    key('keyup', 'Space'); key('keyup', 'KeyD'); key('keyup', 'KeyA'); key('keyup', 'KeyS');
+    SJ.Input.update();
+    SJ.Input.consume('jump'); SJ.Input.consume('attack');
+    var p = makeBody(x, y);
+    tick(p, 20);              // 落到地面稳定下来
+    SJ.Input.consume('jump'); // 缓冲是墙钟计时，合成帧几乎不耗时间，必须显式清掉
+    return p;
+  }
+  function ok(name, pass, detail) { results.push({ name: name, pass: !!pass, detail: detail }); }
+  function near(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+  function runTests() {
+    results = [];
+    var p, i, y0;
+
+    // 1. 长按跳跃顶点。半隐式欧拉 dt=1/60、v0=-720、g=2400 的离散顶点 = 114px
+    //    （连续解 720²/(2·2400)=108，离散多出半帧）
+    p = fresh(100, 400);
+    key('keydown', 'Space');
+    tick(p, 40);
+    key('keyup', 'Space');
+    tick(p, 60);
+    ok('长按跳顶点 ≈114px', near(p.lastApex, 114, 1.5), p.lastApex.toFixed(2) + 'px');
+
+    // 2. 点按（按下 1 帧即松）→ 截断到 -420
+    p = fresh(100, 400);
+    key('keydown', 'Space'); tick(p, 1);
+    key('keyup', 'Space');   tick(p, 80);
+    ok('点按跳顶点 ≈52px', near(p.lastApex, 52.3, 2), p.lastApex.toFixed(2) + 'px');
+    ok('点按明显低于长按', p.lastApex < 114 * 0.6, (p.lastApex / 114).toFixed(2) + '×');
+
+    // 3. 二段跳
+    p = fresh(100, 400);
+    key('keydown', 'Space'); tick(p, 10); key('keyup', 'Space'); tick(p, 2);
+    var j1 = p.jumps;
+    key('keydown', 'Space'); tick(p, 1); key('keyup', 'Space');
+    var v2 = p.vy, j2 = p.jumps;
+    key('keydown', 'Space'); tick(p, 1); key('keyup', 'Space');
+    ok('二段跳 vy=-640', j1 === 1 && j2 === 2 && near(v2, JUMP2, 1), 'vy=' + v2.toFixed(0));
+    ok('没有三段跳', p.jumps === 2, 'jumps=' + p.jumps);
+
+    // 4. 土狼时间（0.10s = 6 帧；只断言明确的两侧，不卡边界）
+    function coyoteAt(frames) {
+      var q = fresh(560, 300);          // 落到 560 台阶上
+      key('keydown', 'KeyD');
+      var guard = 0;
+      while (q.onGround && guard++ < 240) tick(q, 1);   // 走出台阶边缘
+      key('keyup', 'KeyD'); SJ.Input.update();
+      tick(q, frames);
+      key('keydown', 'Space'); tick(q, 1); key('keyup', 'Space'); SJ.Input.update();
+      return q.vy;
+    }
+    var cy4 = coyoteAt(4), cy9 = coyoteAt(9);
+    ok('离地 5 帧内可跳', cy4 < -600, 'vy=' + cy4.toFixed(0));
+    ok('离地 9 帧后不可跳', cy9 > 0, 'vy=' + cy9.toFixed(0));
+
+    // 5. 跳跃缓冲：二段跳已用尽 + 落地前 7 帧按下 → 落地那帧起跳
+    p = fresh(100, 400);
+    p.y = 300; p.vy = 0; p.onGround = false; p.jumps = 2; p.coyote = 0;
+    p.airborne = true; p.restY = 300; p.minY = 300;
+    tick(p, 18);                                  // 距落地约 7 帧
+    var stillAir = !p.onGround;
+    key('keydown', 'Space'); key('keyup', 'Space');
+    var jf = -1;
+    for (i = 0; i < 15; i++) { tick(p, 1); if (p.vy < -600) { jf = i + 1; break; } }
+    ok('落地缓冲起跳（非二段跳）', stillAir && jf >= 3 && jf <= 12,
+       jf < 0 ? '未触发' : '落地第 ' + jf + ' 帧触发');
+
+    // 6. dt=0（hitstop）安全
+    p = fresh(100, 400);
+    key('keydown', 'KeyD'); tick(p, 20);
+    var sx = p.x, sy = p.y, sv = p.vx;
+    for (i = 0; i < 5; i++) { stepBody(p, 0); SJ.Input.update(); }
+    key('keyup', 'KeyD'); SJ.Input.update();
+    ok('dt=0 不动且无 NaN',
+       p.x === sx && p.y === sy && p.vx === sv && isFinite(p.x) && isFinite(p.vy),
+       'Δx=' + (p.x - sx).toFixed(4));
+
+    // 7. 走速收敛
+    p = fresh(100, 400);
+    key('keydown', 'KeyD'); tick(p, 60); key('keyup', 'KeyD'); SJ.Input.update();
+    ok('走速收敛到 240', near(p.vx, WALK, 1), p.vx.toFixed(2));
+
+    // 8. 单向平台：从下方跳穿并落在上面
+    p = fresh(1000, 500);                  // 900..1160 的单向平台在 y=476
+    var startedBelow = p.y + p.h > 476;
+    key('keydown', 'Space'); tick(p, 40); key('keyup', 'Space'); tick(p, 60);
+    ok('单向平台可下上穿并站住',
+       startedBelow && p.onGround && near(p.y + p.h, 476, 1),
+       '脚底 y=' + (p.y + p.h).toFixed(1));
+
+    // 9. 下穿
+    var beforeY = p.y;
+    p.dropThrough = true;
+    tick(p, 20);
+    ok('dropThrough 能穿下去', p.y > beforeY + 30, 'Δy=' + (p.y - beforeY).toFixed(1));
+
+    // 10. 高速不穿墙：单次调用位移 400px（50 个细分步）
+    p = fresh(100, 400);
+    p.y = 300; p.vy = 4000; p.onGround = false;
+    SJ.World.moveY(p, 400);
+    ok('单帧 400px 不穿地面', p.onGround && near(p.y + p.h, 560, 1),
+       '脚底 y=' + (p.y + p.h).toFixed(1));
+
+    // 10b. 更狠：单次 300px 砸向 14px 厚的单向平台
+    p = fresh(1000, 400);
+    p.y = 200; p.vy = 4000; p.onGround = false; p.dropThroughUntil = -1e9;
+    SJ.World.moveY(p, 300);
+    ok('单帧 300px 不穿薄平台', p.onGround && near(p.y + p.h, 476, 1),
+       '脚底 y=' + (p.y + p.h).toFixed(1));
+
+    // 11. 撞墙停住（1760 的实心柱）
+    p = fresh(1700, 400);
+    key('keydown', 'KeyD'); tick(p, 60); key('keyup', 'KeyD'); SJ.Input.update();
+    ok('撞墙停在柱面', near(p.x + p.w, 1760, 1) && p.vx === 0, 'x+w=' + (p.x + p.w).toFixed(1));
+
+    // 12. 顶头：vy 归零，停在天花板下沿 344
+    p = fresh(380, 500);
+    p.y = 420; p.vy = -900; p.onGround = false;
+    SJ.World.moveY(p, -120);
+    ok('顶头停在天花板下沿', p.vy === 0 && near(p.y, 344, 1), 'y=' + p.y.toFixed(1));
+
+    // 13. slowmo 叠加取最小
+    SJ.Game.slowmo(0.35, 0.05); SJ.Game.slowmo(0, 0.05);
+    ok('slowmo 叠加取最小', SJ.Game.timeScale() === 0, 'scale=' + SJ.Game.timeScale());
+
+    // 14. 缓冲过期（异步，200ms 后回填）
+    ok('缓冲 120ms 后过期', null, '等待 200ms…');
+    var slot = results.length - 1;
+    key('keydown', 'Space'); key('keyup', 'Space');
+    setTimeout(function () {
+      var expired = SJ.Input.buffered('jump', BUFFER) === false;
+      results[slot].pass = expired;
+      results[slot].detail = expired ? '已过期' : '仍然为真（错）';
+      dump();
+    }, 220);
+
+    SJ.World.load({ solids: SOLIDS });    // 还原实机世界
+    live.x = 100; live.y = 300; live.vx = live.vy = 0;
+    dump();
+  }
+
+  function dump() {
+    var bad = 0;
+    for (var i = 0; i < results.length; i++) if (results[i].pass === false) bad++;
+    console.log('%c[沙盒自检] ' + (results.length - bad) + '/' + results.length + ' 通过',
+                bad ? 'color:#b03a2b;font-weight:bold' : 'color:#2b7a4b;font-weight:bold');
+    for (i = 0; i < results.length; i++) {
+      var r = results[i];
+      console.log((r.pass === null ? '…' : r.pass ? '✔' : '✘') + ' ' + r.name + '  — ' + r.detail);
+    }
+  }
+
+  // ---------------- 实机场景 ----------------
+  var live = makeBody(100, 300);
+
+  var scene = {
+    enter: function () {
+      SJ.World.load({ solids: SOLIDS });
+      SJ.Camera.setBounds(0, 2400, 0, 720);
+      SJ.Camera.snap(live.x, live.y);
+    },
+    update: function (dt) {
+      var I = SJ.Input;
+      if (I.pressed('t1')) runTests();
+      if (I.pressed('t2')) { live.x = 100; live.y = 300; live.vx = live.vy = 0; }
+      if (I.pressed('attack')) {
+        SJ.Game.slowmo(0, 0.045);
+        SJ.Game.shake(8, 0.26);
+        SJ.Game.flash('#ffffff', 0.10, 0.5);
+      }
+      stepBody(live, dt);
+      if (live.y > 900) { live.x = 100; live.y = 300; live.vx = live.vy = 0; }
+      SJ.Camera.follow(live, dt);
+      if (SJ.Game.frame % 2 === 0) {
+        trail.push(live.x + live.w / 2, live.y + live.h);
+        if (trail.length > 160) trail.splice(0, 2);
+      }
+    },
+    draw: function (g) {
+      g.fillStyle = SJ.C.paper;
+      g.fillRect(0, 0, SJ.W, SJ.H);
+
+      SJ.Camera.apply(g);
+      var ss = SJ.World.solids, i, s;
+      for (i = 0; i < ss.length; i++) {
+        s = ss[i];
+        if (s.oneway) {
+          g.fillStyle = 'rgba(111,106,96,0.55)';
+          g.fillRect(s.x, s.y, s.w, s.h);
+          g.fillStyle = SJ.C.ink2;
+          g.fillRect(s.x, s.y, s.w, 2);
+        } else {
+          g.fillStyle = SJ.C.ink2;
+          g.fillRect(s.x, s.y, s.w, s.h);
+        }
+      }
+
+      // 起跳顶点参考线：地面上方 114px
+      g.strokeStyle = 'rgba(176,58,43,0.35)';
+      g.setLineDash([6, 6]);
+      g.beginPath(); g.moveTo(0, 560 - 114); g.lineTo(2400, 560 - 114); g.stroke();
+      g.setLineDash([]);
+
+      g.fillStyle = SJ.C.feibai;
+      for (i = 0; i < trail.length; i += 2) g.fillRect(trail[i] - 1, trail[i + 1] - 1, 2, 2);
+
+      g.fillStyle = SJ.C.ink;
+      g.fillRect(live.x, live.y, live.w, live.h);
+      g.fillStyle = SJ.C.cinnabar;
+      g.fillRect(live.x + (live.facing > 0 ? live.w - 5 : 0), live.y + 7, 5, 5);
+      SJ.Camera.restore(g);
+
+      // ---- 屏幕层调试 ----
+      var panelH = results.length ? 138 + results.length * 13 : 96;
+      g.globalAlpha = 0.86;
+      g.fillStyle = SJ.C.paper;
+      g.fillRect(0, 0, 470, panelH);
+      g.globalAlpha = 1;
+      g.strokeStyle = 'rgba(27,26,23,0.18)';
+      g.beginPath(); g.moveTo(470.5, 0); g.lineTo(470.5, panelH); g.stroke();
+
+      g.font = '12px ui-monospace,Menlo,monospace';
+      g.textAlign = 'left';
+      g.fillStyle = SJ.C.ink;
+      var L = [
+        'vx ' + live.vx.toFixed(1).padStart(7) + '   vy ' + live.vy.toFixed(1).padStart(8) +
+          '   onGround ' + (live.onGround ? '是' : '否'),
+        'coyote ' + live.coyote.toFixed(3) + '   jumps ' + live.jumps +
+          '   buffered ' + (SJ.Input.buffered('jump', BUFFER) ? '是' : '否'),
+        '上次跳跃顶点 ' + live.lastApex.toFixed(1) + 'px   （长按应 ≈114，点按 ≈52）',
+        'A/D 移动   空格/W 跳（可变高·二段）   S+空格 下穿   J 命中停顿+震屏+闪白',
+        'U 跑自检（结果见下与控制台）   I 复位'
+      ];
+      for (i = 0; i < L.length; i++) g.fillText(L[i], 14, 22 + i * 15);
+
+      if (results.length) {
+        var bad = 0, k;
+        for (k = 0; k < results.length; k++) if (results[k].pass === false) bad++;
+        g.fillStyle = bad ? SJ.C.cinnabar : '#2b7a4b';
+        g.fillText('自检 ' + (results.length - bad) + '/' + results.length +
+                   (bad ? '  —— 有失败项' : '  —— 全过'), 14, 116);
+        g.font = '11px ui-monospace,Menlo,monospace';
+        for (k = 0; k < results.length; k++) {
+          var r = results[k];
+          g.fillStyle = r.pass === null ? SJ.C.inkLight : (r.pass ? '#2b7a4b' : SJ.C.cinnabar);
+          g.fillText((r.pass === null ? '…' : r.pass ? '✔' : '✘') + ' ' + r.name +
+                     '  ' + r.detail, 14, 132 + k * 13);
+        }
+      }
+    }
+  };
+
+  var trail = [];
+
+  var canvas = document.getElementById('sj');
+  SJ.Game.init(canvas);
+  SJ.Game.setScene(scene);
+  window.SJTest = runTests;
+  if (location.search.indexOf('test=1') >= 0) setTimeout(runTests, 60);
+
+})(window.SJ = window.SJ || {});
+</script>
+</body>
+</html>

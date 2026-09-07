@@ -1,0 +1,44 @@
+<!doctype html><meta charset="utf-8"><title>perf-boot</title>
+<canvas id="c" width="960" height="540"></canvas>
+<script src="../src/core/const.js"></script>
+<script>
+(function(SJ){
+  SJ.W=SJ.W||960; SJ.H=SJ.H||540;
+  SJ.C=SJ.C||{paper:'#efe7d8',paperDark:'#e2d7c1',ink:'#1b1a17',ink2:'#35322c',
+    inkLight:'#6f6a60',feibai:'rgba(27,26,23,0.12)',cinnabar:'#b03a2b',stone:'#4a6f7c',gamboge:'#c8a55b'};
+  SJ.FONT=SJ.FONT||'"Songti SC","STSong","Kaiti SC",serif';
+  SJ.hash=SJ.hash||function(i){var x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x);};
+  SJ.noise=SJ.noise||function(x){var i=Math.floor(x),f=x-i,u=f*f*(3-2*f);
+    return (SJ.hash(i)*2-1)*(1-u)+(SJ.hash(i+1)*2-1)*u;};
+  SJ.lerp=SJ.lerp||function(a,b,t){return a+(b-a)*t;};
+  SJ.clamp=SJ.clamp||function(v,a,b){return v<a?a:v>b?b:v;};
+})(window.SJ=window.SJ||{});
+</script>
+<script src="../src/render/ink.js"></script>
+<script>
+(function(){
+  var g=document.getElementById('c').getContext('2d'), I=SJ.Ink, r=[];
+  function avg(n,N,f){var i,t=performance.now();for(i=0;i<N;i++)f(i);
+    return n+':'+Math.round((performance.now()-t)/N*100)/100;}
+  try{
+    // 预热：字体整形、canvas 分配等一次性成本先花掉
+    I.paper(g,0,0); I.mountains(g,0,0); I.bamboo(g,0,0);
+    I.seal(g,860,430,40,'说剑'); I.vtext(g,'竹林听雨',850,44,21,{seed:4});
+    var N=90;
+    r.push(avg('paper',N,function(i){I.paper(g,i*2,0);}));
+    r.push(avg('mt1',N,function(i){I.mountains(g,i*2,1);}));
+    r.push(avg('bb1',N,function(i){I.bamboo(g,i*2,1);}));
+    r.push(avg('rain',N,function(i){I.rain(g,i*2,i*0.016,1,-.34);}));
+    r.push(avg('text',N,function(i){I.vtext(g,'竹林听雨',850,44,21,{seed:4});}));
+    r.push(avg('SCENE',N,function(i){
+      var cx=i*2.5;
+      I.paper(g,cx,0);
+      I.mountains(g,cx,2);I.mountains(g,cx,1);I.mountains(g,cx,0);
+      I.bamboo(g,cx,2);I.bamboo(g,cx,1);I.bamboo(g,cx,0);
+      I.rain(g,cx,i*0.016,.85,-.34);
+      I.seal(g,860,430,40,'说剑');I.vtext(g,'竹林听雨',850,44,21,{seed:4});
+    }));
+    document.title='OK ms/frame '+r.join(' ');
+  }catch(e){ document.title='ERR '+e.message; }
+})();
+</script>

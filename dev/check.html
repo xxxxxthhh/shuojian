@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<title>说剑 · 契约自检 (A)</title>
+<style>
+  body{margin:0;padding:24px 28px 60px;background:#14130f;color:#d8d2c4;
+       font:13px/1.6 ui-monospace,Menlo,Consolas,monospace;}
+  h1{font-size:18px;margin:0 0 4px;color:#efe7d8;font-weight:600;}
+  .sub{color:#8a8478;margin-bottom:18px;}
+  .bar{position:sticky;top:0;background:#14130f;padding:10px 0 14px;
+       border-bottom:1px solid #2e2b24;margin-bottom:18px;z-index:2;}
+  .big{font-size:15px;font-weight:600;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;}
+  .mod{border:1px solid #2e2b24;border-radius:6px;padding:10px 12px;background:#191712;}
+  .mod h2{font-size:13px;margin:0 0 7px;font-weight:600;display:flex;
+          justify-content:space-between;gap:8px;align-items:baseline;}
+  .own{color:#6f6a60;font-weight:400;}
+  .sym{display:flex;justify-content:space-between;gap:10px;padding:1px 0;}
+  .sym span:last-child{color:#6f6a60;}
+  .ok{color:#6faa72;} .bad{color:#d1614f;} .warn{color:#c8a55b;} .pend{color:#55514a;}
+  .mod.gone{opacity:.55;}
+  .note{margin-top:22px;border:1px solid #2e2b24;border-radius:6px;padding:12px 14px;background:#191712;}
+  .note h2{font-size:13px;margin:0 0 8px;}
+  ul{margin:4px 0 0;padding-left:18px;} li{margin:2px 0;}
+  code{color:#c8a55b;}
+</style>
+</head>
+<body>
+<h1>说剑 · 契约自检</h1>
+<div class="sub">按 index.html 的顺序加载全部脚本。缺文件会 404，这是预期的。</div>
+<div id="out">加载中…</div>
+
+<script>
+  window.SJCHK = { missFile: [], errs: [] };
+  window.addEventListener('error', function (e) {
+    if (e && e.message) {
+      SJCHK.errs.push((e.filename || '?').replace(/^.*\//, '') + ':' + (e.lineno || '?') + '  ' + e.message);
+    }
+  });
+  function miss(el) { SJCHK.missFile.push(el.getAttribute('src')); }
+</script>
+
+<script src="../src/core/const.js"   onerror="miss(this)"></script>
+<script src="../src/core/input.js"   onerror="miss(this)"></script>
+<script src="../src/core/camera.js"  onerror="miss(this)"></script>
+<script src="../src/core/world.js"   onerror="miss(this)"></script>
+<script src="../src/core/ent.js"     onerror="miss(this)"></script>
+<script src="../src/core/save.js"    onerror="miss(this)"></script>
+<script src="../src/core/game.js"    onerror="miss(this)"></script>
+<script src="../src/render/ink.js"    onerror="miss(this)"></script>
+<script src="../src/render/figure.js" onerror="miss(this)"></script>
+<script src="../src/render/fx.js"     onerror="miss(this)"></script>
+<script src="../src/audio/audio.js"   onerror="miss(this)"></script>
+<script src="../src/combat/combat.js" onerror="miss(this)"></script>
+<script src="../src/combat/tech.js"   onerror="miss(this)"></script>
+<script src="../src/entity/player.js"  onerror="miss(this)"></script>
+<script src="../src/entity/enemies.js" onerror="miss(this)"></script>
+<script src="../src/entity/bosses.js"  onerror="miss(this)"></script>
+<script src="../src/data/script.js"  onerror="miss(this)"></script>
+<script src="../src/data/levels.js"  onerror="miss(this)"></script>
+<script src="../src/story/story.js"  onerror="miss(this)"></script>
+<script src="../src/ui/hud.js"       onerror="miss(this)"></script>
+<script src="../src/ui/menus.js"     onerror="miss(this)"></script>
+<script src="../src/level/level.js"  onerror="miss(this)"></script>
+<!-- main.js 不加载：它会自己引导整个游戏 -->
+
+<script>
+(function () {
+  'use strict';
+
+  var F = 'function', O = 'object', N = 'number', S = 'string', B = 'boolean',
+      A = 'array', ANY = 'any';   // ANY = 运行时才填的字段，缺了记黄不记红
+
+  var MANIFEST = [
+    ['src/core/const.js', 'A', [
+      ['SJ.W', N], ['SJ.H', N], ['SJ.GRAVITY', N], ['SJ.MAXFALL', N],
+      ['SJ.C', O], ['SJ.C.paper', S], ['SJ.C.paperDark', S], ['SJ.C.ink', S],
+      ['SJ.C.ink2', S], ['SJ.C.inkLight', S], ['SJ.C.feibai', S],
+      ['SJ.C.cinnabar', S], ['SJ.C.stone', S], ['SJ.C.gamboge', S],
+      ['SJ.FONT', S], ['SJ.rand', F], ['SJ.randi', F], ['SJ.clamp', F], ['SJ.lerp', F],
+      ['SJ.ease', O], ['SJ.ease.out', F], ['SJ.ease.in', F], ['SJ.ease.io', F],
+      ['SJ.ease.back', F], ['SJ.ease.elastic', F],
+      ['SJ.noise', F], ['SJ.hash', F], ['SJ.aabb', F]
+    ]],
+    ['src/core/input.js', 'A', [
+      ['SJ.Input', O], ['SJ.Input.init', F], ['SJ.Input.update', F],
+      ['SJ.Input.down', F], ['SJ.Input.pressed', F], ['SJ.Input.released', F],
+      ['SJ.Input.buffered', F], ['SJ.Input.consume', F],
+      ['SJ.Input.axis', F], ['SJ.Input.any', F]
+    ]],
+    ['src/core/camera.js', 'A', [
+      ['SJ.Camera', O], ['SJ.Camera.x', N], ['SJ.Camera.y', N],
+      ['SJ.Camera.shakeOffset', O], ['SJ.Camera.setBounds', F],
+      ['SJ.Camera.follow', F], ['SJ.Camera.snap', F],
+      ['SJ.Camera.apply', F], ['SJ.Camera.restore', F]
+    ]],
+    ['src/core/world.js', 'A', [
+      ['SJ.World', O], ['SJ.World.solids', A], ['SJ.World.load', F],
+      ['SJ.World.moveX', F], ['SJ.World.moveY', F], ['SJ.World.groundAt', F],
+      ['SJ.World.lineBlocked', F], ['SJ.World.addSolid', F], ['SJ.World.removeSolid', F]
+    ]],
+    ['src/core/ent.js', 'A', [
+      ['SJ.Ent', O], ['SJ.Ent.list', A], ['SJ.Ent.add', F], ['SJ.Ent.remove', F],
+      ['SJ.Ent.each', F], ['SJ.Ent.by', F], ['SJ.Ent.clear', F],
+      ['SJ.Ent.updateAll', F], ['SJ.Ent.drawAll', F]
+    ]],
+    ['src/core/save.js', 'A', [
+      ['SJ.Save', O], ['SJ.Save.data', O], ['SJ.Save.load', F],
+      ['SJ.Save.save', F], ['SJ.Save.reset', F], ['SJ.Save.exists', F]
+    ]],
+    ['src/core/game.js', 'A', [
+      ['SJ.Game', O], ['SJ.Game.init', F], ['SJ.Game.setScene', F],
+      ['SJ.Game.scene', ANY], ['SJ.Game.time', N], ['SJ.Game.frame', N],
+      ['SJ.Game.rawDt', N], ['SJ.Game.slowmo', F], ['SJ.Game.shake', F],
+      ['SJ.Game.flash', F], ['SJ.Game.fade', F], ['SJ.Game.push', F], ['SJ.Game.pop', F]
+    ]],
+    ['src/render/ink.js', 'B', [
+      ['SJ.Ink', O], ['SJ.Ink.paper', F], ['SJ.Ink.stroke', F], ['SJ.Ink.line', F],
+      ['SJ.Ink.arcStroke', F], ['SJ.Ink.blob', F], ['SJ.Ink.splat', F],
+      ['SJ.Ink.wash', F], ['SJ.Ink.mountains', F], ['SJ.Ink.bamboo', F],
+      ['SJ.Ink.pine', F], ['SJ.Ink.water', F], ['SJ.Ink.rain', F], ['SJ.Ink.snow', F],
+      ['SJ.Ink.lantern', F], ['SJ.Ink.seal', F], ['SJ.Ink.vtext', F],
+      ['SJ.Ink.htext', F], ['SJ.Ink.brushReveal', F]
+    ]],
+    ['src/render/figure.js', 'B', [
+      ['SJ.Figure', O], ['SJ.Figure.draw', F], ['SJ.Figure.pose', F],
+      ['SJ.Figure.blend', F], ['SJ.Figure.tip', F]
+    ]],
+    ['src/render/fx.js', 'B', [
+      ['SJ.FX', O], ['SJ.FX.burst', F], ['SJ.FX.splash', F], ['SJ.FX.slash', F],
+      ['SJ.FX.ring', F], ['SJ.FX.trail', F], ['SJ.FX.word', F], ['SJ.FX.dust', F],
+      ['SJ.FX.leaf', F], ['SJ.FX.update', F], ['SJ.FX.draw', F],
+      ['SJ.FX.drawScreen', F], ['SJ.FX.clear', F]
+    ]],
+    ['src/audio/audio.js', 'C', [
+      ['SJ.Audio', O], ['SJ.Audio.init', F], ['SJ.Audio.ready', B],
+      ['SJ.Audio.sfx', F], ['SJ.Audio.music', F], ['SJ.Audio.intensity', F],
+      ['SJ.Audio.duck', F], ['SJ.Audio.setMute', F], ['SJ.Audio.muted', B]
+    ]],
+    ['src/combat/combat.js', 'E', [
+      ['SJ.Combat', O], ['SJ.Combat.hit', F], ['SJ.Combat.telegraph', F],
+      ['SJ.Combat.tgList', A], ['SJ.Combat.update', F],
+      ['SJ.Combat.draw', F], ['SJ.Combat.clear', F]
+    ]],
+    ['src/combat/tech.js', 'E', [
+      ['SJ.Tech', O], ['SJ.Tech.defs', O], ['SJ.Tech.can', F], ['SJ.Tech.use', F],
+      ['SJ.Tech.update', F], ['SJ.Tech.progress', O], ['SJ.Tech.gain', F],
+      ['SJ.Tech.learn', F]
+    ]],
+    ['src/entity/player.js', 'E', [
+      ['SJ.Player', O], ['SJ.Player.create', F], ['SJ.Player.inkTint', F]
+    ]],
+    ['src/entity/enemies.js', 'F', [
+      ['SJ.Enemies', O], ['SJ.Enemies.defs', O], ['SJ.Enemies.spawn', F]
+    ]],
+    ['src/entity/bosses.js', 'F', [
+      ['SJ.Bosses', O], ['SJ.Bosses.spawn', F]
+    ]],
+    ['src/data/script.js', 'D', [ ['SJ.Script', O] ]],
+    ['src/data/levels.js', 'G', [ ['SJ.Levels', A] ]],
+    ['src/story/story.js', 'H', [
+      ['SJ.Story', O], ['SJ.Story.play', F], ['SJ.Story.flag', F], ['SJ.Story.get', F],
+      ['SJ.Story.chapterCard', F], ['SJ.Story.ending', F], ['SJ.Story.mercyChoice', F]
+    ]],
+    ['src/ui/hud.js', 'H', [ ['SJ.HUD', O], ['SJ.HUD.draw', F], ['SJ.HUD.notice', F] ]],
+    ['src/ui/menus.js', 'H', [
+      ['SJ.Menu', O], ['SJ.Menu.title', F], ['SJ.Menu.pause', F],
+      ['SJ.Menu.slots', F], ['SJ.Menu.gameover', F], ['SJ.Menu.ending', F]
+    ]],
+    ['src/level/level.js', 'G', [
+      ['SJ.Level', O], ['SJ.Level.load', F], ['SJ.Level.current', ANY],
+      ['SJ.Level.def', ANY], ['SJ.Level.pickups', ANY], ['SJ.Level.checkpoint', F],
+      ['SJ.Level.complete', F], ['SJ.Level.spawnWave', F], ['SJ.Level.bossDefeated', F]
+    ]]
+  ];
+
+  function resolve(path) {
+    var parts = path.split('.'), o = window;
+    for (var i = 0; i < parts.length; i++) {
+      if (o === null || o === undefined) return { found: false };
+      if (!(parts[i] in Object(o))) return { found: false };
+      o = o[parts[i]];
+    }
+    return { found: true, val: o };
+  }
+
+  function typeOk(v, want) {
+    if (want === ANY) return true;
+    if (want === A) return Object.prototype.toString.call(v) === '[object Array]';
+    if (want === O) return v !== null && typeof v === 'object';
+    return typeof v === want;
+  }
+
+  var failedFiles = {};
+  for (var i = 0; i < SJCHK.missFile.length; i++) {
+    failedFiles[SJCHK.missFile[i].replace('../', '')] = true;
+  }
+
+  var html = [], missing = [], nOk = 0, nBad = 0, nWarn = 0, nPend = 0;
+  var modReady = 0, modPartial = 0, modGone = 0;
+
+  for (i = 0; i < MANIFEST.length; i++) {
+    var file = MANIFEST[i][0], owner = MANIFEST[i][1], syms = MANIFEST[i][2];
+    var gone = !!failedFiles[file];
+    var rows = [], bad = 0, warn = 0;
+
+    for (var j = 0; j < syms.length; j++) {
+      var path = syms[j][0], want = syms[j][1];
+      var r = resolve(path);
+      var cls, msg;
+      if (gone) { cls = 'pend'; msg = '—'; nPend++; }
+      else if (!r.found) {
+        if (want === ANY) { cls = 'warn'; msg = '未就绪'; warn++; nWarn++; }
+        else { cls = 'bad'; msg = '缺失'; bad++; nBad++; missing.push(path + '  (' + want + ')'); }
+      } else if (!typeOk(r.val, want)) {
+        cls = 'bad';
+        msg = '应为 ' + want + '，实为 ' +
+              (Object.prototype.toString.call(r.val) === '[object Array]' ? 'array' : typeof r.val);
+        bad++; nBad++; missing.push(path + '  ' + msg);
+      } else { cls = 'ok'; msg = want === ANY ? 'ok' : want; nOk++; }
+      rows.push('<div class="sym ' + cls + '"><span>' +
+                (cls === 'ok' ? '✔' : cls === 'bad' ? '✘' : cls === 'warn' ? '▲' : '·') +
+                ' ' + path + '</span><span>' + msg + '</span></div>');
+    }
+
+    var tag;
+    if (gone) { tag = '<span class="pend">未提交 (404)</span>'; modGone++; }
+    else if (bad) { tag = '<span class="bad">' + bad + ' 项不合约</span>'; modPartial++; }
+    else if (warn) { tag = '<span class="warn">就绪（' + warn + ' 项待运行时）</span>'; modReady++; }
+    else { tag = '<span class="ok">就绪</span>'; modReady++; }
+
+    html.push('<div class="mod' + (gone ? ' gone' : '') + '"><h2><span>' + file +
+              ' <span class="own">【' + owner + '】</span></span>' + tag + '</h2>' +
+              (gone ? '<div class="pend">' + syms.length + ' 个符号待检</div>' : rows.join('')) +
+              '</div>');
+  }
+
+  // ---- 深检：契约里明确列出的清单 ----
+  var deep = [];
+  function chk(label, fn) {
+    var r;
+    try { r = fn(); } catch (e) { r = ['bad', '抛错：' + e.message]; }
+    if (r) deep.push('<li class="' + r[0] + '">' + label + '：' + r[1] + '</li>');
+  }
+
+  chk('SJ.Levels 时长预算 (DESIGN §9.6)', function () {
+    if (!window.SJ || !SJ.Levels) return null;
+    var sum = 0, lack = [];
+    for (var k = 0; k < SJ.Levels.length; k++) {
+      var L = SJ.Levels[k];
+      if (typeof L.expectedSec !== 'number' || typeof L.encounters !== 'number') {
+        lack.push(L.id || ('#' + k));
+      }
+      sum += L.expectedSec || 0;
+    }
+    if (lack.length) return ['bad', '缺 expectedSec/encounters：' + lack.join(', ')];
+    return sum >= 1800 ? ['ok', 'Σ expectedSec = ' + sum + ' ≥ 1800 ✔']
+                       : ['bad', 'Σ expectedSec = ' + sum + '，不足 1800'];
+  });
+
+  chk('SJ.Enemies.defs 杂兵齐备', function () {
+    if (!window.SJ || !SJ.Enemies || !SJ.Enemies.defs) return null;
+    var need = ['daoke', 'gongshou', 'qiangbing', 'lishi', 'sengren', 'cike', 'denglong'], lack = [];
+    for (var k = 0; k < need.length; k++) if (!SJ.Enemies.defs[need[k]]) lack.push(need[k]);
+    return lack.length ? ['bad', '缺 ' + lack.join(', ')] : ['ok', '7 种齐备 ✔'];
+  });
+
+  chk('SJ.Tech.defs 十二招齐备', function () {
+    if (!window.SJ || !SJ.Tech || !SJ.Tech.defs) return null;
+    var need = ['hengyun', 'liebo', 'chengtian', 'guying', 'wufeng', 'lianhuan',
+                'poyu', 'chuanyang', 'zhenshan', 'tiyun', 'fenshu', 'shuojian'];
+    var d = SJ.Tech.defs, lack = [], k, m;
+    for (k = 0; k < need.length; k++) {
+      var hit = !!d[need[k]];
+      if (!hit && d.length) for (m = 0; m < d.length; m++) if (d[m] && d[m].id === need[k]) hit = true;
+      if (!hit) lack.push(need[k]);
+    }
+    return lack.length ? ['bad', '缺 ' + lack.join(', ')] : ['ok', '12 招齐备 ✔'];
+  });
+
+  chk('SJ.Figure.pose 必备姿势', function () {
+    if (!window.SJ || !SJ.Figure || !SJ.Figure.pose) return null;
+    var need = ('idle run jump rise fall land crouch dashF guard observe hurt down dead ' +
+      'atk1_wind atk1_hit atk1_rec atk2_wind atk2_hit atk2_rec atk3_wind atk3_hit atk3_rec ' +
+      'castWind castHit thrust upslash downslash sit walk bow').split(/\s+/);
+    var lack = [];
+    for (var k = 0; k < need.length; k++) {
+      var po = null;
+      try { po = SJ.Figure.pose(need[k], 0.5, 0); } catch (e) {}
+      if (!po || typeof po !== 'object') lack.push(need[k]);
+    }
+    return lack.length ? ['bad', '缺 ' + lack.length + ' 个：' + lack.join(' ')]
+                       : ['ok', need.length + ' 个姿势齐备 ✔'];
+  });
+
+  chk('SJ.Script 剧本入口 key', function () {
+    if (!window.SJ || !SJ.Script) return null;
+    var need = ['p_intro', 'p_outro', 'f_intro', 'f_end'], k;
+    for (k = 1; k <= 6; k++) need.push('c' + k + '_intro', 'c' + k + '_outro');
+    var lack = [];
+    for (k = 0; k < need.length; k++) if (!SJ.Script[need[k]]) lack.push(need[k]);
+    return lack.length ? ['bad', '缺 ' + lack.join(', ')] : ['ok', need.length + ' 个入口齐备 ✔'];
+  });
+
+  if (SJCHK.errs.length) {
+    deep.push('<li class="bad">脚本运行时抛错 ' + SJCHK.errs.length + ' 处：<br>' +
+              SJCHK.errs.join('<br>') + '</li>');
+  }
+  if (!deep.length) deep.push('<li class="pend">相关模块尚未提交，暂无可深检项。</li>');
+
+  var head =
+    '<div class="bar"><div class="big">' +
+    '<span class="ok">就绪 ' + modReady + '</span> · ' +
+    '<span class="bad">不合约 ' + modPartial + '</span> · ' +
+    '<span class="pend">未提交 ' + modGone + '</span>' +
+    '　|　符号 <span class="ok">' + nOk + ' 通过</span>' +
+    (nBad ? ' · <span class="bad">' + nBad + ' 失败</span>' : '') +
+    (nWarn ? ' · <span class="warn">' + nWarn + ' 待运行时</span>' : '') +
+    (nPend ? ' · <span class="pend">' + nPend + ' 待提交</span>' : '') +
+    '</div></div>';
+
+  document.getElementById('out').innerHTML =
+    head + '<div class="grid">' + html.join('') + '</div>' +
+    '<div class="note"><h2>深检（契约里点名的清单）</h2><ul>' + deep.join('') + '</ul></div>';
+
+  console.log('%c[契约自检] 模块 就绪 ' + modReady + ' / 不合约 ' + modPartial +
+              ' / 未提交 ' + modGone, 'font-weight:bold');
+  if (SJCHK.missFile.length) console.warn('未提交的文件：\n  ' + SJCHK.missFile.join('\n  '));
+  if (missing.length) console.warn('缺失/类型不符的符号 ' + missing.length + ' 项：\n  ' + missing.join('\n  '));
+  else console.log('%c已提交模块的符号全部合约。', 'color:#6faa72');
+  if (SJCHK.errs.length) console.error('运行时抛错：\n  ' + SJCHK.errs.join('\n  '));
+})();
+</script>
+</body>
+</html>
