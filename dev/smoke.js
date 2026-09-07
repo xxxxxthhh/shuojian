@@ -106,7 +106,7 @@ const need = {
   'SJ.Figure': ['draw','pose','blend','tip'],
   'SJ.FX': ['burst','splash','slash','ring','word','dust','update','draw','drawScreen','clear'],
   'SJ.Audio': ['init','sfx','music','intensity','duck','setMute'],
-  'SJ.Combat': ['hit','telegraph','update','draw','clear'],
+  'SJ.Combat': ['hit','telegraph','update','draw','clear','TIER:obj'],
   'SJ.Tech': ['can','use','update','gain','learn'],
   'SJ.Player': ['create','setSlot','envForce','inkTint'],
   'SJ.Enemies': ['spawn'], 'SJ.Bosses': ['spawn'],
@@ -118,9 +118,13 @@ let symOk=0, symBad=0;
 for (const ns in need) {
   const obj = ns.split('.').slice(1).reduce((o,k)=>o&&o[k], SJ);
   if (!obj) { fail(`${ns} 不存在`); symBad += need[ns].length; continue; }
-  for (const fn of need[ns]) {
-    if (typeof obj[fn] === 'function') symOk++;
-    else { fail(`${ns}.${fn} 缺失或不是函数`); symBad++; }
+  for (const sym of need[ns]) {
+    // 'name' 要求是函数；'name:obj' 要求是对象（只读表，如 Combat.TIER）
+    const [fn, kind] = sym.split(':');
+    const v = obj[fn];
+    const ok = kind === 'obj' ? (v && typeof v === 'object') : typeof v === 'function';
+    if (ok) symOk++;
+    else { fail(`${ns}.${fn} 缺失或不是${kind === 'obj' ? '对象' : '函数'}`); symBad++; }
   }
 }
 if (!Array.isArray(SJ.Levels) || SJ.Levels.length !== 8) fail(`SJ.Levels 应有 8 关，实际 ${SJ.Levels&&SJ.Levels.length}`);
