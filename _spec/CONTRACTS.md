@@ -823,3 +823,14 @@ SJ.Scenery = {
 REVIEW §2 第 10 条写的 0.6s 是 Lead 在不知道已有 shift 态时拍的数。**保留 1.0–1.3s**，演出填进现有窗口；断言读 shiftSec。
 换势期间 Boss 无敌导致玩家 hitbox 被 `combat.js strike()` 的 invuln 分支**静默吃掉**（无 hitstop / 墨点 / 声）——
 这条归 T2 在 combat.js 加「挡开」反馈（墨环 + block 音，不掉血、不进进度统计）。T3 **不在 ai.js 侧绕**。
+
+## 决议 020 — `only` 接线、`windMul` 本波不接（T3 发现，Lead 裁定）
+
+`level.js` 的 spawn 从未透传 `opts.only / opts.windMul`。
+- **`only` 必须接**：决议 012 的教具（第一回第一个刀客只出破雨）是设计的一部分；T1 在关卡数据里带 `only`，level-check 加规则。
+- **`windMul` 本波不接**：enemies.js 注释里的章节倍率表（一回 1.15 → 六回 0.62）从未进过关卡数据，接上等于给二到六回改难度。等 T1 的通关数据（每关受击/死亡次数）出来再定。决议 018 的夹紧保证以后接上也不会跌破 MIN_WIND。
+
+## 决议 021 — 敌人线宽方案 B（T3 出对照，Lead 拍板）
+
+游戏内尺寸下有效墨重（scale × lineScale）偏细的杂兵与 Boss 抬到 1.0；刻意加重的（力士 1.25、守阁人 1.22）不动。
+纯呈现，不动判定框。对照图 `_spec/qa/lead_enemy_{1,2}_{A,B}.png`。
