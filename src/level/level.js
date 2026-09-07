@@ -646,6 +646,13 @@
     def: null,
     pickups: R.pickups,
 
+    /* 决议 007 §2：H 的 gameover 确认后只调这一个函数。
+     * 语义 = 回到本关最近检查点，不回退章节、不清存档。 */
+    restartFromCheckpoint: function () {
+      var idx = SJ.Level.current >= 0 ? SJ.Level.current : (SJ.Save.data.chapter | 0);
+      SJ.Level.load(idx, true);
+    },
+
     load: function (idx, checkpoint) {
       var def = SJ.Levels[idx];
       if (!def) { console.warn('[G] 没有第 ' + idx + ' 关'); return; }
