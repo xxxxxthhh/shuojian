@@ -44,6 +44,53 @@
     window.addEventListener('mousedown', go, true);
   }
 
+  // ══ 音量条（决议 017）══════════════════════════════════════════
+  // 「音」不再是开关，是一条可调的墨线：J 进去，← → 调，J（或 Esc）收工。
+  // 必须做成子模式 —— 标题与暂停的 ← → 本来都是切菜单项，进了音量才归音量。
+  // 不写字、不写数字（DESIGN §0 铁律 3：不做教程弹窗）。muted 与 setMute 不动。
+  var volEdit = false, volHold = 0, VOL_STEP = 0.1;
+
+  function volEnter() {
+    volEdit = true; volHold = 0;
+    // 顺手解锁 AudioContext：调音量总得听得见。浏览器可能拒绝建 ctx（自动播放策略、
+    // 无头环境），拒绝了也只是没声音，不能把菜单带崩。
+    try { SJ.Audio.init(); } catch (e) {}
+  }
+
+  // 返回 true = 这一帧的输入被音量条吃掉了，菜单本体不要再处理
+  function volUpdate(dt) {
+    if (!volEdit) return false;
+    var I = SJ.Input, d = 0;
+    if (I.pressed('left')) { d = -1; volHold = 0; }
+    else if (I.pressed('right')) { d = 1; volHold = 0; }
+    else if (I.down('left') || I.down('right')) {
+      volHold += dt || 0;                 // 按住连调：从满到零约 1.5s，不用点十下
+      if (volHold > 0.35) { volHold -= 1 / 6; d = I.down('left') ? -1 : 1; }
+    } else volHold = 0;
+    if (d) {
+      SJ.Audio.setVolume(Math.round((SJ.Audio.getVolume() + d * VOL_STEP) * 100) / 100);
+      if (SJ.Audio.ready) SJ.Audio.sfx('ui');
+    }
+    if (I.pressed('confirm') || I.pressed('pause')) {
+      volEdit = false;
+      if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
+    }
+    return true;
+  }
+
+  // 一条墨线 + 一枚朱砂点。线的长短就是音量，不需要任何说明。
+  function drawVolBar(g, cx, y, w, color) {
+    var v = SJ.Audio.getVolume(), x0 = cx - w / 2, hx = x0 + w * v, br;
+    SJ.Ink.stroke(g, [[x0, y], [x0 + w, y]], {
+      w0: 1.6, w1: 1.3, color: color, alpha: 0.28, taper: false, hairs: 0, core: false, seed: 210
+    });
+    if (v > 0.001) SJ.Ink.stroke(g, [[x0, y], [hx, y]], {
+      w0: 4.4, w1: 3.6, color: color, alpha: 0.80, taper: false, hairs: 0, core: false, seed: 211
+    });
+    br = volEdit ? (0.62 + 0.38 * Math.sin(SJ.Game.time * 5)) : 0.5;
+    SJ.Ink.blob(g, hx, y, 4.2, 212, { color: SJ.C.cinnabar, alpha: br, rough: 0.3 });
+  }
+
   function drawBackdrop(g) {
     SJ.Ink.paper(g, 0, 0);
     SJ.Ink.mountains(g, 0, 2, {});
@@ -75,6 +122,7 @@
       startArmed = false;
     },
     update: function (dt) {
+      if (volUpdate(dt)) return;          // 音量条开着时 ← → 归它，不切菜单项
       var hasSave = SJ.Save.exists();
       if (startArmed) {
         startArmedT += dt;
@@ -107,7 +155,7 @@
           if (hasSave) { if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm'); SJ.Level.load(SJ.Save.data.chapter); }
         } else {
           if (SJ.Audio.ready) SJ.Audio.sfx('uiConfirm');
-          SJ.Audio.setMute(!SJ.Audio.muted);
+          volEnter();
         }
       }
     },
@@ -141,8 +189,10 @@
           });
         }
       }
+      // 音量条只在「音」被选中时露出来：标题只有三个字，平时不添第四样东西
+      if (titleSel === 2) drawVolBar(g, W / 2, 448, 214, SJ.C.ink);
     },
-    exit: function () {}
+    exit: function () { volEdit = false; }
   };
 
   // ══ 暂停：继续／换招／音／出——同样不解释按键，只给出四个词 ══════════
@@ -151,8 +201,9 @@
 
   var pauseScene = {
     countsPlaytime: false,
-    enter: function () { pauseSel = 0; },
-    update: function () {
+    enter: function () { pauseSel = 0; volEdit = false; },
+    update: function (dt) {
+      if (volUpdate(dt)) return;          // 同上：音量条开着时 ← → 归它
       if (SJ.Input.pressed('left')) pauseSel = (pauseSel + 3) % 4;
       if (SJ.Input.pressed('right')) pauseSel = (pauseSel + 1) % 4;
       if (SJ.Input.pressed('pause')) { SJ.Audio.sfx('uiBack'); SJ.Game.pop(); return; }
@@ -160,7 +211,7 @@
         SJ.Audio.sfx('uiConfirm');
         if (pauseSel === 0) SJ.Game.pop();
         else if (pauseSel === 1) SJ.Menu.slots();
-        else if (pauseSel === 2) SJ.Audio.setMute(!SJ.Audio.muted);
+        else if (pauseSel === 2) volEnter();
         else SJ.Menu.title();
       }
     },
@@ -179,8 +230,9 @@
           color: SJ.C.cinnabar, alpha: 0.7, rough: 0.3
         });
       }
+      if (pauseSel === 2) drawVolBar(g, W / 2, H / 2 + 46, 214, SJ.C.paper);
     },
-    exit: function () {}
+    exit: function () { volEdit = false; }
   };
 
   // ══ 换招：四槽 × 已学招式，DESIGN §3.2「换招是玩法的一部分」════════

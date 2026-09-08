@@ -1,0 +1,73 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<title>ink.js 旧调用点像素比对</title>
+<style>html,body{margin:0;background:#151311;color:#bdb3a0;font:12px/1.6 monospace}canvas{display:block;margin:6px}</style>
+</head><body>
+<canvas id="a" width="960" height="540"></canvas>
+<canvas id="b" width="960" height="540"></canvas>
+<pre id="out">running…</pre>
+<script src="../src/core/const.js"></script>
+<script src="../src/render/ink.js"></script>
+<script>
+/* T4：证明 ink.js 这一轮的改动「只加参数、不改缺省行为」。
+ * 做法：用**当前** ink.js 把仓库里所有旧调用点画一遍到画布 A，
+ * 再把 HEAD 版的 ink.js 覆盖进来（同名 SJ.Ink，后加载者胜）画到画布 B，
+ * 然后逐像素比。差异必须是 0 —— 不是「看着一样」，是真的一样。
+ * dev/_ink_head.js 由 `git show HEAD:src/render/ink.js` 生成，比完即删。
+ */
+(function () {
+  'use strict';
+  var A = document.getElementById('a').getContext('2d', { willReadFrequently: true });
+  var B = document.getElementById('b').getContext('2d', { willReadFrequently: true });
+  var out = document.getElementById('out');
+
+  // 仓库里现存的、会碰到本轮改动的全部调用点（level.js / story.js / dev/ink.html）
+  function drawAll(g) {
+    var C = SJ.C, Ink = SJ.Ink, t = 3.0;
+    Ink.clearLayerCache();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, 960, 540);
+    Ink.paper(g, 120, 0);
+    Ink.mountains(g, 120, 2, { alpha: 0.10 });
+    Ink.bamboo(g, 120, 1, { alpha: 0.22 });                     // level.js:479
+    Ink.bamboo(g, 300, 2, { baseY: 520 });                      // dev/ink.html
+    Ink.bamboo(g, 300, 0, { baseY: 540, gap: 210 });            // dev/ink.html
+    Ink.water(g, 40, 300, 360, 70, t, { color: C.stone, alpha: 0.5 });   // level.js:632
+    Ink.water(g, 460, 300, 300, 90, t, { n: 8 });               // dev/ink.html
+    Ink.splat(g, 200, 190, 15, 13, { color: C.cinnabar, alpha: 0.9, n: 5 });  // story.js:441
+    Ink.splat(g, 300, 190, 11, 5, { n: 7 });                    // dev/ink.html
+    Ink.splat(g, 400, 190, 9, 21);                              // 无 o 的路径
+  }
+
+  drawAll(A);
+
+  var sc = document.createElement('script');
+  sc.src = '_ink_head.js';
+  sc.onload = function () {
+    drawAll(B);                                   // 此时 SJ.Ink 已是 HEAD 版
+    var da = A.getImageData(0, 0, 960, 540).data,
+      db = B.getImageData(0, 0, 960, 540).data,
+      diff = 0, maxd = 0, i, d;
+    for (i = 0; i < da.length; i++) {
+      d = Math.abs(da[i] - db[i]);
+      if (d > 0) { diff++; if (d > maxd) maxd = d; }
+    }
+    var px = da.length / 4;
+    var msg = diff === 0
+      ? '✓ 旧调用点逐像素一致（' + px + ' 像素，0 处差异）'
+      : '✗ 有差异：' + diff + ' 个通道值不同（共 ' + (px * 4) + '），最大差 ' + maxd;
+    out.textContent = msg;
+    fetch(location.origin + '/save', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'inkdiff', stats: { name: 'inkdiff', diff: diff, maxd: maxd, msg: msg }, png: null })
+    }).then(function () {
+      return fetch(location.origin + '/done', { method: 'POST', body: JSON.stringify({ inkdiff: msg }) });
+    });
+  };
+  sc.onerror = function () {
+    out.textContent = '✗ 载不到 dev/_ink_head.js（先跑 git show HEAD:src/render/ink.js > dev/_ink_head.js）';
+    fetch(location.origin + '/done', { method: 'POST', body: JSON.stringify({ inkdiff: 'ERROR: no _ink_head.js' }) });
+  };
+  document.body.appendChild(sc);
+})();
+</script>
+</body></html>

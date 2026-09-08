@@ -1,0 +1,253 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8">
+<title>说剑 · QA 截图与留白统计</title>
+<style>html,body{margin:0;background:#151311;color:#bdb3a0;font:12px/1.6 monospace}
+canvas{display:block;margin:6px} pre{padding:8px;white-space:pre-wrap}</style></head><body>
+<canvas id="sj" width="960" height="540"></canvas>
+<pre id="out">running…</pre>
+
+<!-- 与 index.html 同序，只去掉 main.js（不要它的 rAF 主循环，帧由本页手动驱动） -->
+<script src="../src/core/const.js"></script>
+<script src="../src/core/input.js"></script>
+<script src="../src/core/camera.js"></script>
+<script src="../src/core/world.js"></script>
+<script src="../src/core/ent.js"></script>
+<script src="../src/core/save.js"></script>
+<script src="../src/core/game.js"></script>
+<script src="../src/render/ink.js"></script>
+<script src="../src/render/figure.js"></script>
+<script src="../src/render/fx.js"></script>
+<script src="../src/render/scenery.js"></script><!-- 还没建时 404，无害 -->
+<script src="../src/audio/audio.js"></script>
+<script src="../src/combat/combat.js"></script>
+<script src="../src/combat/tech.js"></script>
+<script src="../src/entity/player.js"></script>
+<script src="../src/entity/ai.js"></script>
+<script src="../src/entity/enemies.js"></script>
+<script src="../src/entity/bosses.js"></script>
+<script src="../src/data/script.js"></script>
+<script src="../src/data/levels.js"></script>
+<script src="../src/story/story.js"></script>
+<script src="../src/ui/hud.js"></script>
+<script src="../src/ui/menus.js"></script>
+<script src="../src/level/level.js"></script>
+
+<script>
+/* T4 呈现层的验收台。做三件事：
+ *   1. 用真实游戏渲染路径（Game._render）出帧，不是单画 Scenery —— DESIGN §1 的
+ *      「一屏纸色留白 ≥ 50%」说的是最终那一屏，地形/deco/HUD/雾都算进去。
+ *   2. 纸色留白 = 画面按 4×4 取平均后亮度 L ≥ 218 的块占比。
+ *      （纸底 L=231.6；四角做旧 L≈224；任何 alpha≥0.10 的墨罩 L≤211。
+ *        先做 4×4 平均是为了把纸纹噪点的 ±7 抹掉，阈值才切得干净。）
+ *   3. 耗时：静止帧均值（层缓存命中）与清缓存后的最坏单帧，两个都报。
+ * 结果 POST 给 dev/qa_server.py 落盘。纯 dev 工具，游戏不依赖。
+ */
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var TAG = q.get('tag') || 'new';
+  var ONLY = q.get('only');            // 只跑某一关（关卡 id）
+  var PNG = q.get('png') !== '0';
+  var REPS = +(q.get('reps') || 24);
+  // noscenery=1：把 SJ.Scenery 拿掉，让 level.js 走它自己的 try 分支退回旧 switch。
+  // 这样「改前」那一组是从**真实兜底路径**出来的，不是靠记忆或旧文件。
+  if (q.get('noscenery') === '1' && window.SJ) { try { delete SJ.Scenery; } catch (e) { SJ.Scenery = null; } }
+  var API = location.origin;
+  var out = document.getElementById('out'), log = [];
+  function say(s) { log.push(s); out.textContent = log.join('\n'); }
+
+  var cv = document.getElementById('sj'), g = cv.getContext('2d', { willReadFrequently: true });
+
+  // 手动接管 Game，不调 init（init 会起 rAF 主循环，帧就不可控了）
+  SJ.Game.canvas = cv; SJ.Game.g = g; SJ.Game.scale = 1;
+
+  // Input 替身：本页自己决定哪一帧「按下了确认」
+  var held = {}, pr = {}, I = SJ.Input;
+  I.init = function () {}; I.down = function (a) { return !!held[a]; };
+  I.pressed = function (a) { return !!pr[a]; }; I.released = function () { return false; };
+  I.buffered = function (a) { return !!pr[a]; }; I.consume = function (a) { pr[a] = false; };
+  I.axis = function () { return 0; }; I.any = function () { return false; }; I.update = function () {};
+  function tap(a, n) { for (var i = 0; i < (n || 1); i++) { pr[a] = true; SJ.Game._step(1 / 60); pr[a] = false; } }
+
+  try { SJ.Save.reset(); } catch (e) {}
+
+  // ── 4×4 块平均亮度 ≥ 218 记为纸色留白 ────────────────────────
+  function paperRatio() {
+    var d = g.getImageData(0, 0, 960, 540).data, B = 4, blocks = 0, white = 0, bx, by, x, y, i, s;
+    for (by = 0; by < 540; by += B) {
+      for (bx = 0; bx < 960; bx += B) {
+        s = 0;
+        for (y = 0; y < B; y++) for (x = 0; x < B; x++) {
+          i = ((by + y) * 960 + (bx + x)) * 4;
+          s += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        }
+        blocks++; if (s / (B * B) >= 218) white++;
+      }
+    }
+    return white / blocks;
+  }
+
+  // 三个数：静止均值 / 走动中的最坏一帧 / 关卡载入那一帧。
+  // 只报「清空全部缓存后的那一帧」是不诚实的 —— 那一帧一局只出现一次；
+  // 玩家真正会遇到的最坏帧是走动中某一层视差缓存到期重建的那一帧。
+  function ms(n) {
+    var i, t0, dt, worst = 0;
+    for (i = 0; i < 4; i++) SJ.Game._render(g);      // 预热层缓存
+    t0 = performance.now();
+    for (i = 0; i < n; i++) SJ.Game._render(g);
+    var avg = (performance.now() - t0) / n;
+
+    // 无头 Chrome 是软件渲染，偶发 GC 会让单帧飙到 8ms 以上 —— 那是环境噪声，
+    // 不是画面成本。所以同时报 p95 与最大值：p95 才是「层缓存到期重建」的真实代价。
+    var cx0 = SJ.Camera.x, samples = [];
+    for (i = 0; i < 110; i++) {                       // 以 6px/帧（≈冲刺速度）推镜头
+      SJ.Camera.x = cx0 + i * 6;
+      t0 = performance.now(); SJ.Game._render(g); dt = performance.now() - t0;
+      if (i > 2) samples.push(dt);
+    }
+    SJ.Camera.x = cx0;
+    samples.sort(function (a2, b2) { return a2 - b2; });
+    worst = samples[samples.length - 1];
+    var p95 = samples[Math.floor(samples.length * 0.95)];
+
+    SJ.Ink.clearLayerCache();                         // 关卡载入那一帧：所有层同时重建
+    t0 = performance.now(); SJ.Game._render(g);
+    var cold = performance.now() - t0;
+    for (i = 0; i < 2; i++) SJ.Game._render(g);
+    return { avg: +avg.toFixed(3), worst: +worst.toFixed(3), p95: +p95.toFixed(3), cold: +cold.toFixed(3) };
+  }
+
+  function post(path, obj) {
+    return fetch(API + path, { method: 'POST', body: JSON.stringify(obj) });
+  }
+
+  async function shoot(name, stats) {
+    SJ.Game._render(g);
+    stats.paper = +(paperRatio() * 100).toFixed(1);
+    var t = ms(REPS);
+    stats.ms = t.avg; stats.msWorst = t.worst; stats.msP95 = t.p95; stats.msCold = t.cold;
+    stats.name = name;
+    say(name + '  留白 ' + stats.paper + '%  静止 ' + t.avg + ' / 走动 p95 ' + t.p95 + ' / 峰值 ' + t.worst + ' / 载入 ' + t.cold + ' ms');
+    await post('/save', { name: name, stats: stats, png: PNG ? cv.toDataURL('image/png') : null });
+  }
+
+  function spots(def) {
+    var cps = def.checkpoints.slice();
+    if (cps.length < 3 && def.exitX) cps.push([def.exitX - 260, cps[cps.length - 1][1]]);
+    var n = cps.length;
+    return [cps[0], cps[Math.floor(n / 2)], cps[n - 1]];
+  }
+
+  async function run() {
+    // level.js 还没接线时，本页自己模拟决议 015 的接线，
+    // 这样挂载前就能量到「接上之后」的真实画面。接线后自动关掉，避免画两遍。
+    var src = await (await fetch('/src/level/level.js')).text();
+    var wired = /SJ\.Scenery/.test(src);
+    var patched = false;
+    if (SJ.Scenery && !wired) {
+      patched = true;
+      var Ink = SJ.Ink, sup = false, inLv = false;
+      var op = Ink.paper;
+      Ink.paper = function (gg, cx, cy) {
+        op.call(Ink, gg, cx, cy);
+        if (inLv && SJ.Level.def) {
+          var d = SJ.Level.def;
+          SJ.Scenery.draw(d.bg, gg, cx, cy, SJ.Game.time, d);
+          sup = true;                       // 之后到 Camera.apply 之间的旧 switch 全部吞掉
+        }
+      };
+      ['mountains', 'bamboo', 'wash', 'blob'].forEach(function (k) {
+        var o = Ink[k];
+        Ink[k] = function () { if (sup) return; return o.apply(Ink, arguments); };
+      });
+      var oa = SJ.Camera.apply;
+      SJ.Camera.apply = function (gg) { sup = false; return oa.call(SJ.Camera, gg); };
+      window.__inLv = function (v) { inLv = v; };
+    }
+    say('scenery=' + (SJ.Scenery ? '有' : '无') + ' level.js接线=' + wired + ' 本页模拟接线=' + patched);
+
+    var rows = [];
+    for (var idx = 0; idx < SJ.Levels.length; idx++) {
+      var def = SJ.Levels[idx];
+      if (ONLY && ONLY !== def.id) continue;
+      var sp = spots(def);
+      for (var k = 0; k < sp.length; k++) {
+        SJ.Level.load(idx, true);                 // checkpoint=true → 不播开场
+        if (window.__inLv) window.__inLv(true);
+        var p = SJ.player;
+        p.x = sp[k][0] - p.w / 2; p.y = sp[k][1] - p.h; p.vx = 0; p.vy = 0;
+        SJ.Camera.snap(p.cx(), p.cy());
+        for (var f = 0; f < 6; f++) SJ.Game._step(1 / 60);   // 落稳、姿势初始化
+        while (SJ.Game.stack.length > 1) SJ.Game.pop();      // 落地时踩到的旁白挡住构图，收掉
+        p.x = sp[k][0] - p.w / 2; p.vx = 0;
+        SJ.Camera.snap(p.cx(), p.cy());
+        SJ.Game.time = 8.4 + k * 1.7;             // 固定相位，帧与帧之间可比
+        var st = { tag: TAG, level: def.id, chapter: idx, pos: k,
+                   x: Math.round(p.x), camX: Math.round(SJ.Camera.x), camY: Math.round(SJ.Camera.y),
+                   bg: def.bg, weather: def.weather };
+        await shoot(TAG + '_' + def.id + '_' + k, st);
+        rows.push(st);
+        if (window.__inLv) window.__inLv(false);
+      }
+    }
+
+    if (!ONLY) {
+      // 主菜单
+      SJ.Menu.title(); SJ.Game.time = 3.1;
+      await shoot(TAG + '_ui_title', { tag: TAG, level: 'ui', pos: 'title' });
+      // 主菜单 ·「音」选中 → 音量条（决议 017）
+      tap('left', 1);                             // 0 → 2，选到「音」
+      SJ.Game.time = 3.4;
+      await shoot(TAG + '_ui_volume', { tag: TAG, level: 'ui', pos: 'volume' });
+      // 暂停（压在第一回上），选到「音」把音量条也露出来
+      SJ.Level.load(1, true);
+      if (window.__inLv) window.__inLv(true);
+      SJ.Game.time = 6.2; SJ.Menu.pause();
+      await shoot(TAG + '_ui_pause', { tag: TAG, level: 'ui', pos: 'pause' });
+      tap('right', 2);
+      SJ.Game.time = 6.6;
+      await shoot(TAG + '_ui_pause_vol', { tag: TAG, level: 'ui', pos: 'pauseVolume' });
+      SJ.Game.pop();
+      // 叙述面板：藏经阁九屏书页的第 4 屏
+      SJ.Level.load(5, true);
+      if (window.__inLv) window.__inLv(true);
+      SJ.Game.time = 6.2;
+      SJ.Story.play('c5_book', function () {});
+      tap('confirm', 6);                          // 每屏两下：补完 + 翻页
+      SJ.Game.time += 9;                          // 让本屏写完
+      await shoot(TAG + '_ui_narration', { tag: TAG, level: 'ui', pos: 'narration' });
+      // 对话（带名牌）
+      SJ.Game.time += 9;
+      tap('confirm', 2);
+      SJ.Game.time += 9;
+      await shoot(TAG + '_ui_narration2', { tag: TAG, level: 'ui', pos: 'narration2' });
+      if (window.__inLv) window.__inLv(false);
+
+      // 诊断：第四回把雾摘掉是什么样（level.js:804 全程 R.fog=1）。
+      // 只在本页临时改 def.weather 再改回来，不落盘、不影响游戏。
+      var d4 = SJ.Levels[4], w0 = d4.weather;
+      d4.weather = 'none';
+      SJ.Level.load(4, true);
+      if (window.__inLv) window.__inLv(true);
+      var p4 = SJ.player, sp4 = spots(d4)[1];
+      p4.x = sp4[0] - p4.w / 2; p4.y = sp4[1] - p4.h; p4.vx = 0; p4.vy = 0;
+      SJ.Camera.snap(p4.cx(), p4.cy());
+      for (var f4 = 0; f4 < 6; f4++) SJ.Game._step(1 / 60);
+      while (SJ.Game.stack.length > 1) SJ.Game.pop();
+      p4.x = sp4[0] - p4.w / 2; SJ.Camera.snap(p4.cx(), p4.cy());
+      SJ.Game.time = 10.1;
+      await shoot(TAG + '_c4_nofog', { tag: TAG, level: 'c4', pos: 'nofog' });
+      if (window.__inLv) window.__inLv(false);
+      d4.weather = w0;
+    }
+
+    await post('/done', { tag: TAG, rows: rows });
+    say('—— 完成 ——');
+  }
+
+  run().catch(function (e) {
+    say('ERROR ' + (e && e.stack || e));
+    post('/done', { error: String(e && e.stack || e) });
+  });
+})();
+</script>
+</body></html>

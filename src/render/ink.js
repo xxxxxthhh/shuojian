@@ -350,28 +350,46 @@
     g.restore();
   };
 
+  // o.aniso 0..1 + o.dir（弧度）：去对称。缺省 aniso=0 = 原来的均匀四散，
+  // 旧调用点一个像素都不变；传了 aniso 才把卫星墨点收拢到 dir 那一侧，
+  // 并把细丝画成带弧的一甩 —— 均匀分布 + 直细丝正是「蜘蛛腿」的来源。
   Ink.splat = function (g, x, y, r, seed, o) {
     o = o || {};
     var alpha = o.alpha != null ? o.alpha : 1,
       color = o.color || SJ.C.ink,
-      n = o.n != null ? o.n : 6, i, k, k2, a, d, rr;
+      n = o.n != null ? o.n : 6,
+      aniso = o.aniso != null ? SJ.clamp(o.aniso, 0, 1) : 0,
+      dir = o.dir != null ? o.dir : -Math.PI / 2,
+      i, k, k2, a, d, rr, sx, sy, ex, ey, mx, my;
     if (alpha <= 0) return;
-    Ink.blob(g, x, y, r, seed, { color: color, alpha: alpha, rough: 0.34 });
+    // squash 透传：落地的墨点是扁的（FX 的 stain 要 0.55）。
+    // 不传就是 undefined → blob 里 `squash || 1`，与原来逐像素一致。
+    Ink.blob(g, x, y, r, seed, { color: color, alpha: alpha, rough: 0.34, squash: o.squash });
     g.save();
     g.fillStyle = color;
     for (i = 0; i < n; i++) {
       k = SJ.hash(seed * 3.1 + i * 7.7); k2 = SJ.hash(seed * 5.9 + i * 2.3);
-      a = k * TAU;
-      d = r * (1.3 + k2 * 2.4);
+      a = aniso > 0 ? dir + (k - 0.5) * TAU * (1 - aniso * 0.74) : k * TAU;
+      // 各向异性时距离也拉开：顺着方向甩得远，侧面掉得近
+      d = r * (1.3 + k2 * 2.4) * (aniso > 0 ? 1 + aniso * Math.cos(a - dir) * 0.55 : 1);
       rr = r * (0.10 + k2 * 0.26);
       g.globalAlpha = alpha * (0.55 + k * 0.45);
-      blobPath(g, x + Math.cos(a) * d, y + Math.sin(a) * d, rr, seed + i * 13, 0.4);
+      blobPath(g, x + Math.cos(a) * d, y + Math.sin(a) * d, rr, seed + i * 13, 0.4, o.squash);
       g.fill();
       // 细丝：主团甩向卫星点的一缕
       if (k2 > 0.55) {
-        Ink.stroke(g, [[x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7],
-        [x + Math.cos(a) * d * 0.85, y + Math.sin(a) * d * 0.85]],
-          { w0: r * 0.24, w1: 0.3, color: color, alpha: alpha * 0.6, seed: seed + i, hairs: 0 });
+        sx = x + Math.cos(a) * r * 0.7; sy = y + Math.sin(a) * r * 0.7;
+        ex = x + Math.cos(a) * d * 0.85; ey = y + Math.sin(a) * d * 0.85;
+        if (aniso > 0) {
+          // 中点往侧面偏一点，细丝就成了「甩」而不是「射线」
+          mx = (sx + ex) / 2 - Math.sin(a) * (k - 0.5) * d * 0.45;
+          my = (sy + ey) / 2 + Math.cos(a) * (k - 0.5) * d * 0.45;
+          Ink.stroke(g, [[sx, sy], [mx, my], [ex, ey]],
+            { w0: r * 0.24, w1: 0.3, color: color, alpha: alpha * 0.6, seed: seed + i, hairs: 0 });
+        } else {
+          Ink.stroke(g, [[sx, sy], [ex, ey]],
+            { w0: r * 0.24, w1: 0.3, color: color, alpha: alpha * 0.6, seed: seed + i, hairs: 0 });
+        }
       }
     }
     g.restore();
@@ -501,12 +519,32 @@
       gap = o.gap || 132,
       seed = (o.seed || 0) + d * 53.1,
       baseY = o.baseY != null ? o.baseY : H + 12,
-      hRef = o.h || H;
+      hRef = o.h || H,
+      // o.poisson 0..1：疏密节奏。0 = 原来的「每格一根、格内抖动」（等距栅栏感），
+      // >0 时用低频噪声给出这一带的疏密，疏处整格空掉、密处再挤一根。
+      // 判定必须逐格独立 —— 层缓存是按下标窗口重绘的，不能依赖前一格的结果。
+      poi = o.poisson ? SJ.clamp(o.poisson, 0, 1) : 0;
 
-    layerBlit(g, 'bb|' + d + '|' + seed + '|' + baseY + '|' + hRef + '|' + gap + '|' + alpha, ox, function (g, ox) {
-      var i0 = Math.floor((ox - MARGIN - 90) / gap), i1 = Math.ceil((ox + W + MARGIN + 90) / gap), i;
+    layerBlit(g, 'bb|' + d + '|' + seed + '|' + baseY + '|' + hRef + '|' + gap + '|' + alpha + '|' + poi, ox, function (g, ox) {
+      var i0 = Math.floor((ox - MARGIN - 90) / gap), i1 = Math.ceil((ox + W + MARGIN + 90) / gap), i, dens, kk;
       g.save();
       for (i = i0; i <= i1; i++) {
+        if (poi > 0) {
+          // 疏处整片空掉、密处一格挤两三根。均匀剔除只会让整片变稀 —— 那不是节奏。
+          dens = 0.5 + SJ.noise(seed * 0.31 + i * 0.27) * 0.5;
+          kk = SJ.hash(seed + i * 13.91);
+          if (kk > 0.20 + dens * dens * 0.95) continue;
+          culm(g, ox, i);
+          if (kk < dens * dens * 0.55 * poi) culm(g, ox, i + 0.41);
+          if (kk < dens * dens * 0.22 * poi) culm(g, ox, i + 0.73);
+          continue;
+        }
+        culm(g, ox, i);
+      }
+      g.restore();
+    });
+
+    function culm(g, ox, i) {
         var k = SJ.hash(seed + i * 3.77),      // 位置抖动
           k2 = SJ.hash(seed + i * 9.13),       // 高度
           k3 = SJ.hash(seed + i * 1.31),       // 粗细
@@ -572,9 +610,7 @@
             });
           }
         }
-      }
-      g.restore();
-    });
+    }
   };
 
   Ink.pine = function (g, x, y, scale, seed) {
@@ -614,11 +650,52 @@
     g.restore();
   };
 
+  // 波纹 + 倒影 + 岸线。倒影与岸线都是**可选**的，不传就是原来的横向波纹，
+  // 旧调用点（level.js 的 drawHazards）画面一个像素不变。
+  //   o.reflect     function(g)：把「水面上方那些东西」再画一遍，本函数负责镜像。
+  //                 水里的倒影从来不是完整的 —— 这里切成 strips 条横条各自错开。
+  //   o.reflectFrom 镜像轴相对 y 的偏移（缺省 0 = 水面顶边）。岸不在水面顶边时要传，
+  //                 否则山会「浮」在水上。
+  //   o.reflectScale 竖向压缩（缺省 1 = 等比镜像）。横版游戏里水面只有几十像素高，
+  //                 等比镜像的山影全落在屏幕外面 —— 传 0.3 左右把倒影压扁，
+  //                 山才落得进水里。写意本来也是压扁的。
+  //   o.shore       >0 时沿水面顶边画一道不规则岸线（值即 alpha）。
   Ink.water = function (g, x, y, w, h, t, o) {
     o = o || {};
-    var n = o.n || 7, i, j, k, yy, amp, ph, pts, len, color = o.color || SJ.C.stone,
+    var n = o.n != null ? o.n : 7, i, j, k, yy, amp, ph, pts, len, color = o.color || SJ.C.stone,
       alpha = o.alpha != null ? o.alpha : 0.46;
     t = t || 0;
+
+    if (o.reflect) {
+      var axis = y + (o.reflectFrom || 0),
+        strips = o.strips || 7, si, sy0, sh, dx,
+        rk = o.reflectScale != null ? o.reflectScale : 1,
+        ra = o.reflectAlpha != null ? o.reflectAlpha : 0.5;
+      for (si = 0; si < strips; si++) {
+        sy0 = y + h * si / strips;
+        sh = h / strips + 0.8;                      // 多 0.8px，条与条之间不留缝
+        dx = Math.sin(t * (0.55 + si * 0.14) + si * 1.93) * (1.1 + si * 0.85);
+        g.save();
+        g.beginPath(); g.rect(x, sy0, w, sh); g.clip();
+        g.globalAlpha = ra * (1 - si / strips * 0.55);   // 越远越淡
+        // y_dst = axis*(1+k) - k*y_src：轴上不动，轴上方的东西按 k 压到轴下方
+        g.translate(dx, axis * (1 + rk)); g.scale(1, -rk);
+        o.reflect(g);
+        g.restore();
+      }
+    }
+
+    if (o.shore) {
+      var spts = [], sx2;
+      for (sx2 = x - 20; sx2 <= x + w + 20; sx2 += 44) {
+        spts.push([sx2, y + SJ.noise((o.seed || 0) + sx2 * 0.006) * 3.4 + SJ.noise((o.seed || 0) + 9 + sx2 * 0.021) * 1.6]);
+      }
+      Ink.stroke(g, spts, {
+        w0: 2.8, w1: 1.6, color: SJ.C.ink, alpha: o.shore,
+        taper: false, hairs: 0, core: false, seed: (o.seed || 0) + 5, wobble: 0.7
+      });
+    }
+
     g.save();
     for (i = 0; i < n; i++) {
       k = SJ.hash((o.seed || 0) + i * 6.13);

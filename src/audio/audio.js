@@ -671,8 +671,24 @@
   // ---------------------------------------------------------------------
   // 图与生命周期
   // ---------------------------------------------------------------------
+  // ── 音量（决议 017）───────────────────────────────────────────
+  // 作用于 master.gain，缺省 0.9（= 原来写死的那个值），存 localStorage['sj_volume']，
+  // **不进 Save 结构**。muted 是另一件事，语义不变。
+  var VOL_KEY = 'sj_volume', volume = null;
+
+  function loadVolume() {
+    if (volume != null) return volume;
+    volume = 0.9;
+    try {
+      var v = window.localStorage && window.localStorage.getItem(VOL_KEY);
+      if (v != null && v !== '' && isFinite(+v)) volume = clamp(+v, 0, 1);
+    } catch (e) {}                       // 隐私模式下 localStorage 会抛，用缺省值
+    return volume;
+  }
+
   function buildGraph() {
-    master = ctx.createGain(); master.gain.value = 0.9;
+    // 建图时就把存下来的音量装进去 —— 玩家上次调过的音量必须在第一声之前生效
+    master = ctx.createGain(); master.gain.value = loadVolume();
     compressor = ctx.createDynamicsCompressor();
     compressor.threshold.value = -20; compressor.knee.value = 24;
     compressor.ratio.value = 4; compressor.attack.value = 0.003; compressor.release.value = 0.25;
@@ -798,6 +814,26 @@
       g.setValueAtTime(base * 0.3, t + 0.06 + sec);
       g.linearRampToValueAtTime(base, t + 0.06 + sec + 0.5);
     },
+
+    // v ∈ [0,1]，越界夹紧，非数字忽略。ctx 还没建也能调（存起来，建图时装上）。
+    setVolume: function (v) {
+      v = +v;
+      if (!isFinite(v)) return loadVolume();
+      v = clamp(v, 0, 1);
+      loadVolume();                      // 先把缓存填上，免得覆盖前没读过存值
+      volume = v;
+      try { if (window.localStorage) window.localStorage.setItem(VOL_KEY, String(v)); } catch (e) {}
+      if (ctx && master) {
+        // 直接赋值会「咔」一声：50ms 斜坡过去
+        var t = ctx.currentTime;
+        master.gain.cancelScheduledValues(t);
+        master.gain.setValueAtTime(master.gain.value, t);
+        master.gain.linearRampToValueAtTime(v, t + 0.05);
+      }
+      return v;
+    },
+
+    getVolume: function () { return loadVolume(); },
 
     setMute: function (b) {
       Audio.muted = !!b;

@@ -90,21 +90,22 @@
     return { maxLen: maxLen, lh: size * 1.14, height: maxLen * size * 1.14 };
   }
 
-  // x：最右一列（第一行）的锚点 x。opts: {yTop, minY, maxY, weight, hint:false}
+  // x：最右一列（第一行）的锚点 x。opts: {yTop, minY, maxY, weight, cw, hint:false}
   function drawTextBlock(g, lines, p, x, size, color, alpha, opts) {
     opts = opts || {};
     var m = textMetrics(lines, size);
     var minY = opts.minY != null ? opts.minY : 40;
     var maxY = opts.maxY != null ? opts.maxY : (SJ.H - 60);
+    var cw = opts.cw || 1.34;
     var yTop = opts.yTop != null ? opts.yTop
       : SJ.clamp((SJ.H - m.height) / 2, minY, Math.max(minY, maxY));
     SJ.Ink.brushReveal(g, lines.join('\n'), x, yTop + size * 0.62, size, p, {
-      color: color, alpha: alpha, weight: opts.weight || '500'
+      color: color, alpha: alpha, weight: opts.weight || '500', cw: cw
     });
     // 写完之后的一枚呼吸墨点：不是按钮，只是「笔停在这」的暗示
     if (p >= 1 && opts.hint !== false) {
       var lastLen = lines[lines.length - 1].length;
-      var hx = x - (lines.length - 1) * size * 1.34;
+      var hx = x - (lines.length - 1) * size * cw;
       var hy = yTop + lastLen * m.lh + size * 0.55;
       var breathe = 0.35 + 0.3 * (Math.sin(SJ.Game.time * 2.3) * 0.5 + 0.5);
       SJ.Ink.blob(g, hx, hy, size * 0.09, 77, { color: color, alpha: alpha * breathe, rough: 0.32 });
@@ -245,21 +246,64 @@
   // 改用 paperDark 提高辨识度，并在接缝处加一道极淡的焦墨阴影 + 一道细线，
   // 让这块面板在任何背景（纸色的白天场景、也包括更暗的雪山/藏经阁）上都读得出
   // 「这是叠在世界上方的一层」，而不是靠色相差异这一条腿走路。
+  // T4 二次过：背景现在一关一景（scenery.js），面板后面可能压着竹林、书架、城墙，
+  // 比原先的空纸吵得多。所以三处收紧：
+  //   底色 0.74 → 0.82（面板要盖得住背景的笔触，不能透出竹竿来）
+  //   字   0.88 → 0.92（对比度）
+  //   列距 cw 1.34 → 1.55（竖排最挤的是列与列之间；实测最多 5 列 × 16 字，
+  //        1.55 时最左一列到 x=787，面板左边在 620，放得下）
   function drawSidePanel(g, node, p, speakerName) {
     var W = SJ.W, H = SJ.H, panelW = 340, panelX = W - panelW;
-    SJ.Ink.wash(g, panelX - 34, 0, 34, H, { color: SJ.C.ink, alpha: 0.10, dir: 'h', flip: true });
-    SJ.Ink.wash(g, panelX, 0, panelW, H, { color: SJ.C.paperDark, alpha: 0.74, dir: 'h', flip: true });
+    SJ.Ink.wash(g, panelX - 36, 0, 36, H, { color: SJ.C.ink, alpha: 0.12, dir: 'h', flip: true });
+    SJ.Ink.wash(g, panelX, 0, panelW, H, { color: SJ.C.paperDark, alpha: 0.82, dir: 'h', flip: true });
     SJ.Ink.stroke(g, [[panelX + 1, 8], [panelX + 1, H - 8]], {
-      w0: 1.1, w1: 0.8, color: SJ.C.ink, alpha: 0.14, seed: 8, hairs: 0, taper: false
+      w0: 1.1, w1: 0.8, color: SJ.C.ink, alpha: 0.16, seed: 8, hairs: 0, taper: false
     });
     var x = W - 42, size = 21;
     if (speakerName) {
       SJ.Ink.vtext(g, speakerName, x, 46, 16, { color: SJ.C.cinnabar, alpha: 0.85, seed: 2 });
       x -= 16 * 1.34 + 16;
     }
-    drawTextBlock(g, node.lines, p, x, size, SJ.C.ink, 0.88, {
-      minY: speakerName ? 96 : 50, maxY: H - 66
+    drawTextBlock(g, node.lines, p, x, size, SJ.C.ink, 0.92, {
+      minY: speakerName ? 96 : 50, maxY: H - 66, cw: 1.55
     });
+  }
+
+  // ══ 页码：长链才给 ══════════════════════════════════════════════
+  // 第五回的藏经阁书页连着九屏（c5_book…c5_book_i），H 自报「九屏疲劳未测」。
+  // 给一个「写到第几张」的位置感，玩家才知道还有多久 —— 但不写字：
+  // 上面一个数、中间一道横、下面一个数，像书页角上的墨记（DESIGN §0 铁律 3：不做说明）。
+  // 阈值 5 屏：两三屏的对白不需要页码，加了反而吵。
+  var CN = '〇一二三四五六七八九';
+  function cn(n) {
+    n = n | 0;
+    if (n < 10) return CN.charAt(n);
+    if (n < 20) return '十' + (n % 10 ? CN.charAt(n % 10) : '');
+    return CN.charAt((n / 10) | 0) + '十' + (n % 10 ? CN.charAt(n % 10) : '');
+  }
+
+  function drawPageMark(g, idx, total) {
+    // 面板左侧那条空档：竖排文字最多 5 列、占到 x≈787，页码放在 710，
+    // 既压在面板底色够厚的地方，又不会和最左一列打架。
+    var x = SJ.W - 250, y = SJ.H - 116, sz = 14, col = SJ.C.cinnabar;
+    SJ.Ink.vtext(g, cn(idx), x, y, sz, { color: col, alpha: 0.66, seed: 3 });
+    SJ.Ink.stroke(g, [[x - sz * 0.46, y + sz * 1.00], [x + sz * 0.46, y + sz * 1.00]], {
+      w0: 1.4, w1: 1.0, color: col, alpha: 0.42, taper: false, hairs: 0, core: false, seed: 4
+    });
+    SJ.Ink.vtext(g, cn(total), x, y + sz * 2.0, sz, { color: col, alpha: 0.44, seed: 5 });
+  }
+
+  // 进链时把这条链实际会显示的 key 走一遍（cond 已由 resolve 处理）。
+  // 只用来算页码，不参与播放；播放仍然是一步一 resolve。
+  function chainKeys(entry) {
+    var keys = [], k = resolve(entry), hops = 0, node;
+    while (k != null && hops < MAXHOPS) {
+      keys.push(k);
+      node = SJ.Script[k];
+      k = resolve(node ? node.next : null);
+      hops++;
+    }
+    return keys;
   }
 
   function drawNarration(g, node, p) { drawSidePanel(g, node, p, null); }
@@ -274,7 +318,8 @@
   }
 
   // ══ 播放引擎：play() 与 ending() 共用的链式播放器 ══════════════════
-  var chain = null; // {onDone, onShow, key, revealStart, timing, lastMode}
+  var chain = null; // {onDone, onShow, key, revealStart, timing, lastMode, keys}
+  var PAGEMARK_MIN = 5;   // 少于这么多屏就不标页码
 
   function showKey(key) {
     if (key == null) { finishChain(); return; }
@@ -305,7 +350,8 @@
     enter: function (data) {
       chain = {
         onDone: data.onDone || function () {}, onShow: data.onShow || null,
-        key: null, revealStart: 0, timing: null, lastMode: null
+        key: null, revealStart: 0, timing: null, lastMode: null,
+        keys: chainKeys(data.entry)
       };
       showKey(resolve(data.entry));
     },
@@ -327,6 +373,13 @@
       var node = SJ.Script[chain.key];
       if (!node) return;   // 这一帧无内容可画；update 已负责收场
       drawActiveNode(g, node, timingToP(chain.timing, SJ.Game.time - chain.revealStart));
+      // ★ Lead 收窄：页码**只给 narration**（c5_book 那种「读书页」的旁白）。
+      // talk 是对白、tea 是整屏说书、card 是章节卡 —— 那些是戏，不该让玩家数还剩几页。
+      // 链里的 key 找不到（cond 中途变了）就不画。
+      if (node.mode === 'narration' && chain.keys.length >= PAGEMARK_MIN) {
+        var at = chain.keys.indexOf(chain.key);
+        if (at >= 0) drawPageMark(g, at + 1, chain.keys.length);
+      }
     },
     exit: function () {}
   };
@@ -438,8 +491,11 @@
           color: SJ.C.cinnabar, alpha: (1 - dropPhase) * 0.85, rough: 0.2
         });
       } else if (mc.killed) {
+        // 剑落下那一摊：去对称（Lead 批准在这里开）。剑是从上往下的，
+        // 所以墨往下方一侧收拢，不是四面均匀散开的蜘蛛腿。
         SJ.Ink.splat(g, killX, cy + 18, 15 * SJ.clamp(mc.resolveT * 3, 0, 1), 13, {
-          color: SJ.C.cinnabar, alpha: (1 - burst) * 0.9, n: 5
+          color: SJ.C.cinnabar, alpha: (1 - burst) * 0.9, n: 5,
+          aniso: 0.62, dir: Math.PI * 0.5
         });
       }
       g.restore();
