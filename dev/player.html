@@ -769,6 +769,68 @@
 
   window.SJDEV = { dev: dev, scene: scene, dummies: function () { return dummies; } };
 
+  window.addEventListener('error', function (ev) {
+    if (!window.__jsErr) window.__jsErr = (ev.message || '') + ' @' +
+      (ev.filename || '').split('/').pop() + ':' + ev.lineno;
+  });
+
+  // ── #learnfull：直接进「四槽已满 → 选替换」那一屏（决议 024），供无头截图 ──
+  // 靠点按钮进不去这一屏，无头环境点不了。
+  (function () {
+    var hm = /^#learnfull(?::([0-3]))?/.exec(location.hash || '');
+    if (!hm) return;
+    try {
+    // 四槽塞满（用四个和无锋无关的招），再学第五招 → 触发选槽
+    var FILL = ['poyu', 'liebo', 'chengtian', 'guying'], NEW = 'wufeng';
+    SJ.Save.data.known = FILL.slice();
+    SJ.Save.data.slots = FILL.slice();
+    SJ.Tech.learn(NEW);
+
+    // 演出 3.0s 就会自己关掉，无头截图来不及。把 t 钳在 2.2s：
+    // 已经过了所有淡入（招名、来处、朱砂印、槽位行都在 t≈1.0 前后就位），
+    // 又永远够不到 DUR，于是停在**可交互**态 —— ←/→ 仍然能换选中的格子，
+    // J 仍然能确认关闭。不是冻住 update，那样连输入都一起冻了。
+    var HOLD = 2.2;
+    var sc = SJ.Game.stack[SJ.Game.stack.length - 1];
+    // #learnfull:N 预选第 N 格（0..3）。无头环境按不了 ←/→，
+    // 但「选中的那一格换成朱砂框、里面的招淡下去」正是要看的东西，
+    // 不能只截得到缺省的最后一格。
+    if (sc && hm[1] != null) sc.pick = +hm[1];
+    if (sc && sc.update) {
+      var orig = sc.update;
+      sc.update = function () {
+        if (this.t > HOLD) this.t = HOLD;    // 必须在 orig 之前钳：
+        orig.call(this);                     // orig 自己会在 t>=DUR 时把这一屏 pop 掉
+      };
+    }
+    // 无头 Chrome 里页面按「后台」处理，rAF 被节流到几乎不跑
+    //（实测 2 秒只走了 2 帧，演出停在 t=0.03 —— 招名还没开始写，
+    //  屏幕上只有一层几乎透明的纸，看起来就像「什么都没画」）。
+    // 所以不能等 rAF：直接用 A 暴露的 _step 把演出推到位，再 _render 一次。
+    // 这也是 player.html 的确定性驱动器一直在用的办法。
+    for (var i = 0; i < 200 && sc.t < HOLD; i++) SJ.Game._step();
+    SJ.Game._render();
+    window.__learnErr = 'ok:t=' + (sc ? sc.t.toFixed(2) : '?') +
+      ':stack=' + SJ.Game.stack.length;
+    } catch (e) { window.__learnErr = 'ERR:' + e.message; }
+  })();
+
+  // ── ?post=<名>：2s 后把画布 POST 给 dev/qa_server.py 的 /save，供无头截图 ──
+  (function () {
+    var q = /[?&]post=([\w:-]+)/.exec(location.search || '');
+    if (!q) return;
+    setTimeout(function () {
+      var png = canvas.toDataURL('image/png');
+      fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: q[1], png: png, stats: {
+          stack: SJ.Game.stack ? SJ.Game.stack.length : -1,
+          slots: SJ.Save.data.slots, known: SJ.Save.data.known.length,
+          hash: location.hash, learnErr: window.__learnErr || null,
+          jsErr: window.__jsErr || null
+        } }) });
+    }, 2000);
+  })();
+
   // ── 确定性驱动器 ───────────────────────────────────────────
   // MCP 标签页是 document.hidden 的，rAF 不跑。用 A 暴露的 _step/_render
   // 逐帧推进，反而能把「第几帧出判定」这种事量准。
