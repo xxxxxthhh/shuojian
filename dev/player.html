@@ -792,10 +792,16 @@
     // J 仍然能确认关闭。不是冻住 update，那样连输入都一起冻了。
     var HOLD = 2.2;
     var sc = SJ.Game.stack[SJ.Game.stack.length - 1];
-    // #learnfull:N 预选第 N 格（0..3）。无头环境按不了 ←/→，
-    // 但「选中的那一格换成朱砂框、里面的招淡下去」正是要看的东西，
-    // 不能只截得到缺省的最后一格。
-    if (sc && hm[1] != null) sc.pick = +hm[1];
+    // #learnfull:N → 把光标挪到第 N 格（0..3）。
+    // **用真的按键事件走一遍**，不是直接改 sc.pick：
+    // 直接赋值只能证明「画得出选中态」，证明不了 ←/→ 的输入通路是通的，
+    // 而后者才是这一屏能不能用的关键。缺省是最后一格（3），往左按到位。
+    function tap(code) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: code }));
+      SJ.Game._step();                       // pressed() 是边沿，必须当帧被消费掉
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: code }));
+      SJ.Game._step();
+    }
     if (sc && sc.update) {
       var orig = sc.update;
       sc.update = function () {
@@ -808,10 +814,14 @@
     //  屏幕上只有一层几乎透明的纸，看起来就像「什么都没画」）。
     // 所以不能等 rAF：直接用 A 暴露的 _step 把演出推到位，再 _render 一次。
     // 这也是 player.html 的确定性驱动器一直在用的办法。
+    if (sc && hm[1] != null) {
+      var want = +hm[1], guard = 0;
+      while (sc.pick !== want && guard++ < 8) tap('ArrowLeft');
+    }
     for (var i = 0; i < 200 && sc.t < HOLD; i++) SJ.Game._step();
     SJ.Game._render();
     window.__learnErr = 'ok:t=' + (sc ? sc.t.toFixed(2) : '?') +
-      ':stack=' + SJ.Game.stack.length;
+      ':stack=' + SJ.Game.stack.length + ':pick=' + (sc ? sc.pick : '?');
     } catch (e) { window.__learnErr = 'ERR:' + e.message; }
   })();
 
