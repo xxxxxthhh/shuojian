@@ -97,7 +97,8 @@
   }
 
   // ── 一根柱：一笔，略倾 0.5–2°，柱头与梁错开 2–6px（规矩 1+2）────
-  function column(g, x, yTop, yBot, w, alpha, seed) {
+  // taperK = 下粗 / 上细 的比（缺省 1.45）。柱是上细下粗，所以 w1 > w0。
+  function column(g, x, yTop, yBot, w, alpha, seed, taperK) {
     var tilt = (0.5 + hs(seed * 2.31) * 1.5) * DEG * sgn(seed * 9.7),
       dx = (yBot - yTop) * Math.tan(tilt),
       over = off(seed * 5.11) * sgn(seed * 3.3);            // 过头或不到头
@@ -105,7 +106,7 @@
       [x, yTop + over],
       [x + dx * 0.45, (yTop + yBot) / 2 + 2],
       [x + dx, yBot]
-    ], w, alpha, seed + 3, { w1k: 1.45, taper: false, hairs: 0 });   // 柱是上细下粗
+    ], w, alpha, seed + 3, { w1k: taperK || 1.45, taper: false, hairs: 0 });
   }
 
   // ── 翘檐：一笔压下去、末端挑起来；檐下几根椽，都不碰到檐线 ───────
@@ -156,7 +157,9 @@
       var yb = 74 - cy * 0.10, gy = groundY(def) - cy - 4;
       beamBroken(g, -40, W + 40, yb, 8.0, 0.30 * k, 3);
       repeatX(cx * 0.5, 520, 120, function (i, sx) {
-        column(g, sx, yb, gy, 5.6, 0.26 * k, i * 17 + 7);
+        // 起笔 3.6 收笔 7.6（差 111%，原来只有 45%）：顶上收得住，落地才压得下去。
+        // 平均笔宽比原来窄两成，所以 alpha 抬到 0.30 之后整根反而更轻。
+        column(g, sx, yb, gy, 3.6, 0.30 * k, i * 17 + 7, 2.1);
         if (hs(i * 9.7) > 0.5) {
           SJ.Ink.wash(g, sx + 120, yb + 46, 128, 104,
             { color: C().stone, alpha: 0.075 * k, dir: 'v', both: true });
@@ -399,22 +402,46 @@
   // ── 6 · 城楼夜：月与旗 ─────────────────────────────────────────
   // 留白月：月本身**一笔不画**（它就是纸），只在外圈让一层淡墨把它「让」出来。
   // 没有白色填充、没有发光。旗是两三笔的布，顺着 env.windAx 弯。
+  // 旗是一块**布**，不是两根挂着的线。所以轮廓一笔画完：
+  // 前缘往下 → 下摆横过去 → 后缘收回来（末端差 2–6px 不与挑杆交合，规矩 2），
+  // 再补一笔中间的褶。风向来自 env.windAx：p² 的常量弯（一直被吹着）
+  // 叠一点低频摆动（在风里抖），不是原地左右晃。
+  // 旗是一块挂在杆上的**布**。画法是水墨里最老实的那种：
+  //   一根挑杆 → 两条边（上端贴杆、下端被风推开）→ 一道兜起来的下摆 → 一两道横褶。
+  // 四个角都**不合拢**（规矩 2）。闭合成一圈会变成一颗药丸，那是我上一版的错。
   function banner(g, x, yTop, len, t, dir, seed, alpha) {
-    var i, p, edge = [], back = [], sway, w = 15 + hs(seed) * 9, yy, s2;
+    var w = 24 + hs(seed) * 12, i, p, front = [], back = [], yy, sN;
+
+    function windX(p2) {
+      return (p2 * p2 * 9 + Math.sin(t * 1.05 + seed * 2.1 + p2 * 1.3) * (0.5 + p2 * p2 * 5)) * dir;
+    }
+
+    // 挑杆：布挂在它上面。没有它，旗就是飘在空中的一个荚
+    bar(g, [[x - 7, yTop - 4], [x + w + 7, yTop - 2.5]], 3.0, alpha, seed);
+
     for (i = 0; i <= 5; i++) {
       p = i / 5;
-      sway = Math.sin(t * 1.15 + seed * 2.1 + p * 1.4) * (1 + p * p * 9) * dir;
-      edge.push([x + sway, yTop + p * len]);
-      back.push([x + sway + w * (1 - p * 0.22), yTop + p * len + 2]);
+      front.push([x + windX(p), yTop + off(seed + 1) + p * len]);
+      back.push([x + w + windX(p) * 0.86, yTop + off(seed + 2) + p * len * 0.97]);
     }
-    // 两笔：迎风的一边重，背风的一边轻。中间不填 —— 布是靠两条边读出来的
-    bar(g, edge, 5.0, alpha, seed + 1, { w1k: 0.42 });
-    bar(g, back, 3.4, alpha * 0.72, seed + 2, { w1k: 0.40 });
-    // 第三笔：下摆被风兜起来的一道横褶
-    p = 0.72;
-    yy = yTop + p * len;
-    s2 = Math.sin(t * 1.15 + seed * 2.1 + p * 1.4) * (1 + p * p * 9) * dir;
-    bar(g, [[x + s2, yy], [x + s2 + w * 0.86, yy + 3]], 2.6, alpha * 0.8, seed + 3);
+    bar(g, front, 4.2, alpha, seed + 1, { w1k: 0.48 });          // 迎风的一边重
+    bar(g, back, 3.0, alpha * 0.78, seed + 2, { w1k: 0.46 });    // 背风的一边轻
+
+    // 下摆：把两条边兜起来，两端都差 2–6px 不与边线相接
+    bar(g, [
+      [front[5][0] + off(seed + 4), front[5][1] - 2],
+      [(front[5][0] + back[5][0]) / 2, front[5][1] + 5],
+      [back[5][0] - off(seed + 6), back[5][1] - 2]
+    ], 3.2, alpha * 0.9, seed + 5, { w1k: 0.45 });
+
+    // 两道横褶：布被风吹出的折，比边线轻，长度只到布宽的七成
+    for (i = 1; i <= 2; i++) {
+      p = i / 3.4;
+      yy = yTop + p * len + 3;
+      sN = windX(p);
+      bar(g, [[x + sN + off(seed + 7 + i), yy], [x + sN + w * 0.72, yy + 3.2]],
+        2.4, alpha * 0.62, seed + 10 + i);
+    }
   }
 
   function wall(g, cx, cy, t, def) {
@@ -463,7 +490,7 @@
     // 旗：挂在墙头，一屏至多两面
     repeatX(oxw, 620, 160, function (i2, sx2) {
       if (hs(i2 * 5.9) < 0.34) return;
-      banner(g, sx2 + 14, yW + 8, 104 + hs(i2 * 8.3) * 76, t, dir, i2 * 3 + 1, 0.30);
+      banner(g, sx2 + 14, yW + 2, 104 + hs(i2 * 8.3) * 76, t, dir, i2 * 3 + 1, 0.30);
     });
 
     // 城楼：关卡末端那一座（世界 x≈4760），越走越近 —— 这一回的目的地

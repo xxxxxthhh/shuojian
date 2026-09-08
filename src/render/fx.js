@@ -53,6 +53,11 @@
 
   // ── 命中墨溅 ──────────────────────────────────────────────────
   // 飞出去 → 落地 → 晕开成一个不规则墨点，留 2s 再淡出
+  //
+  // o.aniso 0..1（缺省 0 = 原样）：落地那一摊墨改走 Ink.splat 的**去对称**分支 ——
+  // 墨点往一侧收拢、细丝画成带弧的一甩，而不是四面均匀的「蜘蛛腿」。
+  // o.dir 是那一侧的方向（弧度），**缺省就是第三个位置参数 dir（base）**，
+  // 所以调用方只要传 {aniso:0.7} 就自动顺着溅射方向，不必再记「是弧度还是 ±1」。
   FX.splash = function (x, y, dir, o) {
     o = o || {};
     var n = o.n || 6,
@@ -60,6 +65,8 @@
       speed = o.speed != null ? o.speed : 260,
       spread = o.spread != null ? o.spread : 1.5,
       base = (dir == null ? -Math.PI / 2 : dir),
+      aniso = o.aniso != null ? SJ.clamp(o.aniso, 0, 1) : 0,
+      adir = o.dir != null ? o.dir : base,
       i, a, sp;
     for (i = 0; i < n; i++) {
       a = base + (Math.random() - 0.5) * spread;
@@ -74,6 +81,7 @@
         grav: o.gravity != null ? o.gravity : 1500,
         drag: 1.1, seed: Math.random() * 1000,
         groundY: o.groundY,                 // 给了就落到这条线上
+        aniso: aniso, adir: adir,           // 只在落地晕开那一帧起作用
         stain: o.stain !== false, screen: false, alpha: 1
       });
     }
@@ -162,6 +170,8 @@
   };
 
   // kind: 'bamboo' | 'snow' | 'paper'
+  // rot = 在画面里的朝向；spin = 绕自身长轴的翻面相位。
+  // 一片叶子飘下来时既转向也翻面 —— 只转向不翻面的叶子看着像贴纸。
   FX.leaf = function (x, y, n, kind) {
     var i, col = kind === 'snow' ? SJ.C.paper : SJ.C.ink,
       al = kind === 'snow' ? 0.85 : kind === 'paper' ? 0.5 : 0.7;
@@ -172,6 +182,7 @@
         vx: rnd(-40, 40), vy: rnd(-30, 20),
         r: rnd(7, 16), color: col, alpha: al,
         rot: Math.random() * TAU, vr: rnd(-2.2, 2.2),
+        spin: Math.random() * TAU, vspin: rnd(-4.6, 4.6) * (kind === 'snow' ? 0.25 : 1),
         life: rnd(0.9, 2.0), grav: kind === 'snow' ? 26 : 66, drag: 1.5,
         seed: Math.random() * 1000, screen: false
       });
@@ -191,6 +202,7 @@
         p.vy += (p.grav || 0) * dt;
         p.x += p.vx * dt; p.y += p.vy * dt;
         if (p.rot != null) p.rot += (p.vr || 0) * dt;
+        if (p.spin != null) p.spin += (p.vspin || 0) * dt;
         // 墨滴落地 → 晕开成留在地上的墨点
         if (p.k === 'drop') {
           var hitGround = p.groundY != null && p.y >= p.groundY;
@@ -233,9 +245,17 @@
         // 落地后先晕开，最后 35% 才淡出
         r = p.r * (1 + Math.min(1, p.age / 0.22) * 0.55);
         g.globalAlpha = p.alpha * (u < 0.65 ? 1 : 1 - (u - 0.65) / 0.35);
-        SJ.Ink.blob(g, p.x, p.y, r, p.seed, {
-          color: p.color, alpha: 1, rough: 0.36, squash: 0.55
-        });
+        if (p.aniso > 0) {
+          // 去对称的一摊：主团 + 顺着 adir 甩出去的几点，squash 保持 0.55（地上的墨是扁的）
+          SJ.Ink.splat(g, p.x, p.y, r, p.seed, {
+            color: p.color, alpha: 1, n: 3,
+            aniso: p.aniso, dir: p.adir, squash: 0.55
+          });
+        } else {
+          SJ.Ink.blob(g, p.x, p.y, r, p.seed, {
+            color: p.color, alpha: 1, rough: 0.36, squash: 0.55
+          });
+        }
         break;
 
       case 'slash':
@@ -290,21 +310,26 @@
       case 'leaf':
         g.globalAlpha = p.alpha * (u > 0.7 ? (1 - u) / 0.3 : 1);
         ang = p.rot;
+        // 翻面：绕长轴转过去时，横着的那一维被压扁；转到侧面几乎只剩一条线
+        var flip = Math.abs(Math.cos(p.spin || 0));
         if (p.kind === 'snow') {
           g.fillStyle = p.color;
-          g.beginPath(); g.arc(p.x, p.y, p.r * 0.28, 0, TAU); g.fill();
+          g.beginPath(); g.arc(p.x, p.y, p.r * 0.28 * (0.72 + flip * 0.28), 0, TAU); g.fill();
         } else if (p.kind === 'paper') {
           g.fillStyle = p.color;
           g.save(); g.translate(p.x, p.y); g.rotate(ang);
+          g.scale(1, Math.max(0.10, flip));
           g.fillRect(-p.r * 0.45, -p.r * 0.32, p.r * 0.9, p.r * 0.64);
           g.restore();
         } else {
-          // 竹叶：一小笔
+          // 竹叶：一小笔。翻面时笔宽与叶腹的鼓度一起收，叶子才有正反两面
+          var bulge = p.r * 0.22 * (0.25 + flip * 0.75) * ((p.spin || 0) % TAU > Math.PI ? -1 : 1);
           SJ.Ink.stroke(g, [
             [p.x - Math.cos(ang) * p.r * 0.8, p.y - Math.sin(ang) * p.r * 0.8],
-            [p.x + Math.cos(ang) * p.r * 0.2, p.y + Math.sin(ang) * p.r * 0.2 - p.r * 0.22],
+            [p.x + Math.cos(ang) * p.r * 0.2, p.y + Math.sin(ang) * p.r * 0.2 - bulge],
             [p.x + Math.cos(ang) * p.r * 0.8, p.y + Math.sin(ang) * p.r * 0.8]
-          ], { w0: p.r * 0.34, w1: 0.3, color: p.color, alpha: 1, seed: p.seed, hairs: 0, core: false });
+          ], { w0: p.r * 0.34 * (0.30 + flip * 0.70), w1: 0.3, color: p.color, alpha: 1,
+               seed: p.seed, hairs: 0, core: false });
         }
         break;
     }
