@@ -233,8 +233,10 @@
     onStart: function (e) {
       var t = AI.target();
       AI.figure(e);
+      // 出发点 = 人从这里消失。决议 025-3：两把墨点都留在这儿。
+      var ox = e.cx(), oy = e.cy();
       SJ.FX.trail(e, { life: 0.45, alpha: 0.34, color: C.ink });
-      SJ.FX.burst(e.cx(), e.cy(), {
+      SJ.FX.burst(ox, oy, {
         n: 12, color: C.ink, speed: 190, spread: Math.PI * 2,
         life: 0.42, size: 2.6, gravity: 0, drag: 3.4
       });
@@ -247,7 +249,10 @@
         }
         AI.face(e, t);
       }
-      SJ.FX.burst(e.cx(), e.cy(), {
+      // 决议 025-3：这第二把原本发在**落点**，正好糊在起手式的落点环上，
+      // 和预警抢同一块地方（`_spec/qa/t3_dyn_cike_shan_obs.png` 里看得很清楚）。
+      // 挪回出发点：消失处两把墨、落点只留预警。
+      SJ.FX.burst(ox, oy, {
         n: 10, color: C.ink, speed: 150, spread: Math.PI * 2,
         life: 0.35, size: 2.2, gravity: 0, drag: 4
       });

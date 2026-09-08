@@ -402,6 +402,42 @@ for (const id in SJ.Bosses.defs) {
   }
 }
 
+/* ── 5b. 瞬移的墨点必须落在出发点（决议 025-3）───────────────────
+ * 发在落点会糊住起手式的落点环，和预警抢同一块地方。
+ * 判据是跑出来的坐标：拦 FX.burst，看它离「消失处」近还是离「落点」近。 */
+{
+  const rawBurst = SJ.FX.burst;
+  const CASES = [
+    { kind: 'mob', id: 'cike', move: 'k_shan', name: '刺客·闪' },
+    { kind: 'boss', id: 'baiyi', move: 'guying', name: '白衣·孤影' }
+  ];
+  for (const c of CASES) {
+    arena();
+    const e = c.kind === 'boss'
+      ? SJ.Bosses.spawn(c.id, 1100, FLOOR_Y, { facing: -1 })
+      : SJ.Enemies.spawn(c.id, 1100, FLOOR_Y, { facing: -1 });
+    if (e) e.onDefeat = function () { };
+    for (let i = 0; i < 20; i++) step();
+    const from = { x: e.cx(), y: e.cy() };
+    const shots = [];
+    SJ.FX.burst = function (x, y, o) { shots.push({ x: x, y: y }); return rawBurst.call(SJ.FX, x, y, o); };
+    SJ.AI.start(e, SJ.AI.moves[c.move]);
+    SJ.FX.burst = rawBurst;
+    const to = { x: e.cx(), y: e.cy() };
+    const jump = Math.abs(to.x - from.x);
+    if (jump < 200) { notes.push(`${c.name}：这一次没瞬移（位移 ${jump | 0}px），墨点位置这条没测到`); continue; }
+    if (!shots.length) { bad(`${c.name}：瞬移时一把墨点都没发`); continue; }
+    for (const s2 of shots) {
+      const dF = Math.hypot(s2.x - from.x, s2.y - from.y), dT = Math.hypot(s2.x - to.x, s2.y - to.y);
+      if (dF > dT) {
+        bad(`${c.name}：瞬移的墨点发在落点（离出发点 ${dF | 0}px / 离落点 ${dT | 0}px）` +
+            ` —— 决议 025-3 要求发在出发点，落点只留预警`);
+      }
+    }
+  }
+  SJ.FX.burst = rawBurst;
+}
+
 /* ── 6b. 纸上墨重（Lead 拍板方案 B）──────────────────────────────
  * figure.js 在 g.scale(scale) 之后按 w*lineScale 落笔，所以纸上的实际墨重
  * = scale × lineScale。低于 1.0 太多，小个子的手臂在游戏内尺寸下细得像发丝。

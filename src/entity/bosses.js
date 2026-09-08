@@ -154,6 +154,8 @@
     onStart: function (e) {
       var t = AI.target();
       AI.figure(e);
+      // 决议 025-3：墨点只在**出发点**（blink 之前）发。
+      // 发在落点会糊住起手式的落点环 —— 落点只留预警。
       SJ.FX.trail(e, { life: 0.55, alpha: 0.38, color: C.ink });
       SJ.FX.burst(e.cx(), e.cy(), {
         n: 14, color: C.ink, speed: 210, spread: Math.PI * 2,

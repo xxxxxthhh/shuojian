@@ -600,7 +600,7 @@
     },
     // 刺客的闪：瞬移之后人站住，线在动
     cike_shan: function () {
-      var e = spawn('mob', 'cike', 300);
+      var e = spawn('mob', 'cike', 420);
       return function () {
         if (!e || e.mv) return false;
         SJ.AI.start(e, SJ.AI.moves.k_shan);
