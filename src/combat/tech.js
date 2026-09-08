@@ -580,10 +580,16 @@
   // ── 「悟」的演出 ───────────────────────────────────────────
   // Game.step 只更新栈顶 scene，push 上来天然就是全屏定格；
   // draw 仍然画全栈，所以定格住的战斗画面还在下面。
-  function learnScene(def) {
-    var DUR = 1.75;
+  function learnScene(def, needPick) {
+    // 决议 024：四槽已满时要在这一屏里选替换掉哪一格。
+    // 时长给到 3.0s，与生杀抉择的「3 秒不动 = 默认」同一口径 ——
+    // 1.75s 里只有 0.7s 是可交互的（1.05s 之前不接受确认），
+    // 而这是一个「选错就打不过守阁人」的选择，0.7s 不够看清四个格子。
+    var DUR = needPick ? 3.0 : 1.75;
     return {
       t: 0,
+      pick: 3,            // 缺省替换最后一槽
+      applied: false,
       enter: function () {
         this.t = 0;
         SJ.Audio.sfx('learn', { vol: 1 });
@@ -593,12 +599,30 @@
       // 谁把这一屏拿下去都算数：Game.pop 与 Game.setScene 都会调 exit。
       // 不在这里解锁的话，学招过程中一旦切场景（Level.load 会 setScene），
       // learning 会永远卡在 true —— 之后所有的「悟」都不再显示，且不报错。
-      exit: function () { learning = false; },
+      // 替换写在 exit 里，因为**每一条关闭路径都会走它**（Game.pop 与 Game.setScene 都调 exit）。
+      // 写在 update 的关闭分支里的话，学招过程中被 Level.load 打断就会把刚学会的招
+      // 丢在槽外 —— 那正是决议 024 要消灭的那个「学会了装不上」。
+      exit: function () {
+        learning = false;
+        if (needPick && !this.applied) {
+          this.applied = true;
+          SJ.Player.setSlot(this.pick, def.id);      // 契约 007 §1：唯一写入口
+        }
+      },
       update: function () {
         this.t += SJ.Game.rawDt;                  // 走真实时间：同帧的 hitstop 不能把它冻住
         // 跳过只认「这一帧按下」，不能用 SJ.Input.any()（那是「按住」）：
         // 完美观势触发学招时玩家正按着 K，trigger 学招时正按着 D，
         // 用 any() 会让这一屏在 0.6s 就被自己的手按掉 —— 招名还没写完。
+        // ←/→ 选槽：任何时候都能动（1.05s 的门槛只管「确认/跳过」，不管挑选）
+        if (needPick) {
+          if (SJ.Input.pressed('left')) {
+            this.pick = (this.pick + 3) % 4; SJ.Audio.sfx('ui', { vol: 0.55 });
+          }
+          if (SJ.Input.pressed('right')) {
+            this.pick = (this.pick + 1) % 4; SJ.Audio.sfx('ui', { vol: 0.55 });
+          }
+        }
         var skip = SJ.Input.pressed('confirm') || SJ.Input.pressed('attack') ||
                    SJ.Input.pressed('jump') || SJ.Input.pressed('pause');
         if (this.t >= DUR || (this.t > 1.05 && skip)) {
@@ -669,6 +693,45 @@
             { color: SJ.C.ink2, alpha: a * sp, seed: 17 });
         }
 
+        // ── 决议 024：四槽已满 → 在这一屏里选替换掉哪一格 ──
+        // 无一字提示，和生杀抉择同一种语言：朱砂 = 会发生的那一边。
+        if (needPick && t > 0.5) {
+          var sp = SJ.ease.out(SJ.clamp((t - 0.5) / 0.35, 0, 1));
+          var BW = 56, GAP = 18, N = 4;
+          var rowW = N * BW + (N - 1) * GAP;
+          var bx0 = (W - rowW) / 2, by = H - 104;
+          var slots = SJ.Save.data.slots, si, bx, sel, d2, frameA, fcol, fw;
+
+          for (si = 0; si < N; si++) {
+            bx = bx0 + si * (BW + GAP);
+            sel = (si === this.pick);
+            frameA = a * sp * (sel ? 0.95 : 0.34);
+            fcol = sel ? SJ.C.cinnabar : SJ.C.ink2;
+            fw = sel ? 2.4 : 1.4;
+            // 四条边各一笔，笔锋收在角上 —— 不用 strokeRect，那是几何不是笔
+            SJ.Ink.line(g, bx, by, bx + BW, by, fw, { color: fcol, alpha: frameA, seed: 40 + si });
+            SJ.Ink.line(g, bx + BW, by, bx + BW, by + BW, fw, { color: fcol, alpha: frameA, seed: 44 + si });
+            SJ.Ink.line(g, bx + BW, by + BW, bx, by + BW, fw, { color: fcol, alpha: frameA, seed: 48 + si });
+            SJ.Ink.line(g, bx, by + BW, bx, by, fw, { color: fcol, alpha: frameA, seed: 52 + si });
+
+            // 格子里那一招的名字。被选中的那一格淡下去 —— 它就要被顶掉了。
+            d2 = slots[si] ? byId(slots[si]) : null;
+            if (d2) {
+              SJ.Ink.vtext(g, d2.name.slice(0, 2), bx + BW / 2, by + 12, 17,
+                { color: SJ.C.ink, alpha: a * sp * (sel ? 0.26 : 0.82), seed: 60 + si });
+            }
+          }
+
+          // 被选中的那一格上方点一颗朱砂，并从招名那一列牵一条朱砂线下来。
+          // 「这一招，进这一格」—— 不用一个字。
+          var selX = bx0 + this.pick * (BW + GAP) + BW / 2;
+          var pulse = 0.62 + 0.30 * (Math.sin(t * 5.2) * 0.5 + 0.5);
+          SJ.Ink.line(g, cx, top + def.name.length * size * 1.14 + 10, selX, by - 16, 2.0,
+            { color: SJ.C.cinnabar, alpha: a * sp * 0.34, seed: 71 });
+          SJ.Ink.blob(g, selX, by - 11, 4.2, 12,
+            { color: SJ.C.cinnabar, alpha: a * sp * pulse, rough: 0.3 });
+        }
+
         // 朱砂印：落在招名末尾
         if (t > 0.98) {
           var kp = SJ.clamp((t - 0.98) / 0.24, 0, 1);
@@ -700,9 +763,9 @@
 
   function next() {
     if (learning || !learnQueue.length) return;
-    var def = learnQueue.shift();
+    var item = learnQueue.shift();
     learning = true;
-    SJ.Game.push(learnScene(def));
+    SJ.Game.push(learnScene(item.def, item.pick));
   }
 
   // ── 出口 ───────────────────────────────────────────────────
@@ -818,11 +881,14 @@
       Tech.progress[moveId] = 100;
       save.techProgress = save.techProgress || {};
       save.techProgress[moveId] = 100;
-      for (var i = 0; i < 4; i++) {                          // 自动填进第一个空槽
-        if (!save.slots[i]) { save.slots[i] = moveId; break; }
-      }
+      // 决议 024：有空槽照旧自动填；**没有空槽就交给「悟」的画面去选**，
+      // 而不是默默地什么都不做 —— 后者会让「学会了装不上」静默发生，
+      // 一周目到第五回就变成守阁人完全无敌（他只有无锋能撬开）。
+      var empty = -1, i;
+      for (i = 0; i < 4; i++) { if (!save.slots[i]) { empty = i; break; } }
+      if (empty >= 0) save.slots[empty] = moveId;
       SJ.Save.save();
-      learnQueue.push(d);
+      learnQueue.push({ def: d, pick: empty < 0 });
       next();
       return d;
     },

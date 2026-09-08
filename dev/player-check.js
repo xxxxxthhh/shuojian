@@ -390,6 +390,113 @@ console.log('\n6.「悟」');
   while (SJ.Game.stack.length > 1) step(1);
 }
 
+// ── 6b. 悟时槽位已满：在悟的画面里选替换（决议 024）──────────
+// 这一条挡的是一个**零提示的死局**：一周目到第五回四槽通常已满，
+// 旧的 learn 只往空槽塞，塞不进去就什么都不做 —— 无锋学会了却装不上，
+// 而守阁人只有无锋能撬开，于是 Boss 完全无敌，游戏不给任何提示。
+console.log('\n6b. 悟时选槽（决议 024）');
+{
+  const fill = () => { SJ.Save.data.slots = ['poyu', 'liebo', 'chengtian', 'guying'];
+    SJ.Save.data.known = ['poyu', 'liebo', 'chengtian', 'guying']; };
+  // ⚠️ 演出会在 act 排好的「松手」那一帧之前就关掉（按 J 确认那一帧场景就 pop 了），
+  // 于是 up() 永远轮不到 —— 键一直按着，**后面所有段落的 down() 都会被 srcDown 挡掉**。
+  // §7d「命中会产生墨点飞溅」就是这么被这一段悄悄弄挂的：那边 down('KeyJ') 无效、
+  // 玩家根本没出剑，报出来的却是「墨点没飞溅」。所以这里退出时无条件把键抬干净。
+  const USED = ['KeyA', 'KeyD', 'KeyJ', 'Space'];
+  const runScene = (frames, act) => {
+    let f = 0;
+    try {
+      while (SJ.Game.stack.length > 1 && f < 400) {
+        if (act) act(f);
+        step(1); f++;
+      }
+    } finally { USED.forEach(up); }
+    return f;
+  };
+
+  { // 有空槽 → 行为完全不变（不弹选择、直接填第一个空槽）
+    reset(); step(20);
+    SJ.Save.data.slots = ['poyu', null, null, null];
+    SJ.Save.data.known = ['poyu'];
+    SJ.Tech.gain('hengyun', 100); step(1);
+    const f = runScene();
+    ok('有空槽时行为不变：填进第一个空槽、演出仍是 1.75s（≈105 帧）',
+      SJ.Save.data.slots[1] === 'hengyun' && near(f, 105, 3),
+      JSON.stringify(SJ.Save.data.slots) + ' ' + f + '帧');
+  }
+
+  { // 四槽全满 → 缺省替换最后一槽，且新招必须真的在槽内
+    reset(); step(20);
+    fill();
+    const before = SJ.Save.data.slots.slice();
+    SJ.Tech.gain('wufeng', 100); step(1);
+    ok('四槽已满时不再静默丢弃：学会即进 known', SJ.Save.data.known.indexOf('wufeng') >= 0);
+    const f = runScene();
+    ok('四槽已满时学新招 → 新招必在槽内（决议 024 的核心断言）',
+      SJ.Save.data.slots.indexOf('wufeng') >= 0,
+      `${JSON.stringify(before)} → ${JSON.stringify(SJ.Save.data.slots)}`);
+    ok('缺省替换最后一槽', SJ.Save.data.slots[3] === 'wufeng',
+      JSON.stringify(SJ.Save.data.slots));
+    ok('替换后仍然是四个槽、没有把别的招挤掉两次',
+      SJ.Save.data.slots.length === 4 &&
+      SJ.Save.data.slots.filter(x => x === 'wufeng').length === 1,
+      JSON.stringify(SJ.Save.data.slots));
+    ok('选槽时演出给到 3.0s（≈180 帧）而不是 1.75s —— 1.75s 里只有 0.7s 可交互',
+      near(f, 180, 4), f + '帧');
+  }
+
+  { // ←/→ 真的能改选，J 确认
+    reset(); step(20);
+    fill();
+    SJ.Tech.gain('wufeng', 100); step(1);
+    runScene(0, (f) => {
+      if (f === 40) { down('KeyA'); }            // ← 一次：3 → 2
+      if (f === 41) { up('KeyA'); }
+      if (f === 70) { down('KeyJ'); }            // 1.05s 之后确认
+      if (f === 71) { up('KeyJ'); }
+    });
+    ok('←/→ 能改选：按一次左键后替换的是第 3 格（下标 2）',
+      SJ.Save.data.slots[2] === 'wufeng' && SJ.Save.data.slots[3] === 'guying',
+      JSON.stringify(SJ.Save.data.slots));
+  }
+
+  { // 左键绕回：从 3 连按 4 次左应当回到 3
+    reset(); step(20);
+    fill();
+    SJ.Tech.gain('wufeng', 100); step(1);
+    let n = 0;
+    runScene(0, (f) => {
+      if (f % 6 === 0 && n < 4) { down('KeyA'); n++; }
+      if (f % 6 === 1) { up('KeyA'); }
+    });
+    ok('选择在四格之间绕回（连按 4 次左回到原位）',
+      SJ.Save.data.slots[3] === 'wufeng', JSON.stringify(SJ.Save.data.slots));
+  }
+
+  { // 演出被 Level.load 打断也不能把刚学会的招丢在槽外
+    reset(); step(20);
+    fill();
+    SJ.Tech.gain('wufeng', 100); step(3);
+    ok('打断前：选择屏确实起来了', SJ.Game.stack.length > 1);
+    SJ.Game.setScene(scene);                     // 模拟 Level.load 打断
+    step(2);
+    ok('选槽屏被 setScene 打断 → 仍然按缺省替换，招不会丢在槽外',
+      SJ.Save.data.slots.indexOf('wufeng') >= 0,
+      JSON.stringify(SJ.Save.data.slots));
+    // 打断后 learning 必须解锁，否则之后所有「悟」静默消失（既有的坑）
+    SJ.Save.data.known = ['poyu', 'liebo', 'chengtian', 'guying', 'wufeng'];
+    SJ.Tech.gain('hengyun', 100); step(3);
+    ok('打断之后下一次「悟」照常显示', SJ.Game.stack.length > 1);
+    while (SJ.Game.stack.length > 1) step(1);
+  }
+
+  { // 走的必须是契约 007 §1 的唯一写入口
+    const src = fs.readFileSync(path.join(ROOT, 'src/combat/tech.js'), 'utf8');
+    ok('替换走 SJ.Player.setSlot（契约 007 §1 的唯一写入口），不是直接写 Save.data.slots',
+      /SJ\.Player\.setSlot\(this\.pick, def\.id\)/.test(src));
+  }
+}
+
 // ── 7. 决议 007 / 009 接口 ────────────────────────────────
 console.log('\n7. 决议 007 / 009 接口');
 {
@@ -808,10 +915,18 @@ console.log('\n11. 预警分层 telegraph.tier（决议 014 修订版）');
   // 改造前的基线，写成字面量：以后谁把 light 改动了都会立刻亮红。
   const BASE_COL = SJ.C.cinnabar, BASE_W_OBS = 3.4, BASE_W_NOOBS = 2.8;
 
-  const gStub = { save: noop, restore: noop, beginPath: noop, arc: noop, fill: noop,
-    stroke: noop, fillRect: noop, strokeRect: noop, fillStyle: '', strokeStyle: '',
-    globalAlpha: 1, lineWidth: 1 };
-  function paint(o, observing) {
+  // 落点的环是用原生 canvas 弧画的（那里要的是准确的圆，不是墨团），所以得记 arc 半径。
+  const gStub = { save: noop, restore: noop, fill: noop,
+    fillRect: noop, strokeRect: noop, fillStyle: '', strokeStyle: '',
+    globalAlpha: 1, lineWidth: 1,
+    arcs: [], _pend: null,
+    beginPath() { this._pend = null; },
+    arc(x, y, r) { this._pend = r; },
+    stroke() { if (this._pend != null) this.arcs.push(this._pend); }
+  };
+  // prog = 起手进度 0..1。决议 025 那两条都是「随进度变化」的；
+  // 不控制进度就只测得到 p≈0 那一帧——正是原来漏掉的地方。
+  function paint(o, observing, prog) {
     const p = reset(); step(20);
     p.x = 300; p.y = 328; p.vx = 0; p.vy = 0;
     p.observing = !!observing;
@@ -819,9 +934,12 @@ console.log('\n11. 预警分层 telegraph.tier（决议 014 修订版）');
     SJ.Combat.clear();
     const tg = SJ.Combat.telegraph(Object.assign({ owner: foe, moveId: 'm', dur: 0.5,
       path: [[0, 0], [-40, -10]] }, o));
+    tg.t = (prog === undefined ? 1 : prog) * tg.dur;
     clearCalls();
+    gStub.arcs.length = 0;
     SJ.Combat.draw(gStub);
-    return { tier: tg.tier, strokes: inkCalls.stroke.slice(), blobs: inkCalls.blob.slice() };
+    return { tier: tg.tier, strokes: inkCalls.stroke.slice(), blobs: inkCalls.blob.slice(),
+             rings: gStub.arcs.slice() };
   }
   // 主线 = 最粗的那一笔；外圈淡线在 grab 里比主线细（不观势）或更粗但是墨色（观势），
   // 所以按颜色分组比按粗细可靠。
@@ -890,6 +1008,41 @@ console.log('\n11. 预警分层 telegraph.tier（决议 014 修订版）');
     `×${(wmax(main(nheavy)) / BASE_W_NOOBS).toFixed(2)} blob=${nheavy.blobs.length}`);
   // 断续画法每段按 hash 随机丢弃，不同 telegraph id 丢的段不一样，
   // 所以不能拿两次调用的总笔数相比。在同一次调用里数配对。
+  // ── 决议 025 ①：势点提前长出来 ──
+  {
+    const at = q => paint({ danger: true, tier: 'heavy' }, false, q);
+    ok('势点在 p<0.25 时不画（起手最初那一段还看不出轻重，是有意的）',
+      at(0).blobs.length === 0 && at(0.24).blobs.length === 0,
+      `p0=${at(0).blobs.length} p0.24=${at(0.24).blobs.length}`);
+    const b25 = at(0.25).blobs[0], b60 = at(0.60).blobs[0], b100 = at(1).blobs[0];
+    ok('势点从 p=0.25 起就已经看得见（不是淡到看不见地淡入）',
+      !!b25 && b25.r >= 4.5 && b25.o.alpha >= 0.42,
+      b25 ? `r=${b25.r.toFixed(2)} a=${b25.o.alpha.toFixed(2)}` : '没画');
+    const d1 = b60.r - b25.r, d2 = b100.r - b60.r;
+    ok('势点半径按进度线性长满（0.25→1 之间等速）',
+      Math.abs(d1 / 0.35 - d2 / 0.40) < 1e-6 && b100.r > b25.r * 1.9,
+      `r ${b25.r.toFixed(2)} → ${b60.r.toFixed(2)} → ${b100.r.toFixed(2)}`);
+    const w0 = Math.max(...at(0).strokes.filter(x => x.color === BASE_COL).map(x => x.w0));
+    const w1 = Math.max(...at(1).strokes.filter(x => x.color === BASE_COL).map(x => x.w0));
+    ok('heavy 的线宽 ×1.6 从起手第一帧就生效、且不随进度变',
+      Math.abs(w0 - BASE_W_NOOBS * 1.6) < 1e-9 && Math.abs(w0 - w1) < 1e-9,
+      `p0=${w0} p1=${w1}`);
+  }
+
+  // ── 决议 025 ②：grab 落点外环半径下限 ──
+  {
+    const rings = q => paint({ danger: true, tier: 'grab' }, true, q).rings;
+    const outerMin = Math.min(...[0.85, 0.9, 0.95, 1].map(q => Math.max(...rings(q))));
+    ok('grab 落点外环半径始终 ≥22px（短路径全靠这两个环，塌了就读不出来）',
+      outerMin >= 22 - 1e-9, `末段最小外环 ${outerMin.toFixed(1)}px`);
+    const g1 = rings(1), l1 = paint({ danger: true, tier: 'light' }, true, 1).rings;
+    ok('grab 画的是双环，light 只有一环',
+      g1.length === l1.length + 1, `grab=${g1.length} light=${l1.length}`);
+    ok('末段两环仍然分得开（间距 ≥12px）',
+      Math.max(...g1) - Math.min(...g1) >= 12,
+      `${Math.min(...g1).toFixed(1)} → ${Math.max(...g1).toFixed(1)}`);
+  }
+
   ok('不观势时 grab 每一段朱砂主线都配一条淡墨外圈',
     main(ngrab).length > 0 && main(ngrab).length === twin(ngrab).length &&
     ngrab.strokes.length === main(ngrab).length * 2,
@@ -987,6 +1140,83 @@ console.log('\n12. techProgress 存档');
     JSON.stringify(sj7.Tech.progress));
 
   reset();   // 后面没有别的段落了，但别把脏状态留给以后新增的断言
+}
+
+// ── 13. 命中墨溅去对称（fx.js 的 aniso 管道，端到端）──────────
+// **验效果，不验调用。** 只断言「我传了 aniso」是没有意义的：
+// 上一轮 combat.js 差点就往一个根本不读这个字段的 FX.splash 上传参数，
+// 断言会绿，效果静默消失 —— 决议 013 那个形状。
+// 所以这一段换上**真的 fx.js**，把整条链走完：
+//   combat.js 出手 → FX.splash 造墨滴 → 墨滴飞 → 落到 groundY → stain 那一帧
+// 最后看 Ink.splat 到底有没有拿到 aniso 与方向。
+console.log('\n13. 命中墨溅去对称（端到端）');
+{
+  load('src/render/fx.js');                 // 真货，替掉本文件前面那个记录用的打桩
+  const splats = [], blobs2 = [];
+  SJ.Ink = new Proxy({
+    splat: (g, x, y, r, seed, o) => { splats.push({ x, y, r, o: o || {} }); },
+    blob: (g, x, y, r, seed, o) => { blobs2.push({ x, y, r, o: o || {} }); }
+  }, { get: (t, k) => (k in t ? t[k] : noop) });
+  const gStub = new Proxy({}, {
+    get: (t, k) => {
+      if (k === 'canvas') return { width: 960, height: 540 };
+      if (['fillStyle', 'strokeStyle', 'globalAlpha', 'lineWidth', 'lineCap', 'lineJoin',
+           'font', 'textAlign', 'textBaseline', 'globalCompositeOperation'].indexOf(k) >= 0) return '';
+      return () => undefined;
+    }, set: () => true
+  });
+
+  // 走一次真的普攻命中，再手动把粒子推到落地那一帧
+  function land(facing, foeX) {
+    const p = reset(); step(40);
+    p.x = 452; p.y = 328; p.vx = 0; p.vy = 0; p.facing = facing;
+    const foe = mkFoe(foeX); foe.hurt = function (d) { this.hp -= d; };
+    SJ.FX.clear();
+    down('KeyJ'); step(1); up('KeyJ'); step(10);
+    // 30 帧：墨滴飞到地面线 380 之后、stain 的 2.0s 寿命还没走完的窗口。
+    // 推太久（150 帧）stain 已经过期消失，测出来是「一次都没画」——
+    // 症状和「管道没通」一模一样，但原因完全不同。
+    for (let i = 0; i < 30; i++) SJ.FX.update(1 / 60);
+    splats.length = 0; blobs2.length = 0;
+    SJ.FX.draw(gStub);
+    return splats.slice();
+  }
+
+  const right = land(1, 520);
+  ok('命中的墨点真的落到地面并晕开（走到了 stain 那一帧）', right.length > 0,
+    `splat ${right.length} 次 / blob ${blobs2.length} 次`);
+  ok('stain 还在寿命内就取样（推过头会测出「一次都没画」，症状和管道没通一样）',
+    right.length > 0 && blobs2.length >= 0);
+  ok('落地那一摊走的是 Ink.splat 的去对称分支，且 aniso 就是 combat.js 传的 0.7',
+    right.length > 0 && right.every(c => c.o.aniso === 0.7),
+    JSON.stringify(right.map(c => c.o.aniso)));
+  // 方向必须等于 splash 的第三个位置参数（sprayAngle：向右打 = -0.6）——
+  // 这一条钉的是「一个方向语义只有一个来源」，谁哪天再加个 o.dir 入口就会亮红。
+  ok('去对称的方向 = splash 的 base 弧度（向右打 -0.6），没有第二个方向来源',
+    right.every(c => Math.abs(c.o.dir - (-0.6)) < 1e-9),
+    JSON.stringify(right.map(c => c.o.dir)));
+
+  const left = land(-1, 402);
+  ok('向左打时方向跟着翻到另一侧（两侧异号，决议 013 那条的延伸）',
+    left.length > 0 && left.every(c => Math.cos(c.o.dir) < -0.5),
+    JSON.stringify(left.map(c => c.o.dir.toFixed(2))));
+
+  { // aniso=0 的老调用点必须一个像素都不变：走 blob，不走 splat
+    SJ.FX.clear();
+    SJ.FX.splash(400, 300, -0.6, { n: 4, groundY: 380 });
+    for (let i = 0; i < 30; i++) SJ.FX.update(1 / 60);
+    splats.length = 0; blobs2.length = 0;
+    SJ.FX.draw(gStub);
+    ok('不传 aniso 的调用点照旧走 Ink.blob，不走 splat（向后兼容）',
+      splats.length === 0 && blobs2.length > 0,
+      `splat=${splats.length} blob=${blobs2.length}`);
+  }
+
+  { // 受击与死亡两处（player.js）也开了，且各是各的强度
+    const src = fs.readFileSync(path.join(ROOT, 'src/entity/player.js'), 'utf8');
+    ok('受击 aniso 0.5 / 死亡 aniso 0.8 都接上了',
+      /aniso: 0\.5/.test(src) && /aniso: 0\.8/.test(src));
+  }
 }
 
 // ── 结果 ─────────────────────────────────────────────────────

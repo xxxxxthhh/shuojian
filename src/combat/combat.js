@@ -382,9 +382,12 @@
     SJ.Game.shake(w.shake, 0.16 + stop);
     // groundY 必须传：不传墨点只在半空原地晕开，
     // DESIGN §1 要的「飞出去、落地晕开、留在纸上」就少了三分之一。
+    // aniso：落地那一摊墨往溅射方向收拢，不是四面均匀的「蜘蛛腿」。
+    // **dir 不重复传** —— fx.js 缺省就取第三个位置参数（这里是 sprayAngle(dir)）。
+    // 决议 013 的教训：一个方向语义只该有一个来源，多一个入口就多一处传错不报错。
     SJ.FX.splash(px, py, sprayAngle(dir), {
       n: w.splash, color: SJ.C.ink, speed: w.spray,
-      groundY: groundLine(px, py, e)
+      groundY: groundLine(px, py, e), aniso: 0.7
     });
     SJ.FX.slash(px, py, -0.9 * dir, 0.9 * dir, 26 + w.shake * 2.2,
       { color: SJ.C.ink, w: 5 + w.shake * 0.45 });
@@ -421,7 +424,8 @@
     });
     SJ.FX.slash(px, py, -1.5 * dir, 1.5 * dir, 46, { color: SJ.C.cinnabar, w: 7 });
     SJ.FX.splash(px, py, sprayAngle(dir), {
-      n: w.splash, color: SJ.C.cinnabar, speed: w.spray, groundY: groundLine(px, py, e)
+      n: w.splash, color: SJ.C.cinnabar, speed: w.spray,
+      groundY: groundLine(px, py, e), aniso: 0.7
     });
     SJ.Audio.sfx(w.sfx, { vol: w.vol });
   }
@@ -498,11 +502,15 @@
       g.arc(end[0], end[1], 32 * (1 - p) + 8, 0, Math.PI * 2);
       g.stroke();
       if (sty.twin) {
+        // 决议 025 ②：外环半径**下限 22px**。原式 32(1-p)+17 在 p>0.84 之后收到 17px，
+        // 和内环（收到 8px）挤成一坨；孤影/闪这种 ≤110px 的短路径上双线本来就分不开，
+        // 全靠这两个环传达「这是抓/突进」，环一塌就什么都读不出来了。
+        // 环半径本来就与路径长度无关，下限只是保住短路径那一档的可读性。
         g.strokeStyle = SJ.C.ink;
         g.globalAlpha = (0.22 + 0.20 * p);
         g.lineWidth = 1.2;
         g.beginPath();
-        g.arc(end[0], end[1], 32 * (1 - p) + 17, 0, Math.PI * 2);
+        g.arc(end[0], end[1], Math.max(22, 32 * (1 - p) + 17), 0, Math.PI * 2);
         g.stroke();
         g.strokeStyle = col;
       }
@@ -545,9 +553,14 @@
       // 但只给「哪里」，不给「什么时候、走哪条线」——那是观势才有的信息。
       // heavy 的「势」点在不观势时也画：玩家没进观势也得看得出「这一记挡不住」，
       // 否则「0.3 秒内决定挡还是闪」这个能力在最需要它的时候不存在。
-      if (sty.shi) {
-        SJ.Ink.blob(g, end[0], end[1], 3.6 + 4.4 * p, tg.id * 3 + 1,
-          { color: SJ.C.cinnabar, alpha: 0.30 + 0.42 * p });
+      // 决议 025 ①：势点从 p≥0.25 起就**已经看得见**，然后线性长满。
+      // 原来是 p=0 起淡淡地长（r 3.6 / alpha 0.30），中段和 light 分不开，
+      // 等到看得出来时已经是末段、来不及决定挡还是闪。
+      // 现在 0.25 那一帧直接以 r=4.6 / alpha=0.44 出现——出现本身就是信号。
+      if (sty.shi && p >= 0.25) {
+        var sq = (p - 0.25) / 0.75;
+        SJ.Ink.blob(g, end[0], end[1], 4.6 + 4.8 * sq, tg.id * 3 + 1,
+          { color: SJ.C.cinnabar, alpha: 0.44 + 0.36 * sq });
       }
       // 落点提示只跟 danger 走、不跟 tier 走：它回答的是「哪里要挨打」，
       // 那是规则；tier 回答的是「什么性质的招」，那是画法。

@@ -144,8 +144,10 @@
       SJ.Game.flash(SJ.C.cinnabar, 0.22, 0.20);
       // splash 第三参是弧度角（不是 ±1），groundY 不传墨点就只在半空晕开
       var gy = SJ.World.groundAt(this.cx(), this.cy());
+      // aniso 0.5：受击比命中收敛一点 —— 血是被打出去的，不是自己甩出去的。
+      // dir 不传，fx.js 缺省取上面那个弧度角。
       SJ.FX.splash(this.cx(), this.cy(), dir > 0 ? -(Math.PI - 0.6) : -0.6,
-        { n: 6, color: SJ.C.cinnabar, speed: 240,
+        { n: 6, color: SJ.C.cinnabar, speed: 240, aniso: 0.5,
           groundY: gy == null ? this.y + this.h : gy });
       SJ.Audio.sfx('hurt', { vol: 1 });
     };
@@ -498,8 +500,10 @@
     SJ.Game.shake(9, 0.5);
     SJ.Audio.sfx('death', { vol: 1 });
     var dgy = SJ.World.groundAt(p.cx(), p.cy());
+    // aniso 0.8：死亡这一摊最偏。spread 3.0 本来就近乎四散，
+    // 但正因为散得开，均匀的「蜘蛛腿」在这里最扎眼。
     SJ.FX.splash(p.cx(), p.cy(), -Math.PI / 2, {
-      n: 12, color: SJ.C.cinnabar, speed: 260, spread: 3.0,
+      n: 12, color: SJ.C.cinnabar, speed: 260, spread: 3.0, aniso: 0.8,
       groundY: dgy == null ? p.y + p.h : dgy
     });
   }
