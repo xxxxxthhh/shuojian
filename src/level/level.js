@@ -444,7 +444,13 @@
   function clampPlayer() {
     var p = SJ.player, def = R.def;
     var lo = 0, hi = def.w - p.w;
-    if (R.gate) { lo = Math.max(lo, R.gate[0]); hi = Math.min(hi, R.gate[1] - p.w); }
+    /* 门只锁同层（Lead 修，用户实测）：第二回在三层触发第 5 波后按下+跳下穿到一层，
+     * 门在一层照样把玩家夹在 x≥1400，而回三层的台阶全在门外 —— 敌人在楼上、玩家在楼下、
+     * 谁也够不着谁。T1 修过「敌人跑出楼层」，这是它的镜像：玩家自己离开楼层。
+     * 规则：玩家脚底不在活跃波次那一层（onSameFloor 为假）时，门不夹人；回到那一层再夹。
+     * 单层关卡 waveFloorY 恒同层，行为不变。Boss 场地不走这条（bossArena 语义另算）。 */
+    var gateOn = R.gate && (!R.active || onSameFloor(p, R.active.def));
+    if (gateOn) { lo = Math.max(lo, R.gate[0]); hi = Math.min(hi, R.gate[1] - p.w); }
     (def.blockers || []).forEach(function (b) {
       if (!SJ.Story.get(b.flag)) hi = Math.min(hi, b.x - p.w);
     });

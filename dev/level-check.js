@@ -25,6 +25,7 @@
  *  20  带 gate 的波，高处的 spawn 不得高于本波楼层 190px（满跳+二段跳够不到 = 门开不了）
  *  21  同一层上的检查点必须按 x 递增（否则会跨层错拿检查点）
  *  22  决议 023：无门波次不阻塞后面的波（用 harness 真跑一遍，不是静态推理）
+ *  24  门只锁同层：玩家离开波次楼层时门不夹人（harness 真跑）
  *  23  决议 012：第一回第一波的教具刀客必须带 only（招表钉死成破雨）
  */
 'use strict';
@@ -811,6 +812,68 @@ L.forEach(function (lv, li) {
       else
         console.log('  [' + lv.id + '] 决议 023：wave' + w.id + '（无门）留活口后 wave' +
                     N.id + ' 仍能刷出 ✓');
+    });
+  });
+})();
+
+/* ══ 24. 门只锁同层（**用 harness 真跑**；Lead 补，用户实测软锁）══════
+ * 现实原型：第二回三层触发第 5 波，玩家按下+跳下穿到一层，门在一层照样夹住 x≥1400，
+ * 而回三层的台阶全在门外。断言两件事：玩家脚底离开波次楼层时门**不**夹；回到那一层门**仍**夹。 */
+(function () {
+  var boot;
+  try { boot = require('./harness.js').boot; }
+  catch (e) { return W('规则24 跳过：起不了 harness（' + e.message + '）'); }
+
+  L.forEach(function (lv, li) {
+    var P = '[' + li + ' ' + lv.id + '] [规则24] ';
+    (lv.waves || []).forEach(function (w) {
+      if (!w.gate) return;
+      var sp = (lv.spawns || []).filter(function (s) { return s.wave === w.id; });
+      if (!sp.length) return;
+      var fy = Math.max.apply(null, sp.map(function (s) { return s.y; }));
+      // 只测「门内还有别的楼层」的波：门 x 范围内存在脚底高度差 > 130 的实心地面
+      var otherFloor = (lv.solids || []).some(function (b) {
+        return b[0] < w.gate[1] && b[0] + b[2] > w.gate[0] && Math.abs(b[1] - fy) > 130;
+      });
+      if (!otherFloor) return;
+
+      var H = boot({ seed: 1, render: false });
+      H.reset(); H.load(li);
+      var i;
+      for (i = 0; i < 900 && H.where() !== 'level'; i++) { H.hold(i % 6 === 0 ? { confirm: 1 } : {}); H.step(); }
+      if (H.where() !== 'level') return W(P + 'wave' + w.id + ' 的开场白点不掉，本条跳过');
+      H.SJ.Level.spawnWave(w); H.hold({}); H.step();
+      var p = H.player();
+
+      // A. 同层：贴着门左界往左顶 40 帧，必须还在门内
+      p.x = w.gate[0] + 30; p.y = fy - p.h; p.vx = 0; p.vy = 0;
+      for (i = 0; i < 40; i++) { H.hold({ left: 1 }); H.step(); if (Math.abs((p.y + p.h) - fy) > 130) break; }
+      if (p.x < w.gate[0] - 1) E(P + 'wave' + w.id + ' 玩家在波次楼层上，门却没锁住（x=' + (p.x|0) + ' < ' + w.gate[0] + '）');
+
+      // B. 异层：把玩家放到门内**真实存在**的另一层地面上（优先楼下，对应「跳下楼」），往左顶 40 帧
+      var floors = (lv.solids || []).filter(function (b) {
+        return b[0] < w.gate[1] && b[0] + b[2] > w.gate[0] && Math.abs(b[1] - fy) > 130;
+      }).sort(function (a, b) { return (b[1] - fy) - (a[1] - fy); });   // 最靠下的在前
+      var b = floors[0];
+      p.x = Math.max(w.gate[0] + 30, b[0] + 4); p.y = b[1] - p.h; p.vx = 0; p.vy = 0;
+      for (i = 0; i < 3; i++) { H.hold({}); H.step(); }                  // 落稳
+      if (Math.abs((p.y + p.h) - b[1]) > 20) return W(P + 'wave' + w.id + ' 异层摆位没站稳（脚底 ' + ((p.y + p.h)|0) + ' vs ' + b[1] + '），本条跳过');
+      // 一直往左走，直到出门 / 被钉在门边 / 落回波次楼层 / 超时（走到门边所需帧数 + 余量）
+      var need = Math.min(900, ((p.x - w.gate[0]) / 3.5 | 0) + 60), pinned = 0, back = false;
+      for (i = 0; i < need; i++) {
+        H.hold({ left: 1 }); H.step();
+        if (p.x < w.gate[0] - 1) break;
+        if (Math.abs((p.y + p.h) - fy) <= 130) { back = true; break; }   // 落回同层：该锁，不算
+        if (Math.abs(p.x - w.gate[0]) < 0.5) { if (++pinned >= 6) break; }
+      }
+      if (pinned >= 6)
+        E(P + 'wave' + w.id + ' 玩家已不在波次楼层（脚底 ' + ((p.y + p.h)|0) + ' vs ' + fy + '），门仍把人钉在 x=' +
+          w.gate[0] + ' —— 跳下楼就回不去了');
+      else if (back)
+        W(P + 'wave' + w.id + ' 异层摆位走着走着落回了波次楼层，本条未验到门');
+      else if (p.x >= w.gate[0])
+        W(P + 'wave' + w.id + ' 异层往左走没出门也没被门钉住（x=' + (p.x|0) + '），可能是别的实心块挡住，未验到门');
+      else console.log('  [' + lv.id + '] 门只锁同层：wave' + w.id + ' 同层锁 ✓ / 异层放 ✓');
     });
   });
 })();
