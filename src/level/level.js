@@ -125,7 +125,11 @@
     rec.foes = [];
     R.def.spawns.forEach(function (sp) {
       if (sp.wave !== w.id) return;
-      var e = SJ.Enemies.spawn(sp.type, sp.x, sp.y - 1, { facing: -1 });
+      // 决议 012 路径三：sp.only 把这个敌人的招表钉死成一个子集（ai.js:166）。
+      // 第一回第一个刀客只出破雨 —— 玩家反复看到同一条朱砂虚线，
+      // 观势才有被发现的可能。不传就是原来的整套招表。
+      var e = SJ.Enemies.spawn(sp.type, sp.x, sp.y - 1,
+                               { facing: -1, only: sp.only || null });
       if (e) rec.foes.push(e);
     });
     R.active = rec;
@@ -247,22 +251,43 @@
     return Math.abs((p.y + p.h) - fy) <= FLOOR_TOL;
   }
 
+  function nextWaveAt(p, skip) {
+    for (var i = 0; i < R.waves.length; i++) {
+      var r = R.waves[i], w = r.def;
+      if (r.started || r === skip) continue;
+      if (p.x + p.w > w.x && p.x < w.x + w.w && onSameFloor(p, w)) return w;
+    }
+    return null;
+  }
+
   function updateWaves() {
-    var p = SJ.player;
+    var p = SJ.player, w;
     if (R.active) {
       var alive = R.active.foes.filter(function (e) { return !e.dead && e.hp > 0; });
       if (!alive.length) {
         R.active.cleared = true;
         R.active = null; R.gate = null;
         SJ.Audio.intensity(0.15);
+        return;
       }
-      return;                                   // 一次只跑一波，触发点互不打断
+      /* ★ 决议 023：**无门**的波次不阻塞后面的波。
+       * 原来是「一次只跑一波」无条件 return —— 而没有 gate 的波次玩家本来就跑得掉：
+       * 只要留一个活口不打死，后面所有波次就永远不刷。实测第五回把第 2 波的僧人
+       * 打到 1 血就走人，第 3 波（Boss 前那三个）整场再没出现过，不报错、玩家也不会察觉。
+       * 现在：玩家走到后一波的触发区就视这一波结束，敌人留在原地当散兵。
+       * 有 gate 的波语义不变（清完才能走，这是设计要的压力）。 */
+      if (!R.active.def.gate) {
+        w = nextWaveAt(p, R.active);
+        if (w) {
+          R.active.cleared = true;              // 视为结束：afterWave 之类的条件照常成立
+          R.active = null; R.gate = null;
+          spawnWave(w);
+        }
+      }
+      return;
     }
-    for (var i = 0; i < R.waves.length; i++) {
-      var r = R.waves[i], w = r.def;
-      if (r.started) continue;
-      if (p.x + p.w > w.x && p.x < w.x + w.w && onSameFloor(p, w)) { spawnWave(w); return; }
-    }
+    w = nextWaveAt(p, null);
+    if (w) spawnWave(w);
   }
 
   function waveById(id) {
@@ -615,7 +640,9 @@
       // 体积：只在顶面下方 90px 内渲染，再往下留白
       var hh = Math.min(s.h, 90);
       SJ.Ink.wash(g, s.x, s.y, s.w, hh,
-        { color: C.ink, alpha: 0.16, dir: 'down' });
+        // Ink.wash 只认 dir==='v'（ink.js:401），'down' 会被当成横向 —— 体积渲染
+        // 一直是从左到右淡出，不是设计要的往下淡出。T4 发现。
+        { color: C.ink, alpha: 0.16, dir: 'v' });
       // 几点飞白，点出这是石/木不是空气
       var n = Math.min(5, Math.max(1, (s.w / 220) | 0));
       for (var k = 0; k < n; k++) {
@@ -855,8 +882,14 @@
       };
     },
 
+    /* 决议 022：死亡复活满血。
+     * 原来 Player.create 读的是 Save.data.hp，而那个字段只在 complete() 里写过一次 ——
+     * 于是「上一关残 2 血通关」会把后面整局锁死在 2 血，且游戏没有任何回血手段。
+     * 实测：第一回残 2 血通关 → 第二回死 16 次 417s → 第三回死 54 次 900s 没打完。 */
     restartFromCheckpoint: function () {
       var idx = SJ.Level.current >= 0 ? SJ.Level.current : (SJ.Save.data.chapter | 0);
+      var d = SJ.Save.data;
+      d.hp = d.maxHp;
       SJ.Level.load(idx, true);
     },
 
@@ -937,7 +970,7 @@
         R.busy = false;
         var d = data();
         d.chapter = idx + 1;
-        d.hp = SJ.player ? SJ.player.hp : d.hp;
+        d.hp = d.maxHp;                        // 决议 022：进新章满血
         d.flags.cp = 0;
         SJ.Save.save();
         SJ.Game.fade('out', 0.6, function () {

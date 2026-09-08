@@ -24,6 +24,8 @@
  *  19  Boss 场地在 bossY 那一层必须连续（否则 Boss 掉出去就捞不回场地）
  *  20  带 gate 的波，高处的 spawn 不得高于本波楼层 190px（满跳+二段跳够不到 = 门开不了）
  *  21  同一层上的检查点必须按 x 递增（否则会跨层错拿检查点）
+ *  22  决议 023：无门波次不阻塞后面的波（用 harness 真跑一遍，不是静态推理）
+ *  23  决议 012：第一回第一波的教具刀客必须带 only（招表钉死成破雨）
  */
 'use strict';
 var fs = require('fs'), path = require('path');
@@ -737,6 +739,81 @@ L.forEach(function (lv, li) {
     }
   }
 });
+
+/* ══ 23. 决议 012 —— 第一回第一波的刀客必须钉死招表 ═══════════════
+ * 决议 012 路径三：教具刀客只出破雨，玩家才可能在同一条朱砂虚线上看第二遍、第三遍。
+ * `only` 从 levels.js 的 spawn 一路透传到 ai.js:166 的招表；漏了不会报错，
+ * 只会让教具变成一个「招式随机的普通刀客」，而观势的可发现性就少了一条腿。 */
+(function () {
+  var lv = L.filter(function (x) { return x.id === 'c1'; })[0];
+  if (!lv) return E('[规则23] 找不到第一回');
+  var w1 = (lv.spawns || []).filter(function (s) { return s.wave === 1; });
+  if (!w1.length) return E('[规则23] 第一回第 1 波没有 spawn');
+  var taught = w1.filter(function (s) { return s.only && s.only.length; });
+  if (!taught.length)
+    E('[1 c1] [规则23] 第 1 波的刀客没有带 only —— 决议 012 的教具没接上，' +
+      '他会随机出招，玩家看不到同一条起手式第二遍');
+  taught.forEach(function (s) {
+    s.only.forEach(function (m) {
+      if (MOVES.indexOf(m) < 0)
+        E('[1 c1] [规则23] spawn@' + s.x + ' 的 only 里有不认识的招 "' + m + '"');
+    });
+  });
+})();
+
+/* ══ 22. 决议 023 —— 无门波次不阻塞后面的波（**用 harness 真跑**）════
+ * 这条不能静态推：它断言的是运行时语义，而「静态看着没问题、跑起来卡住」
+ * 正是这一波里所有软锁的共同形状。所以真的开一个沙盒，把局面摆成
+ * 「无门波次留一个活口 + 玩家走到后一波的触发区」，然后看后一波刷不刷。
+ * 现实原型：第五回第 2 波没有 gate，玩家把僧人打到 1 血就走人 —— 修之前，
+ * 第 3 波（Boss 前那三个）整场再没出现过，不报错、玩家也不会察觉。 */
+(function () {
+  var boot;
+  try { boot = require('./harness.js').boot; }
+  catch (e) { return W('规则22 跳过：起不了 harness（' + e.message + '）'); }
+
+  L.forEach(function (lv, li) {
+    var P = '[' + li + ' ' + lv.id + '] [规则22] ';
+    (lv.waves || []).forEach(function (w, wi) {
+      if (w.gate) return;                                   // 有门的波语义不变
+      var later = (lv.waves || []).filter(function (n, ni) {
+        return ni > wi && (lv.spawns || []).some(function (s) { return s.wave === n.id; });
+      });
+      if (!later.length) return;                            // 后面没波次，不构成问题
+      var N = later[0];
+
+      var H = boot({ seed: 1, render: false });
+      H.reset();
+      H.load(li);
+      var i;
+      for (i = 0; i < 900 && H.where() !== 'level'; i++) {   // 点掉开场白
+        H.hold(i % 6 === 0 ? { confirm: 1 } : {}); H.step();
+      }
+      if (H.where() !== 'level') return W(P + 'wave' + w.id + ' 的开场白点不掉，本条跳过');
+
+      H.SJ.Level.spawnWave(w);                              // 摆局面：无门波刷出来
+      H.hold({}); H.step();
+      var foes = H.foes();
+      if (foes.length < 1) return W(P + 'wave' + w.id + ' 没刷出敌人，本条跳过');
+      for (i = 1; i < foes.length; i++) foes[i].hp = 0;      // 只留一个活口
+
+      var fy = Math.max.apply(null, (lv.spawns || [])
+        .filter(function (s) { return s.wave === N.id; })
+        .map(function (s) { return s.y; }));
+      var p = H.player();
+      p.x = N.x + 4; p.y = fy - p.h; p.vx = 0; p.vy = 0;     // 玩家走到后一波的触发区（同层）
+      for (i = 0; i < 30; i++) { H.hold({}); H.step(); }
+
+      var rec = H.dbg().waves.filter(function (r) { return r.id === N.id; })[0];
+      if (!rec || !rec.started)
+        E(P + 'wave' + w.id + '（无 gate）留一个活口时，玩家走到 wave' + N.id +
+          ' 的触发区，wave' + N.id + ' **没有刷** —— 后面所有波次都被这一个活口堵死了');
+      else
+        console.log('  [' + lv.id + '] 决议 023：wave' + w.id + '（无门）留活口后 wave' +
+                    N.id + ' 仍能刷出 ✓');
+    });
+  });
+})();
 
 console.log('关卡数        : ' + L.length);
 console.log('Σ expectedSec : ' + totalSec + ' 秒（' + (totalSec / 60).toFixed(1) + ' 分）  下限 1800 ' +

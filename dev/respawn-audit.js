@@ -104,6 +104,9 @@ function dynamicAudit(idx, waveId, maxSec) {
   const q = H.player(), d = H.dbg(), b = box(q);
   const spawnAt = [q.x | 0, q.y | 0];        // 快照：q 是活引用，跑完之后再读就是终点了
   if (!q || q.hp <= 0) { E(`${P} 复活后 hp=${q ? q.hp : '?'}`); return; }
+  // 决议 022：死亡复活满血。原来 Player.create 读的是「上一关通关时存下的 hp」，
+  // 残血通关会把后面整局锁死在那个血量上，而游戏没有任何回血手段。
+  if (q.hp !== q.maxHp) E(`${P} 决议 022：复活后 hp=${q.hp}，不是满血 ${q.maxHp}`);
   const stuck = H.SJ.World.solids.filter(s => !s.gone && !s.oneway && hits(b, s));
   if (stuck.length) E(`${P} 复活点埋在实心块里 x=${q.x | 0} y=${q.y | 0}`);
   for (const h of def.hazards) {
@@ -127,8 +130,6 @@ function dynamicAudit(idx, waveId, maxSec) {
    *   挂在 when:'burn' 上的东西就永远触发不了。只有真跑到通关才看得出来。 */
   const x0 = q.x;
   let moved = 0, done = false, f2 = 0;
-  H.SJ.Save.data.hp = H.SJ.Save.data.maxHp;      // 血量规则待裁定，先旁路（见 notes-T1）
-  H.player().hp = H.player().maxHp;
   for (; f2 < 600 * 60; f2++) {
     H.hold(bot.tick()); H.step();
     if (H.player()) moved = Math.max(moved, Math.abs(H.player().x - x0));

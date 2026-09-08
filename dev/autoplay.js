@@ -28,12 +28,6 @@ const MAXSEC = Number(val('--max', 900));
 const VERBOSE = flag('-v') || flag('--verbose');
 const CP = val('--cp', null);
 const NORENDER = flag('--norender');
-/* --fullhp：每进一关把 hp 补满。
- * 存在的理由见 _spec/notes-T1.md「检查点复活血量」：data.hp 只在通关时写一次，
- * 残血通关会把后面整局锁死在那个血量上。那是个**待 Lead 裁定的玩法规则**，
- * 我不改游戏；但要跑「连续一周目的两条分支」就必须先把它旁路掉，
- * 否则量到的是那个 bug 的时长，不是关卡的时长。 */
-const FULLHP = flag('--fullhp');
 const TRACE = Number(val('--trace', 0));
 
 /* ── 机器人 ───────────────────────────────────────────────────────── */
@@ -569,9 +563,20 @@ function driveFrom(H, idx, opt) {
   const maxF = Math.round(opt.maxSec * 60);
   let deaths = 0, lastDeaths = H.SJ.Save.data.deaths | 0;
   let f = 0, result = null;
+  // 受击统计（Lead 要的 windMul 判据）：玩家对象在复活时会被换掉，所以要跟着换基准
+  let hits = 0, dmg = 0, parries = 0;
+  let refP = H.player(), lastHp = refP ? refP.hp : 0, lastGlow = 0;
   for (; f < maxF; f++) {
     H.hold(bot.tick());
     H.step();
+    const pp = H.player();
+    if (pp !== refP) { refP = pp; lastHp = pp ? pp.hp : 0; lastGlow = 0; }
+    else if (pp) {
+      if (pp.hp < lastHp) { hits++; dmg += lastHp - pp.hp; }
+      lastHp = pp.hp;
+      if (pp.parryGlow > lastGlow + 0.1) parries++;
+      lastGlow = pp.parryGlow;
+    }
     const dd = (H.SJ.Save.data.deaths | 0) - lastDeaths;
     if (dd > 0) { deaths += dd; lastDeaths += dd; }
     if (opt.trace && f % opt.trace === 0) {
@@ -582,7 +587,7 @@ function driveFrom(H, idx, opt) {
     if (H.SJ.Level.current !== idx) { result = 'next'; break; }
   }
   const sec = H.playtime() - t0;
-  return { ok: !!result, result, sec, frames: f, deaths, bot, H,
+  return { ok: !!result, result, sec, frames: f, deaths, hits, dmg, parries, bot, H,
            x: H.player() ? H.player().x | 0 : -1,
            why: result ? '' : classify(H, bot) };
 }
@@ -609,11 +614,11 @@ function main() {
   let okAll = true;
   for (let i = 0; i < N; i++) {
     if (H.SJ.Level.current !== i) { H.load(i); }
-    if (FULLHP) { H.SJ.Save.data.hp = H.SJ.Save.data.maxHp; if (H.player()) H.player().hp = H.player().maxHp; }
     H.levelScene = H.SJ.Game.stack[0];
     const r = driveFrom(H, i, { seed: SEED, maxSec: MAXSEC, kill: KILL, trace: TRACE });
     report(i, H.SJ.Levels[i], r);
     rows.push({ i, id: H.SJ.Levels[i].id, ok: r.ok, sec: r.sec, deaths: r.deaths,
+                hits: r.hits, dmg: r.dmg, parries: r.parries,
                 expected: H.SJ.Levels[i].expectedSec, why: r.why });
     if (!r.ok) { okAll = false; break; }
     if (r.result === 'ending') break;
@@ -622,7 +627,7 @@ function main() {
   let tot = 0, totE = 0;
   for (const r of rows) {
     tot += r.sec; totE += r.expected;
-    console.log(`  ${r.ok ? '✓' : '✗'} ${r.i} ${r.id.padEnd(3)} 机器人 ${r.sec.toFixed(1).padStart(6)}s   预算 ${String(r.expected).padStart(4)}s   死 ${r.deaths}`);
+    console.log(`  ${r.ok ? '✓' : '✗'} ${r.i} ${r.id.padEnd(3)} 机器人 ${r.sec.toFixed(1).padStart(6)}s   预算 ${String(r.expected).padStart(4)}s   死 ${String(r.deaths).padStart(2)}   受击 ${String(r.hits).padStart(3)} 次/${String(r.dmg).padStart(4)} 伤   完美观势 ${r.parries}`);
   }
   console.log(`  合计 机器人 ${tot.toFixed(1)}s (${(tot / 60).toFixed(1)}min) / 预算 ${totE}s (${(totE / 60).toFixed(1)}min)`);
   console.log(okAll ? '\n✓ 八关全部通过' : '\n✗ 有关卡没过');
@@ -631,7 +636,7 @@ function main() {
 
 function report(i, def, r) {
   const tag = r.result === 'ending' ? '✓ 结局' : (r.ok ? '✓' : '✗');
-  console.log(`${tag} ${i} ${def.id} 《${def.title}》 ${r.sec.toFixed(1)}s (${r.frames}f) 死${r.deaths} ${r.ok ? '' : 'x=' + r.x + ' → ' + r.why}`);
+  console.log(`${tag} ${i} ${def.id} 《${def.title}》 ${r.sec.toFixed(1)}s (${r.frames}f) 死${r.deaths} 受击${r.hits}次/${r.dmg}伤 观势${r.parries} ${r.ok ? '' : 'x=' + r.x + ' → ' + r.why}`);
   if (!r.ok || VERBOSE) {
     const d = r.H.dbg();
     console.log(`    gate=${JSON.stringify(d.gate)} wave=${d.activeWave} busy=${d.busy} boss=${d.boss ? d.boss.hp + '/' + d.boss.maxHp : '-'} 敌=${r.H.foes().length} 目标=${JSON.stringify(r.bot.lastGoal && r.bot.lastGoal.kind)}`);
