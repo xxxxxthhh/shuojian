@@ -139,20 +139,87 @@
    * 波次永远清不掉 → 门两侧都锁死 → 玩家前后都走不了，画面上还什么都没有。
    * 这是会毁掉一次通关的软锁，且不报任何错。
    * 处理：把所有敌人水平夹回地图内；掉到世界底下的，捞回最近的地面。 */
+  /* 这个敌人属于哪一波（找不到就是 null，例如游荡兵与 Boss）*/
+  function waveOf(e) {
+    for (var i = 0; i < R.waves.length; i++) {
+      if (R.waves[i].foes.indexOf(e) >= 0) return R.waves[i];
+    }
+    return null;
+  }
+
+  /* 把 e 放回 y=fy 这一层、且落在 [lo,hi] 里离他最近的一块地面上。
+   * 直接写 e.y = fy - e.h 会把人塞进墙里，所以要先找到那一层真的有地面的一段。*/
+  function putBackOn(e, fy, lo, hi) {
+    var sl = SJ.World.solids, best = null, bd = 1e9, i, s, a, b, x;
+    for (i = 0; i < sl.length; i++) {
+      s = sl[i];
+      if (s.gone || Math.abs(s.y - fy) > 3) continue;
+      a = Math.max(s.x, lo);
+      b = Math.min(s.x + s.w, hi) - e.w;
+      if (b < a) continue;
+      x = SJ.clamp(e.x, a, b);
+      if (Math.abs(x - e.x) < bd) { bd = Math.abs(x - e.x); best = x; }
+    }
+    if (best === null) return false;
+    e.x = best; e.y = fy - e.h; e.vy = 0; e.onGround = true;
+    return true;
+  }
+
   function rescueFoes() {
     var def = R.def;
     if (!def) return;
     var foes = SJ.Ent.by('foe'), maxY = (def.h || SJ.H) + 260;
+    var pf = SJ.player ? SJ.player.y + SJ.player.h : null;
     for (var i = 0; i < foes.length; i++) {
       var e = foes[i];
       if (!e || e.dead) continue;
       if (e.x < 8) { e.x = 8; if (e.vx < 0) e.vx = 0; }
       if (e.x + e.w > def.w - 8) { e.x = def.w - 8 - e.w; if (e.vx > 0) e.vx = 0; }
+
+      var rec = waveOf(e);
+      // 这个人应该站在哪一层：Boss 看 bossY，波次敌人看本波楼层，其余看玩家脚下
+      var homeY = null;
+      if (R.boss === e && def.bossY !== undefined) homeY = def.bossY;
+      else if (rec) homeY = waveFloorY(rec.def);
+      if (homeY === null) homeY = pf;
+
       if (e.y > maxY) {
-        var gy = SJ.World.groundAt(e.cx(), 0);
-        if (gy === null && SJ.player) gy = SJ.World.groundAt(SJ.player.cx(), 0);
+        // ★ 从 homeY 往下找落脚面。原来写的是 groundAt(e.cx(), 0)：yFrom=0 等于
+        //   「从天上往下找第一块地」——多层关卡里那是**屋顶**。Boss 掉出世界后被捞到
+        //   屋顶上，玩家在 bossArena 里永远打不到他，一样是死局，且什么都不报。
+        var gy = SJ.World.groundAt(e.cx(), homeY === null ? 0 : homeY - 40);
+        if (gy === null) gy = SJ.World.groundAt(e.cx(), 0);
+        if (gy === null && SJ.player) gy = SJ.World.groundAt(SJ.player.cx(), homeY === null ? 0 : homeY - 40);
         if (gy !== null) { e.y = gy - e.h; e.vy = 0; e.onGround = true; }
         else if (SJ.player) { e.x = SJ.player.x; e.y = SJ.player.y; e.vy = 0; }
+      }
+
+      /* ── 战场泄漏（T1 实测补）─────────────────────────────────
+       * 活跃波次的敌人一旦走出 gate、或掉到别的楼层，玩家就永远够不到他，
+       * 门永远不开，前后都走不了 —— 和 Boss 掉出世界是同一类死局。
+       * 实测：第二回第 5 波的力士从三层左沿（x=1400，正好是 gate 的左边界）
+       * 走下二层，玩家被锁在三层，四百秒过去还在等一个够不到的人。
+       * 敌人不受 clampPlayer 约束，所以只能在这里兜。 */
+      if (rec && R.active === rec && R.gate) {
+        var lo = R.gate[0], hi = R.gate[1];
+        if (e.x < lo) { e.x = lo; if (e.vx < 0) e.vx = 0; }
+        if (e.x + e.w > hi) { e.x = hi - e.w; if (e.vx > 0) e.vx = 0; }
+        var fy = waveFloorY(rec.def);
+        // ★ 只捞**掉下去**的，不动站高处的。
+        //   第四、六回故意把弓手放在比战场高一层的挑台上（「弓手在挑台上：第一次退无可退」），
+        //   用双向判定会把他每帧拽下来 —— 那是改玩法，不是修 bug。
+        //   而软锁只来自「掉到玩家够不到的下层」这一个方向（第二回第 5 波的力士）。
+        if (fy !== null && (e.y + e.h) - fy > FLOOR_TOL && e.onGround) {
+          putBackOn(e, fy, lo, hi);
+        }
+      }
+      // Boss 同理：别被打出场地，也别掉到场地之外的楼层
+      if (R.boss === e && def.bossArena) {
+        if (e.x < def.bossArena[0]) { e.x = def.bossArena[0]; if (e.vx < 0) e.vx = 0; }
+        if (e.x + e.w > def.bossArena[1]) { e.x = def.bossArena[1] - e.w; if (e.vx > 0) e.vx = 0; }
+        if (def.bossY !== undefined && (e.y + e.h) - def.bossY > FLOOR_TOL && e.onGround) {
+          putBackOn(e, def.bossY, def.bossArena[0], def.bossArena[1]);
+        }
       }
     }
   }
@@ -172,6 +239,7 @@
     }
     return y;
   }
+  // ★ 这个 130 在 dev/level-check.js（规则 17/18/20）里有一份同值副本，改一处要改两处
   var FLOOR_TOL = 130;                                  // 一层楼的高度量级，宽松到不误伤斜坡
   function onSameFloor(p, w) {
     var fy = waveFloorY(w);
@@ -363,10 +431,19 @@
     if (p.x > hi) { p.x = hi; if (p.vx > 0) p.vx = 0; }
   }
 
+  /* ── 检查点（T1 实测补：也要判同层）─────────────────────────────
+   * 原来只比 x。第二回的检查点是按**推进顺序**写的，不是按 x 排的：
+   *   [[100,760],[2100,820],[1500,600],[1450,380]]  ← 三层客栈，先右后上再往回
+   * 于是玩家在**一层**走过 x=1450（第 1 波的 gate 右界是 1500，必然会走到），
+   * 就把检查点设成了**三层**的 [1450,380]，而且 cp 只增不减，再也回不去。
+   * 之后在一层任何地方死一次，都会复活到三层 —— 第二、三、四波连同它们的
+   * 剧情与教学整段被跳过，玩家还以为自己打过了。不报错，也没人会发现。
+   * 修法与波次的 onSameFloor 同源：脚底得真的在那一层上。 */
   function updateCheckpoints() {
     var p = SJ.player, cps = R.def.checkpoints;
     for (var i = cps.length - 1; i >= 0; i--) {
       if (p.x + p.w / 2 < cps[i][0]) continue;
+      if (Math.abs((p.y + p.h) - cps[i][1]) > FLOOR_TOL) continue;
       if ((flags().cp | 0) >= i) return;
       SJ.Level.checkpoint(cps[i][0], cps[i][1]);
       flags().cp = i;
@@ -455,9 +532,23 @@
   };
 
   // ── 背景（DESIGN §1：任何一屏纸色空白必须占 50% 以上）──────────
+  // ★ 决议 015：远景交给 T4 的 SJ.Scenery。它不存在或抛错时必须退回下面那套 switch ——
+  //   呈现层挂了游戏还得能玩，所以这里吞异常，只在控制台警告一次。
+  var sceneryDead = false;
   function drawBackground(g) {
     var def = R.def, cx = SJ.Camera.x, cy = SJ.Camera.y, t = SJ.Game.time;
     SJ.Ink.paper(g, cx, cy);
+
+    if (!sceneryDead && SJ.Scenery && typeof SJ.Scenery.draw === 'function') {
+      try {
+        SJ.Scenery.draw(def.bg, g, cx, cy, t, def);
+        drawWeather(g, def, cx, t);
+        return;
+      } catch (err) {
+        sceneryDead = true;                 // 只报一次，别每帧刷屏
+        console.warn('[G] SJ.Scenery.draw 抛错，本局改用旧远景：' + (err && err.message));
+      }
+    }
 
     switch (def.bg) {
       case 'bamboo':
@@ -486,6 +577,11 @@
         SJ.Ink.wash(g, 0, SJ.H * 0.6, SJ.W, SJ.H * 0.4, { color: C.ink, alpha: 0.05 });
         break;
     }
+    drawWeather(g, def, cx, t);
+  }
+
+  // 天气粒子不属于远景（决议 015 只接管 def.bg 那一层），两条路径共用这一份
+  function drawWeather(g, def, cx, t) {
     if (def.weather === 'rain') SJ.Ink.rain(g, cx, t, 0.7, -0.35);
     if (def.weather === 'snow') SJ.Ink.snow(g, cx, t, 0.6, -0.5);
     if (def.weather === 'wind') SJ.Ink.snow(g, cx, t, 0.10, -1.1);
@@ -717,11 +813,46 @@
 
     /* 决议 007 §2：H 的 gameover 确认后只调这一个函数。
      * 语义 = 回到本关最近检查点，不回退章节、不清存档。 */
-    /* 只读调试口（Lead 补）：给巡逻机器人分类失败用，不改任何行为 */
+    /* 只读调试口（Lead 补；T1 扩充）：给自动机器人做规划与失败分类用。
+     * 只读快照，不暴露 R 本身的引用（数组一律 slice/map 出新对象），
+     * 任何调用都不改运行时状态 —— 加/删字段都不许影响游戏行为。 */
     _debug: function () {
-      return { gate: R.gate ? R.gate.slice() : null,
-               activeWave: R.active ? R.active.def.id : null,
-               busy: !!R.busy, bossDown: !!R.bossDown };
+      return {
+        gate: R.gate ? R.gate.slice() : null,
+        activeWave: R.active ? R.active.def.id : null,
+        busy: !!R.busy, bossDown: !!R.bossDown, ended: !!R.ended,
+        spawn: [R.spawnX, R.spawnY],
+        fireT: R.fireT, fog: R.fog, t: R.t,
+        firstInk: !!R.firstInk, firstHurt: !!R.firstHurt, firstBurn: !!R.firstBurn,
+        boss: R.boss ? { id: R.def.boss, x: R.boss.x, y: R.boss.y,
+                         hp: R.boss.hp, maxHp: R.boss.maxHp,
+                         phase: R.boss.phase, act: R.boss.act, dead: !!R.boss.dead } : null,
+        waves: R.waves.map(function (r) {
+          return { id: r.def.id, x: r.def.x, w: r.def.w,
+                   gate: r.def.gate ? r.def.gate.slice() : null,
+                   floorY: waveFloorY(r.def),
+                   started: r.started, cleared: r.cleared,
+                   alive: r.foes.filter(function (e) { return !e.dead && e.hp > 0; }).length };
+        }),
+        triggers: R.triggers.map(function (t, i) {
+          var d = t.def;
+          return { i: i, fired: t.fired, ok: whenOk(t), when: d.when || null,
+                   interact: !!d.interact,
+                   x: d.x, y: d.y, w: d.w, h: d.h,
+                   play: (d.event && d.event.play) || null,
+                   flag: (d.event && d.event.flag) ? d.event.flag.slice() : null };
+        }),
+        blockers: (R.def.blockers || []).map(function (b) {
+          return { x: b.x, flag: b.flag, open: !!SJ.Story.get(b.flag) };
+        }),
+        rafts: R.rafts.map(function (r) {
+          return { x: r.solid.x, y: r.solid.y, w: r.solid.w, h: r.solid.h,
+                   ax: r.def.ax, bx: r.def.bx, period: r.def.period };
+        }),
+        pickups: R.pickups.map(function (k) {
+          return { x: k.x, y: k.y, refill: k.refill, taken: k.taken };
+        })
+      };
     },
 
     restartFromCheckpoint: function () {

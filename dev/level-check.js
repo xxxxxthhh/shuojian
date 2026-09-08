@@ -20,6 +20,10 @@
  *  13  blocker 的 flag 必须由位于它之前的 trigger 设上（否则死锁）
  *  14  全关通路可达性：起点走得到每个检查点 / 波次 / trigger / Boss 场地 / exitX
  *  12  gate 软锁守卫：被锁住的战场，玩家从最低层必须爬得回战斗层（单向平台 + gate 的经典陷阱）
+ *  18  战场楼层必须在 gate 区间内连续（否则掉层的一方够不到另一方，门永远锁着）
+ *  19  Boss 场地在 bossY 那一层必须连续（否则 Boss 掉出去就捞不回场地）
+ *  20  带 gate 的波，高处的 spawn 不得高于本波楼层 190px（满跳+二段跳够不到 = 门开不了）
+ *  21  同一层上的检查点必须按 x 递增（否则会跨层错拿检查点）
  */
 'use strict';
 var fs = require('fs'), path = require('path');
@@ -27,7 +31,9 @@ var ROOT = path.resolve(__dirname, '..');
 
 global.window = {};
 require(path.join(ROOT, 'src/data/script.js'));
-require(path.join(ROOT, 'src/data/levels.js'));
+// SJ_LEVELS：给 dev/level-check-mutate.js 用的替代关卡数据；不设就是真数据
+require(process.env.SJ_LEVELS ? path.resolve(process.env.SJ_LEVELS)
+                              : path.join(ROOT, 'src/data/levels.js'));
 var S = window.SJ.Script, L = window.SJ.Levels;
 
 var errs = [], warns = [];
@@ -328,10 +334,21 @@ L.forEach(function (lv) {
 
   /* 14. 全关通路可达性 */
   var surf = lv.solids.filter(function (q) { return q[4] !== 2; })
-    .map(function (q) { return { y: q[1], x0: q[0], x1: q[0] + q[2] }; });
+    .map(function (q) { return { y: q[1], x0: q[0], x1: q[0] + q[2], oneway: q[4] === 1 }; });
   lv.deco.forEach(function (d) {
-    if (d.kind === 'raft') surf.push({ y: d.y, x0: d.ax, x1: d.bx + d.w });   // 浮筏是路
+    if (d.kind === 'raft') surf.push({ y: d.y, x0: d.ax, x1: d.bx + d.w, oneway: true });   // 浮筏是路
   });
+  // 起跳点头顶的净空：脚底到最近一块实心天花板底面的距离
+  function headroom(x, footY) {
+    var ceil = -Infinity;
+    lv.solids.forEach(function (q) {
+      if (q[4] === 1 || q[4] === 2) return;             // 单向平台不算天花板
+      if (x < q[0] || x > q[0] + q[2]) return;
+      var bot = q[1] + q[3];
+      if (bot <= footY - 2 && bot > ceil) ceil = bot;
+    });
+    return ceil === -Infinity ? Infinity : footY - ceil;
+  }
   if (!surf.length) return;
 
   var seen = surf.map(function () { return false; });
@@ -343,8 +360,30 @@ L.forEach(function (lv) {
   if (!seen.some(Boolean)) return E(P + ' 起点检查点脚下没有地面，无法做通路检查');
 
   function link(a, b) {                       // b 能否从 a 到达
-    if (Math.abs(a.y - b.y) > 190) return false;              // 满跳 114 + 二段跳 ≈85
-    return Math.max(b.x0 - a.x1, a.x0 - b.x1, 0) <= 150;      // 满跳滞空 144
+    var dy = b.y - a.y;
+    if (Math.abs(dy) > 190) return false;                     // 满跳 114 + 二段跳 ≈85
+    if (Math.max(b.x0 - a.x1, a.x0 - b.x1, 0) > 150) return false;   // 满跳滞空 144
+    if (dy >= -6) return true;
+
+    /* ★ 往上跳还得过「天花板」这一关（T1 变异测试逼出来的）：
+     * 原来的 link 只看高差与水平间距，于是它认为「站在柱子顶上能跳到正头顶那层楼板」——
+     * 而那层楼板在柱子上方是**天花板**，玩家只会一头撞上去。
+     * 后果不是误报，是**漏报**：把第二回通往三层的最后一级台阶删掉，
+     * 规则 14 依然全绿（它以为可以从 1800 那根柱子直接上三楼）。 */
+    var dir = (b.x0 - a.x1) >= (a.x0 - b.x1) ? 1 : -1, toX;
+    if (b.oneway) {
+      // 单向平台可以从正下方穿上去，起跳点不受限
+      toX = dir > 0 ? Math.min(a.x1, Math.max(a.x0, b.x0)) : Math.max(a.x0, Math.min(a.x1, b.x1));
+    } else if (dir > 0) {
+      if (a.x1 <= b.x0) toX = a.x1;
+      else if (a.x0 < b.x0) toX = b.x0 - 2;
+      else return false;                                      // a 整段埋在 b 底下
+    } else {
+      if (a.x0 >= b.x1) toX = a.x0;
+      else if (a.x1 > b.x1) toX = b.x1 + 2;
+      else return false;
+    }
+    return headroom(toX, a.y) >= -dy + 54;                    // 脚越过 b，头顶还要留出身高
   }
   var moved = true;
   while (moved) {
@@ -602,6 +641,101 @@ L.forEach(function (lv, li) {
     if (!ok) E('[' + li + ' ' + lv.id + '] wave' + w.id + ' 的敌人在 y=' + floorY +
       '，但触发点 x=' + w.x + ' 处那一层没有站得住的地面 —— 这一波无法从它自己那层被触发');
   });
+});
+
+/* ══ 18. 战场楼层必须在 gate 里连续 ═══════════════════════════════
+ * 实测软锁（第二回第 5 波）：三层地板从 x=1400 起，gate 也从 1400 起。
+ * 玩家被 clampPlayer 夹在 x≥1400 走不出去，敌人不受 gate 约束 ——
+ * 力士从三层左沿走下二层，站在 gate 区间里但矮一层，玩家永远够不到，
+ * 门永远不开。运行时已在 rescueFoes 里把活跃波敌人按回本波楼层；
+ * 这条规则守的是那个兜底动作的前提：本波楼层在 gate 内得真有一整段地面可放。
+ * 顺带也堵住「玩家自己掉进战场里的洞」。 */
+L.forEach(function (lv, li) {
+  var P = '[' + li + ' ' + lv.id + '] [规则18] ';
+  (lv.waves || []).forEach(function (w) {
+    if (!w.gate) return;
+    var sp = (lv.spawns || []).filter(function (s) { return s.wave === w.id; });
+    if (!sp.length) return;
+    var fy = Math.max.apply(null, sp.map(function (s) { return s.y; }));
+    // 容差取运行时同一个 FLOOR_TOL=130：60px 的梯田台阶算同一层（跳得上去），
+    // 掉一整层（第二回三层间距 220）才算掉出战场
+    var segs = (lv.solids || []).filter(function (s) {
+      return s[4] !== 2 && Math.abs(s[1] - fy) <= 130;
+    }).map(function (s) { return [s[0], s[0] + s[2]]; })
+      .sort(function (a, b) { return a[0] - b[0]; });
+    var x = w.gate[0], i;
+    for (i = 0; i < segs.length; i++) {
+      if (segs[i][0] > x) break;                 // 出现断口
+      if (segs[i][1] > x) x = segs[i][1];
+    }
+    if (x < w.gate[1])
+      E(P + 'wave' + w.id + ' 的战场楼层 y=' + fy + ' 在 gate ' + JSON.stringify(w.gate) +
+        ' 内不连续（走到 x=' + x + ' 就没地面了）—— 掉下去的一方够不到另一方，门会永远锁着');
+  });
+});
+
+/* ══ 19. Boss 场地必须有整段地面 ═════════════════════════════════
+ * 实测隐患：rescueFoes 原来用 groundAt(e.cx(), 0) 捞掉出世界的敌人 ——
+ * yFrom=0 等于「从天上往下找第一块地」，多层关卡里那是**屋顶**。
+ * Boss 被捞到屋顶上，玩家在 bossArena 里永远打不到他，一样是死局。
+ * 运行时已改成从 bossY 往下找并夹回场地；这条规则守它的前提。 */
+L.forEach(function (lv, li) {
+  if (!lv.boss) return;
+  var P = '[' + li + ' ' + lv.id + '] [规则19] ';
+  var segs = (lv.solids || []).filter(function (s) {
+    return s[4] !== 2 && Math.abs(s[1] - lv.bossY) <= 130;
+  }).map(function (s) { return [s[0], s[0] + s[2]]; })
+    .sort(function (a, b) { return a[0] - b[0]; });
+  var x = lv.bossArena[0], i;
+  for (i = 0; i < segs.length; i++) {
+    if (segs[i][0] > x) break;
+    if (segs[i][1] > x) x = segs[i][1];
+  }
+  if (x < lv.bossArena[1])
+    E(P + 'Boss 场地 ' + JSON.stringify(lv.bossArena) + ' 在 bossY=' + lv.bossY +
+      ' 这一层不连续（走到 x=' + x + ' 就没地面了）—— Boss 掉下去就捞不回场地里');
+});
+
+/* ══ 20. 高处的敌人必须够得着 ═════════════════════════════════════
+ * 第四、六回故意把弓手放在比战场高一层的挑台上（「退无可退，答案是爬上去」）。
+ * 但如果放得比一次满跳＋二段跳还高，玩家在 gate 里就永远打不到他，
+ * 门永远不开 —— 和敌人掉到下层是同一个死局的镜像。
+ * 190 = 满跳 114 + 二段跳 ≈85，与规则 14 的 link() 用的是同一个数。
+ * 本波楼层 = 该波 spawn 里最低的那个 y（与 level.js waveFloorY 同定义；
+ * 那边的 FLOOR_TOL=130 是另一件事：判「掉出战场」）。 */
+L.forEach(function (lv, li) {
+  var P = '[' + li + ' ' + lv.id + '] [规则20] ';
+  (lv.waves || []).forEach(function (w) {
+    if (!w.gate) return;                       // 不锁门就跑得掉，不构成死局
+    var sp = (lv.spawns || []).filter(function (s) { return s.wave === w.id; });
+    if (!sp.length) return;
+    var fy = Math.max.apply(null, sp.map(function (s) { return s.y; }));
+    sp.forEach(function (s) {
+      if (fy - s.y > 190)
+        E(P + 'wave' + w.id + ' 的 ' + s.type + ' @' + s.x + ',' + s.y +
+          ' 比本波楼层 y=' + fy + ' 高 ' + (fy - s.y) +
+          'px（>190＝满跳+二段跳）—— 玩家被 gate 锁在下面，够不到他，门不会开');
+    });
+  });
+});
+
+/* ══ 21. 同一层上的检查点必须按 x 递增 ═══════════════════════════
+ * checkpoints 是按**推进顺序**写的，不保证按 x 排序（第二回三层客栈就不是）。
+ * 运行时已改成「x 到了 **且** 脚底在那一层」才算到达检查点；
+ * 但如果两个检查点在同一层而序号靠后的 x 更小，前一个就永远拿不到、
+ * 后一个会被提前拿到 —— 同层的顺序必须自洽。
+ * ★ 130 与 level.js 的 FLOOR_TOL 同值。 */
+L.forEach(function (lv, li) {
+  var P = '[' + li + ' ' + lv.id + '] [规则21] ';
+  var cps = lv.checkpoints;
+  for (var i = 0; i < cps.length; i++) {
+    for (var j = i + 1; j < cps.length; j++) {
+      if (Math.abs(cps[j][1] - cps[i][1]) > 130) continue;    // 不同层，互不干扰
+      if (cps[j][0] <= cps[i][0])
+        E(P + '检查点#' + j + ' @' + cps[j] + ' 与 #' + i + ' @' + cps[i] +
+          ' 在同一层，但 x 没有递增 —— 玩家走到 #' + i + ' 时会直接拿到 #' + j);
+    }
+  }
 });
 
 console.log('关卡数        : ' + L.length);
