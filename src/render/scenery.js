@@ -410,7 +410,9 @@
   //   一根挑杆 → 两条边（上端贴杆、下端被风推开）→ 一道兜起来的下摆 → 一两道横褶。
   // 四个角都**不合拢**（规矩 2）。闭合成一圈会变成一颗药丸，那是我上一版的错。
   function banner(g, x, yTop, len, t, dir, seed, alpha) {
-    var w = 24 + hs(seed) * 12, i, p, front = [], back = [], yy, sN;
+    // 布宽 34–46：窄的那几面（原来最窄 24）在远处会读成一颗豆荚，
+    // 所以把下限抬上来、方差压下去，每一面都得看得出是块布。
+    var w = 34 + hs(seed) * 12, i, p, front = [], back = [], yy, sN;
 
     function windX(p2) {
       return (p2 * p2 * 9 + Math.sin(t * 1.05 + seed * 2.1 + p2 * 1.3) * (0.5 + p2 * p2 * 5)) * dir;
@@ -439,7 +441,7 @@
       p = i / 3.4;
       yy = yTop + p * len + 3;
       sN = windX(p);
-      bar(g, [[x + sN + off(seed + 7 + i), yy], [x + sN + w * 0.72, yy + 3.2]],
+      bar(g, [[x + sN + off(seed + 7 + i), yy], [x + sN + w * 0.82, yy + 3.2]],
         2.4, alpha * 0.62, seed + 10 + i);
     }
   }
