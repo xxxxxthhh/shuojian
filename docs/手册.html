@@ -1,0 +1,458 @@
+<title>说剑手札</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;500;600&display=swap">
+<style>
+:root{--paper:#efe7d8;--paper2:#e2d7c1;--ink:#1b1a17;--ink2:#35322c;--ink3:#6f6a60;--feibai:rgba(27,26,23,.12);--cin:#b03a2b;--stone:#4a6f7c;--gamb:#c8a55b;
+ --disp:"Ma Shan Zheng","Kaiti SC","STKaiti","KaiTi",serif;--body:"Noto Serif SC","Songti SC","STSong","SimSun",serif;}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink2);font-family:var(--body);font-size:17px;line-height:1.95;-webkit-font-smoothing:antialiased}
+b{color:var(--ink);font-weight:600}
+code{font-family:var(--body);color:var(--ink3);font-size:.92em}
+a{color:inherit}
+.page{display:grid;grid-template-columns:1fr;max-width:1180px;margin:0 auto;padding:0 20px 120px}
+@media (min-width:1100px){.page{grid-template-columns:150px 720px;column-gap:80px;justify-content:center}}
+/* 目录竖排 */
+.rail{display:none}
+@media (min-width:1100px){.rail{display:block;position:sticky;top:0;align-self:start;height:100vh;padding-top:64px;box-sizing:border-box}
+ .rail .home{display:block;font-family:var(--disp);font-size:30px;color:var(--ink);text-decoration:none;writing-mode:vertical-rl;letter-spacing:.18em;margin:0 0 28px 0;line-height:1}
+ .rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+ .rail li a{text-decoration:none;color:var(--ink3);font-size:13px;letter-spacing:.12em;line-height:1.5;display:block;padding-left:10px;border-left:1.5px solid transparent}
+ .rail li a .n{font-family:var(--disp);color:var(--ink);font-size:15px;margin-right:6px}
+ .rail li a:hover,.rail li a:focus-visible{color:var(--cin);border-left-color:var(--cin);outline:none}}
+main{min-width:0}
+/* 扉页 */
+.cover{padding:96px 0 40px;position:relative}
+.cover h1{font-family:var(--disp);font-weight:400;font-size:88px;line-height:1;margin:0 0 18px;color:var(--ink);letter-spacing:.06em;text-wrap:balance}
+.cover .dek{color:var(--ink3);font-size:15px;letter-spacing:.06em;margin:0}
+.cover .stamp{position:absolute;right:8px;top:104px;width:64px;height:64px;border:2.5px solid var(--cin);color:var(--cin);font-family:var(--disp);font-size:26px;line-height:1;display:grid;place-items:center;transform:rotate(-6deg);border-radius:3px;opacity:.9;letter-spacing:.05em;writing-mode:vertical-rl}
+canvas.stroke{display:block;width:100%;height:28px}
+.rule{height:28px;margin:44px 0 20px}
+/* 卷首 */
+.vol{margin:56px 0 18px;display:flex;align-items:flex-end;gap:18px}
+.vol .volmark .seal{display:inline-grid;place-items:center;width:44px;height:44px;border:2px solid var(--cin);color:var(--cin);font-family:var(--disp);font-size:24px;border-radius:2px;transform:rotate(-4deg)}
+.vol h2{font-family:var(--disp);font-weight:400;font-size:40px;line-height:1.05;margin:0;color:var(--ink);letter-spacing:.05em;text-wrap:balance}
+.vol h2 .v{font-size:18px;color:var(--ink3);letter-spacing:.3em;display:block;margin-bottom:6px;font-family:var(--body)}
+h3{font-family:var(--disp);font-weight:400;font-size:27px;color:var(--ink);margin:38px 0 8px;letter-spacing:.04em;line-height:1.2}
+h3 .sub{font-family:var(--body);font-size:13px;color:var(--ink3);letter-spacing:.25em;margin-left:14px;vertical-align:middle}
+p{margin:0 0 16px;max-width:38em}
+ul,ol{margin:0 0 18px;padding-left:1.4em;max-width:38em}
+li{margin:4px 0}
+blockquote{margin:0 0 18px;padding:12px 18px;border-left:2px solid var(--gamb);color:var(--ink);background:var(--paper2)}
+/* 数字脚注：小字、淡墨、等宽数字 */
+.nums{font-size:12.5px;color:var(--ink3);letter-spacing:.04em;font-variant-numeric:tabular-nums;margin:-6px 0 22px;padding-top:6px;border-top:1px solid var(--feibai);max-width:38em}
+/* 校：眉批 */
+.jiao{position:relative;margin:6px 0 22px;padding:10px 14px 10px 44px;color:var(--stone);font-size:14.5px;line-height:1.8;border-top:1px solid rgba(74,111,124,.25);border-bottom:1px solid rgba(74,111,124,.25);max-width:38em}
+.jiao .jmark{position:absolute;left:0;top:10px;width:26px;height:26px;border:1.5px solid var(--cin);color:var(--cin);font-family:var(--disp);font-size:15px;display:grid;place-items:center;border-radius:2px;transform:rotate(-5deg)}
+@media (min-width:1100px){.jiao{position:relative}}
+/* 表格 */
+.tbl{overflow-x:auto;margin:6px 0 22px}
+table{border-collapse:collapse;width:100%;font-size:15px;line-height:1.7}
+th{font-weight:500;color:var(--ink3);text-align:left;letter-spacing:.12em;font-size:13px;padding:6px 10px;border-bottom:1.5px solid var(--ink2)}
+td{padding:8px 10px;vertical-align:top;border-bottom:1px solid var(--feibai)}
+table.duo{table-layout:fixed}
+table.duo th{color:var(--ink);font-family:var(--disp);font-size:20px;letter-spacing:.3em;border-bottom-color:var(--feibai)}
+table.duo th:first-child{color:var(--stone)} table.duo th:last-child{color:var(--cin)}
+table.duo td{background:var(--paper2);color:var(--ink);padding:14px 16px}
+table.duo td:first-child{border-right:6px solid var(--paper)}
+/* 牌 */
+.card{margin:30px 0 8px;padding:6px 0 2px}
+.card h3{margin-top:0}
+.tech{position:relative;padding-left:82px;min-height:70px}
+.tech .glyph{position:absolute;left:0;top:2px;width:58px;height:62px;display:grid;place-items:center;font-family:var(--disp);font-size:34px;color:var(--ink);border:2px solid var(--ink);border-radius:28% 30% 26% 30% / 34% 30% 34% 30%;background:var(--paper2);transform:rotate(-1.5deg)}
+.tech p{margin-bottom:10px}
+.tech .nums{margin-top:2px}
+.foot{margin-top:80px;color:var(--ink3);font-size:13px;letter-spacing:.06em}
+.foot .seal{display:inline-grid;place-items:center;width:52px;height:52px;border:2.5px solid var(--cin);color:var(--cin);font-family:var(--disp);font-size:22px;writing-mode:vertical-rl;border-radius:2px;transform:rotate(-6deg);margin-right:16px;vertical-align:middle}
+</style>
+<div class="page" id="top">
+<nav class="rail" aria-label="目录"><a class="home" href="#top">说剑手札</a><ol><li><a href="#s1"><span class="n">卷首</span></a></li><li><a href="#s2"><span class="n">一</span>世界与设定</a></li><li><a href="#s8"><span class="n">二</span>故事</a></li><li><a href="#s19"><span class="n">三</span>人物小传</a></li><li><a href="#s30"><span class="n">四</span>无名的八句话 · 题壁录</a></li><li><a href="#s33"><span class="n">五</span>游戏设定</a></li><li><a href="#s41"><span class="n">六</span>十二招</a></li><li><a href="#s55"><span class="n">七</span>敌人与 Boss 图鉴</a></li><li><a href="#s59"><span class="n">八</span>章节导览与操作</a></li><li><a href="#s63"><span class="n">附录</span></a></li></ol></nav>
+<main>
+<header class="cover">
+ <h1>说剑手札</h1>
+ <p class="dek">故事 · 人物 · 设定 · 十二招 · 图鉴 · 导览　　写给听完一遍的人</p>
+ <div class="stamp" aria-hidden="true">无名</div>
+</header>
+<div class="rule" aria-hidden="true"></div>
+<blockquote>此册写给已经把《说剑》听完一遍的人。<br>里面有全部结局、全部人物的来路、全部招式的出处。没听完的，先去把茶喝完。</blockquote>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s1"><div class="volmark"><span class="seal">首</span></div><h2><span class="v">卷首</span></h2></header>
+<p>话说江湖。江湖在哪里？不在刀上，不在剑上。在说的人嘴里。</p>
+<p>《说剑》讲一个不会武功的人。他背一柄剑，剑没有开刃。他走了六处地方，见了六个人。六个人都死了——也可能一个都没死。这就要看诸位听的是哪一版。</p>
+<p>讲这个故事的说书人，就是他自己。他已经把这个故事改了二十年，改到自己也分不清哪一段是做的、哪一段是说的。</p>
+<p>这本手札分八卷。前四卷讲故事和人，说书人的口吻，诸位听过就知道，他说的话不能全信，所以页边留了「校」字批注，写的是事。后四卷讲这个故事是怎么「玩」的：墨、观势、生杀、十二招，全是诸位一路自己摸出来的东西，此处第一次白纸黑字。</p>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s2"><div class="volmark"><span class="seal">一</span></div><h2><span class="v">卷一</span><span class="t">世界与设定</span></h2></header>
+<h3 id="s3">那本书</h3>
+<p>天下人的武功，出自同一本书。书名《说剑》。</p>
+<p>书里没有一个招式。没有图，没有穴道，没有口诀。只有一个故事：讲一个不会武功的人，走了六处地方，见了六个人。</p>
+<p>书末一行小字：凡讲此事者，须讲得好。讲得好，人便信。人信了，事就是真的。</p>
+<p>横云断不是刀法。是那一段里，雨中刀怎么倒下的。裂帛不是气功。是笛子断的那一声。天下人照着这本书里的故事去练，练着练着，就真会了。不是书里写了武功。是他们信了，武功才有的。</p>
+<aside class="jiao"><span class="jmark">校</span>藏经阁整座楼抄的都是这一本。「抽出三本，字都一样。再抽三本，还是一样。」书页写下来至少有二十年，而书里写的第四回，是无名刚刚走过的那一段。这个矛盾游戏没有解释，本册也不解释。</aside>
+<h3 id="s4">墨</h3>
+<p>这故事是拿墨写的。墨淡了，字就看不清，人也看不清。要添墨，只有一个法子——往前。</p>
+<p>无名身上唯一的东西是墨。走路不费墨，看人费墨，躲费墨，出招费墨。墨枯了，世界褪成纸色，人也一天天虚下去。添墨的法子只有一个：打中人。或者，看准了别人的招。</p>
+<aside class="jiao"><span class="jmark">校</span>墨是这个游戏唯一的资源，没有第二条槽。规则见卷五。</aside>
+<h3 id="s5">茶馆</h3>
+<p>故事从一间茶馆开始，也在一间茶馆结束。楔子里，无名是靠窗听书的客人；终回里，他坐在台上，案上一块醒木，一把没开刃的剑。</p>
+<p>茶馆的门槛，二十年磨低了一指。</p>
+<h3 id="s6">六处地方</h3>
+<div class="tbl"><table><thead><tr><th>回</th><th>地方</th><th>等他的人</th><th>留下的东西</th></tr></thead><tbody><tr><td>一</td><td>竹林</td><td>雨中刀</td><td>横云断</td></tr><tr><td>二</td><td>断桥客栈</td><td>铁笛先生</td><td>裂帛</td></tr><tr><td>三</td><td>长河渡</td><td>渡口老翁</td><td>撑天</td></tr><tr><td>四</td><td>雪照山门</td><td>白衣</td><td>孤影（风给了踏云）</td></tr><tr><td>五</td><td>藏经阁</td><td>守阁人</td><td>无锋（火给了焚书）</td></tr><tr><td>六</td><td>城楼</td><td>师兄</td><td>说剑</td></tr></tbody></table></div>
+<p>路上还有些没有名字的人：刀客、弓手、枪兵、力士、僧人、刺客、提灯人。前四种各留下一招。后三种什么也没留下——僧人只挡，刺客只等，提灯人只照路。</p>
+<h3 id="s7">二十年</h3>
+<p>书里的事发生在「那一年」。说书人讲这个故事，讲了二十年。头几年讲得实在，实在的没人听。后来他就改。改到人肯听，他自己也就信了。</p>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s8"><div class="volmark"><span class="seal">二</span></div><h2><span class="v">卷二</span><span class="t">故事</span></h2></header>
+<p>以下按回讲。每回末尾有两栏：说书人在杀与留手两种情形下各说了什么。前三回他说的和事对得上；第四回起对不上了。</p>
+<h3 id="s9">楔子 · 醒木</h3>
+<p>雨从檐上挂下来，像一道帘子。门里有灯，有人在说话。</p>
+<p>茶博士让客官挑个位子：靠窗的听得清，靠门的走得快。一个老客说，这段他听过三回，一回一个样，你猜哪回是真的。他当场问台上的先生：</p>
+<p>「上回你说他杀了六个。上上回你说他一个没杀。先生，你自己记得么？」</p>
+<p>先生答：「我记得的是好听的那一版。不好听的，我就忘了。」</p>
+<p>一个孩子问先生，他后来死了没有。先生说：「你要他死，他就死。你要他活，他也能活。——你先坐下。」</p>
+<p>堂上有座。茶是热的。醒木一响，就算进去了。</p>
+<aside class="jiao"><span class="jmark">校</span>这一段把全剧的底牌摊在了桌上。老客那句话是第一次「戳穿」，孩子那句话是终回三个结局的预告。楔子无人可打，只需从门走到座位。</aside>
+<h3 id="s10">第一回 · 竹林听雨</h3>
+<p>且说那一年，雨下得长。无名进林时天已黑透。他不识路。路上有人等他。</p>
+<p>竹上刻着：未出鞘　先见招。另一根竹上：挨打亦是学。</p>
+<p>那刀客出刀之前，要先停一停。停的那一下，招已经画在空里了。无名不躲。他看。</p>
+<p>林子尽头等着的是雨中刀。他说：「雨天不宜动手。可我等了三年。」无名没有答话。「我这一刀，练了三年。只出一次。看仔细了。」</p>
+<p>刀落在三步外。那人躺着，还有气。他看着无名，没说话。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>无名收了剑，转身走了。雨还在下。那人躺在雨里，慢慢坐了起来。</td><td>无名的剑落下去。雨里红了一小块，很快又冲淡了。</td></tr></tbody></table></div>
+<p>看官记着：招是看会的，不是打会的。</p>
+<aside class="jiao"><span class="jmark">校</span>第一回地上没有坑：这一回只会死于人手，不会死于地形。第一个刀客只会一招，反反复复出，是让人看清楚起手式长什么样。</aside>
+<h3 id="s11">第二回 · 断桥客栈</h3>
+<p>桥断了三年，客栈还开着。上下三层，灯笼从楼底一直挂到楼顶。楼里有个吹笛的。看官记住——他不用手。</p>
+<p>灯是纸糊的，一碰就破。破了会漏出一点东西来。不是火。柱上刻着：碎一盏　得一滴。楼梯口写着：上易　下难。</p>
+<p>楼顶的人自称铁笛先生。「这曲子有个名目，叫《送》。送过很多人了。你叫什么？」无名不答。「也好。省我一句词。」</p>
+<p>笛声到了高音，高音走得远，你退到哪里都一样。</p>
+<p>笛子断成两截。先生坐在灯下，手还按着调。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>无名把断笛放回他手里。走的时候，楼上还有一盏灯没灭。</td><td>一剑下去，灯灭了半层。血顺着楼板缝，滴到下一层去。</td></tr></tbody></table></div>
+<p>那一夜之后，无名会了一样东西：隔着三丈，也能碰到人。</p>
+<h3 id="s12">第三回 · 长河渡</h3>
+<p>过河要有人撑船。那老翁在渡口撑了四十年。四十年里，他只问一句话。</p>
+<p>河宽，浪急。筏子是活的，脚下的东西都是活的。渡口木牌写着：水急　勿立。桩上两个字：洗　笔。对岸的箭是一阵一阵的，一阵与一阵之间，有个空。空里能走。</p>
+<p>老翁问：「上来吧。过河做什么？」</p>
+<p>无名说：「过河。」</p>
+<p>「四十年，我渡过八百多人。回来的，一个没有。篙比剑长。你想清楚。」</p>
+<p>打到一半，老翁说：「年轻人，你只看我的手。我的手在这头，篙在那头。你要看的是那头。」</p>
+<p>篙断了，浮在水上。老翁半跪着，手还是撑船的样子。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>无名把断篙推回他手边。筏子自己漂到了对岸。</td><td>老翁落进河里，没有声音。水面合上，像什么也没发生。</td></tr></tbody></table></div>
+<p>三回过去了。诸位听得可还对得上？</p>
+<aside class="jiao"><span class="jmark">校</span>到这里为止，全对得上。这是他最后一次问。</aside>
+<h3 id="s13">第四回 · 雪照山门</h3>
+<p>再往北就是雪。雪照山门那一段，说书人讲得不多。他说，记不太清了。只记得风是横着走的。人站不住，字也站不住。</p>
+<p>雪里走，墨掉得快。走得越慢，掉得越多。半埋在雪里的碑：慢者　冻。雪大了，看不见三步以外。看不见的东西还在那里。</p>
+<p>走这一段路的时候，无名想起竹林。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>若你在竹林留了手</th><th>若你在竹林杀了人</th></tr></thead><tbody><tr><td>说书人说：想起那个刀客最后看他的样子。——刀客是他杀的。他记得很清楚。</td><td>说书人说：那个刀客后来活下来了。听说还在林子里等人。无名想，也好。</td></tr></tbody></table></div>
+<aside class="jiao"><span class="jmark">校</span>这是第一次说反。他说的与你做的，恰好相反。他自己先打了招呼——「记不太清了」。风大，这一段就说到这里。雪把话也盖住了。</aside>
+<p>雪里有提灯的人。「借个光？雪里看不见人，也看不见路。」石阶上凿着：风起处　可借一步。风把他托了一下。原来空里也能落脚。</p>
+<p>山门在雪里，只剩一个轮廓。门是开的。从来没关过。门前站着白衣。「你走得太慢了。我已经在这里站了半个时辰。」</p>
+<p>无名说：「让开。」</p>
+<p>「我不挡路。我只是比你快。快到你看见的时候，我已经走了。」打到一半：「你砍的那个不是我。我在你后面。」</p>
+<p>雪地上有两个影子。一个躺着，一个慢慢淡了。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>说书人说：白衣倒在雪里。无名一剑挥下。雪立时红了，红得很快，像纸吸了墨。</td><td>说书人说：白衣倒在雪里，还有气。无名站了很久，把剑收了。他终究没有下手。</td></tr></tbody></table></div>
+<aside class="jiao"><span class="jmark">校</span>第二次说反，这次说反的是本回。雪把痕迹盖了。</aside>
+<h3 id="s14">第五回 · 藏经阁</h3>
+<p>山门后头是一座木楼。楼里没有兵器。只有书。看官要问，书有什么可怕的。说书人说，他也这么问过。</p>
+<p>架上有几百本。抽出三本，字都一样。再抽三本，还是一样。一座楼，抄的是同一本书。楼里有僧人：「施主，架子是空的。空的东西，砍不开。」</p>
+<p>烛火倒了。纸烧起来，脚下的路一寸一寸没了。火从东边烧过来。烧到的地方，故事就没有了。没有故事的地方，站不住人。火燎到袖子。他没有拍。火就成了他的了。</p>
+<p>梁上一行墨字：守亦是招。门内一块小匾：不写　则无。</p>
+<p>再往里，有一架是空的。只最下层剩了一本。封皮上两个字：说剑。</p>
+<p>无名说：「这是谁写的。」</p>
+<p>他从头翻到尾。里面没有一个招式。只有一个故事。讲一个不会武功的人，走了六处地方，见了六个人。无名把书合上。封皮上那两个字，像是刚写上去的。</p>
+<p>顶层的书架倒了，横在路上。他要过去，就得搬。搬开的那一本，翻在第四回。上面写着雪，写着白衣。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>若你留了白衣</th><th>若你杀了白衣</th></tr></thead><tbody><tr><td>书上写着他一剑挥下，雪立时红了。——他记得自己没有。</td><td>书上写着他站了很久，把剑收了。——他记得自己下了手。</td></tr></tbody></table></div>
+<p>纸是旧的。这一段写下来，至少有二十年了。</p>
+<aside class="jiao"><span class="jmark">校</span>书页上的错，方向与说书人第四回收尾时说的一模一样。这是全剧第一次拿到物证：说书人与那本书，是同一个来路。</aside>
+<p>守阁人在顶层等着。「我不还手。还手的，都写进去了。」</p>
+<p>无名说：「我要过去。」</p>
+<p>「那你得让我这一守，成不了招。」打到一半：「你砍不动我。不是我硬。是你那一剑，书上没写。」</p>
+<p>守阁人坐下了，背靠着空架子。他身上没有伤。只是不再挡了。</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>说书人说：守阁人死在他自己守的架子底下。血落在纸上，把字泡开了。</td><td>说书人说：无名没有杀他。那人到现在还坐在楼里，守着一座空架子。</td></tr></tbody></table></div>
+<aside class="jiao"><span class="jmark">校</span>第三次说反。收尾时说书人开始辩解了：「诸位当中，有人皱眉头了。我知道诸位在想什么。——故事总要有个准头。可准头是听的人给的，不是事给的。」</aside>
+<h3 id="s15">第六回 · 城楼夜</h3>
+<p>最后一处是城楼。那天夜里月亮很大。说书人说：诸位若在别处听过别的说法，请听我的。城楼上站着一个人。他和无名是一个师父教的。比无名早十年下山。</p>
+<p>城墙上风大，旗都朝一个方向。底下没有兵，也没有百姓。这座城空了很久了。城上这些人，他一个个都见过。有的在竹林，有的在楼上，有的在河边。他们不认得他。</p>
+<p>「第一拨是刀客。他和竹林里那个是一路的。——不，就是那个。」</p>
+<p>旗杆下压着一张纸：缺一页。城砖上有人写过：囊中只容四物。一路上遇见的人，这里都有。带不动的，就得放下。</p>
+<p>城墙尽头站着一个人，和一张空着的纸。</p>
+<p>「我等了很久。不是等你来，是等你走到这里。前面六回，你走得还算像样。那本书我也看过。比你早十年。我看到最后一页，缺了一张。缺的那张，是结局。」</p>
+<p>无名说：「你说完了？」</p>
+<p>「这个故事要有个结局。你死了，它才算数。」</p>
+<p>无名说：「那就讲吧。」</p>
+<p>打到一半，师兄说：「你这一路，走得比书上慢。书上你现在应该已经死了。」到最后：「你用过的，我都会。不难。你使一次，我就见过一次。现在你看着。这一招是你的。我使起来，也一样顺手。」</p>
+<p>师兄坐在垛口上，背后是整座空城。他笑了一下，像是松了口气。「写完了？那你替我看看——最后一页，写的是谁。」</p>
+<div class="tbl"><table class="duo"><thead><tr><th>留手</th><th>杀</th></tr></thead><tbody><tr><td>说书人说：无名一剑穿过去。师兄往后倒，从城楼上掉下去了。底下很黑，没听见声音。</td><td>说书人说：无名把剑插回鞘里。师兄还坐在垛口上。两个人一直坐到天亮。</td></tr></tbody></table></div>
+<aside class="jiao"><span class="jmark">校</span>第四次说反。这一次说书人不辩解了，转过来问台下：「诸位听得比我清楚么？诸位在场么？……茶凉了，我再说最后一回。」</aside>
+<h3 id="s16">终回 · 说剑</h3>
+<p>第七回，没有地方可去了。他回到这间茶馆。坐下，要了一壶茶。然后有人把醒木递给他。他接了。</p>
+<p>二十年后的雨，和那年一样。茶博士问：「先生，今日说哪一段？客人爱听杀人的。」堂里靠窗那个位子空着。二十年前他坐过。</p>
+<p>台上那个人，穿一件旧衫子。案上一块醒木，一把没开刃的剑。</p>
+<p>「这故事我讲了二十年。每年都不太一样。年头改一点，年尾改一点。头几年我讲得实在。实在的没人听。后来我就改。改到人肯听，我自己也就信了。看官，这不难。我信了二十年。改到后来，哪一段是我做的，哪一段是我说的，我自己也分不清了。」</p>
+<p>无名说：「我不记得了。」</p>
+<p>台上台下，是同一个人。说的和听的，也是。</p>
+<h3 id="s17">四个结局</h3>
+<p>说到这里，天也晚了。诸位要问：后来呢？</p>
+<p><b>集大成</b>（十二招一样不缺）</p>
+<p>后来他身上什么都有了。横云断是雨中刀的。裂帛是铁笛先生的。撑天是老翁的。孤影是白衣的。无锋是守阁人的。说剑是师兄的。破雨是路上那些刀客的。穿杨是弓手的。镇山是枪兵的。连环腿是力士的。踏云是雪山的风给的。焚书是那把火给的。十二样，一样不缺。</p>
+<p>无名说：「都不是我的。」</p>
+<p>他把书拿出来，就着灯点了。字一个一个散开，散成墨，落回纸上。纸是白的。</p>
+<p>最后一屏，一张空白的宣纸，一枚朱砂印：无名。三个字：不说了。</p>
+<p><b>杀尽</b>（六个人一个不留）</p>
+<p>「这一版讲得最好。六个人，一个不留。干净，利落。听的人才记得住。看官请看这满堂——座无虚席。」</p>
+<p>后排靠窗那位，从头听到尾，一句话也没说。他腰里那把剑，也没有开刃。</p>
+<p>「今日就到这里。明日请早。」</p>
+<p><b>留手</b>（留了四个或更多）</p>
+<p>「这一版没人爱听。六个人，一个也没杀。没有仇，没有血。讲到一半，走了三桌。」</p>
+<p>讲完的时候，堂里只剩茶博士，在擦桌子。他把醒木放下。茶还温着，他没喝。他走出去了。门外在下雨。雨里有一间茶馆，灯还亮着。他进去，找了个位子坐下。台上有人一拍醒木：「话说江湖……」他要了一壶茶，坐着听。这一版他没听过。听完就走。</p>
+<p><b>中间态</b>（留了一到三个）</p>
+<p>「这一版……杀了几个，留了几个。我讲的时候常记岔。有时说他杀了，有时说他没杀。改一回，就少记得一点。如今我手里这一版，是改了二十年的那一版。看官若问哪个是真的——我也想问。散了吧。」</p>
+<aside class="jiao"><span class="jmark">校</span>四支互斥。学满十二招优先于一切；否则看六位之中留了几个。留手结局回环到楔子——楔子里靠窗那个听客，就是他自己下一版的开头。杀尽结局里后排那个没开刃的剑客，是下一个来杀他的人，也是下一个「他」。</aside>
+<h3 id="s18">证据链</h3>
+<p>说书人就是无名，剧本从楔子起就在给证据：</p>
+<ol><li>老客：「上回你说他杀了六个。上上回你说他一个没杀。」——版本会变。</li><li>孩子：「他后来死了没有？」先生：「你要他死，他就死。」——结局由听的人定。</li><li>第四回起，每回收尾说反本回；第四回中途说反第一回。</li><li>第五回书页：书上的错，和他说的错方向相同。书至少二十年前写的。</li><li>第六回师兄：「你这一路，走得比书上慢。」师兄读过这本书，比无名早十年。</li><li>终回：「哪一段是我做的，哪一段是我说的，我自己也分不清了。」台上台下，是同一个人。</li></ol>
+<aside class="jiao"><span class="jmark">校</span>留手与杀，在游戏里不改变任何一个敌人、任何一段路。<b>它只改变说书人怎么说。</b>这是这个游戏最要紧的一条设计。</aside>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s19"><div class="volmark"><span class="seal">三</span></div><h2><span class="v">卷三</span><span class="t">人物小传</span></h2></header>
+<p>以下是说书人给的版本。他说过，一回一个样。</p>
+<section class="card" id="s20"><h3>无名</h3>
+<p>不会武功。背一柄剑，剑没有开刃。</p>
+<p>他走了六处地方，见了六个人。一路上学会的每一招，都是别人的。横云断是雨中刀的，裂帛是铁笛先生的。他自己带来的只有一样东西：肯看。别人出招之前要停一停，那一停，他不躲。他看。</p>
+<p>全剧他只说了八句话。第一句是「过河。」最后一句是「都不是我的。」</p>
+<p>他唯一一招不伤人的，是无锋。教他的人不还手；他的剑没有开刃。这两件事说书人从来没有放在一起讲过，但它们本来就是一件事。</p>
+<p>二十年后，他坐在茶馆的台上。案上一块醒木。</p>
+<aside class="jiao"><span class="jmark">校</span>无名的血是三颗心，从头到尾不会变多。他能变的只有身上的墨和会的招。</aside>
+</section>
+<section class="card" id="s21"><h3>说书人</h3>
+<p>茶馆里讲书的先生。套话齐全：话说、看官、诸位。</p>
+<p>头三回他讲得实在。第四回起，他开始记岔。先是自己打招呼说「记不太清了」，然后说反了第一回；每回收尾再把本回说反。第五回有人皱眉头，他辩解：准头是听的人给的，不是事给的。第六回他不辩了，转过来问：诸位在场么？</p>
+<p>终回他承认：这故事讲了二十年，年头改一点，年尾改一点，改到自己也信了。</p>
+<p>他就是无名。</p>
+<aside class="jiao"><span class="jmark">校</span>他说反的四处，每一处的方向都和你的选择相反。这不是随机的，是剧本按你的存档反着写的。</aside>
+</section>
+<section class="card" id="s22"><h3>雨中刀<span class="sub">第一回</span></h3>
+<p>一个在竹林里等了三年的刀客。雨天不宜动手，可他等了三年。</p>
+<p>他的刀练了三年，只出一次。出之前要停一停——那一停，招已经画在空里了。他要的不是一个对手，是一个肯看仔细的人。无名看了。</p>
+<p>他倒下的样子，后来被写进书里，成了一招，叫横云断。</p>
+<p>留手：他躺在雨里，慢慢坐了起来。杀：雨里红了一小块，很快又冲淡了。第四回说书人再提起他时，把这两版说反了。</p>
+<aside class="jiao"><span class="jmark">校</span>三百血，两个阶段。横云断这一记又高又快，滚不过去、跳不过去，只能看。他是全剧第一个让人明白「观势」是什么的人。</aside>
+</section>
+<section class="card" id="s23"><h3>铁笛先生<span class="sub">第二回</span></h3>
+<p>住在断桥客栈楼顶，吹一支铁笛。他不用手。</p>
+<p>曲子叫《送》，送过很多人。他问每个来的人叫什么名字；无名不答，他说也好，省一句词。曲子到了高音，高音走得远，退到哪里都一样。</p>
+<p>笛子断的那一声，后来成了一招，叫裂帛。</p>
+<p>留手：无名把断笛放回他手里，楼上还有一盏灯没灭。杀：灯灭了半层，血顺着楼板缝滴到下一层。</p>
+<aside class="jiao"><span class="jmark">校</span>三百六十血。全剧唯一以远程压制为主的对手，第二阶段三道音波高中低齐发，跳不过、蹲不下、冲不穿，只能看准了迎上去。</aside>
+</section>
+<section class="card" id="s24"><h3>渡口老翁<span class="sub">第三回</span></h3>
+<p>在长河渡口撑了四十年篙。四十年里只问一句话：过河做什么。</p>
+<p>他渡过八百多人，回来的一个没有。篙比剑长。打到一半他提醒无名：你只看我的手，我的手在这头，篙在那头，你要看的是那头。这句话是全剧最实在的一句教学，教的是读招要读兵器的尖端。</p>
+<p>他把人往上一挑的那一下，成了一招，叫撑天。</p>
+<p>留手：无名把断篙推回他手边，筏子自己漂到了对岸。杀：他落进河里，没有声音，水面合上。</p>
+<aside class="jiao"><span class="jmark">校</span>四百血，全剧最厚。旋风扫的起手是全剧最长的一记，看得清也躲得开；横扫贴地，跳过去就没事。</aside>
+</section>
+<section class="card" id="s25"><h3>白衣<span class="sub">第四回</span></h3>
+<p>雪照山门前站着的人。他比无名早到了半个时辰，说无名走得太慢。</p>
+<p>他不挡路，他只是快。快到你看见的时候，他已经走了。打到一半你会发现砍的不是他——他在你后面。第三阶段雪地上会同时站着四个他，四道招同时来，只有一道是真的。</p>
+<p>他留下的一招叫孤影：残影留在原地，人到了你背后。</p>
+<p>留手：他倒在雪里，还有气，无名站了很久把剑收了。杀：一剑挥下，雪立时红了，像纸吸了墨。这一回是说书人第一次把本回说反，也是第五回书页上写错的那一回。</p>
+<aside class="jiao"><span class="jmark">校</span>三百八十血，三个阶段。分身一击即散；四道招里真的那道是朱砂色，假的是石青。认得颜色的人几乎不用想。</aside>
+</section>
+<section class="card" id="s26"><h3>守阁人<span class="sub">第五回</span></h3>
+<p>藏经阁顶层的人。他不还手。还手的，都写进去了。</p>
+<p>他只守。你砍不动他，不是他硬，是你那一剑书上没写。要过去，得让他这一守成不了招——用一招不伤人的招，把他的守势撬开。</p>
+<p>他教的一招叫无锋。全剧唯一一招零伤害，从全剧唯一一个不还手的人身上学来。</p>
+<p>他倒下的时候身上没有伤，只是不再挡了。留手：说书人说他死在自己守的架子底下。杀：说书人说无名没有杀他，他到现在还坐在楼里。——两版都反着说。</p>
+<aside class="jiao"><span class="jmark">校</span>三百二十血，零伤害。他的守势本身就是一道可以「观」的招。僵持太久，他的守势会拉长、染成藤黄，那是在提醒你换个思路，不是在变强。他是一周目里唯一不换招就打不过的人。</aside>
+</section>
+<section class="card" id="s27"><h3>师兄<span class="sub">第六回</span></h3>
+<p>和无名一个师父教的，早十年下山。那本书他也看过，看到最后一页，缺了一张。缺的那张是结局。</p>
+<p>他在城楼上等了很久，等无名走到这里。他要一个结局：你死了，故事才算数。打到第三阶段，他开始用无名的招。你使一次，他就见过一次。这一招是你的，他使起来也一样顺手。</p>
+<p>他留下的一招就叫说剑：复制对方上一招。</p>
+<p>他倒下时坐在垛口上，背后是整座空城，笑了一下，像松了口气。「写完了？那你替我看看——最后一页，写的是谁。」</p>
+<p>留手：说书人说无名一剑穿过去，他从城楼上掉下去了。杀：说书人说两个人一直坐到天亮。</p>
+<aside class="jiao"><span class="jmark">校</span>五百二十血，三个阶段，全剧最陡的一堵墙。第三阶段每隔几秒读一次你最近用过的招。他不是坏人。他只是比无名早读了十年那本书，等一个人来把它写完。</aside>
+</section>
+<section class="card" id="s28"><h3>路上的人</h3>
+<p><b>刀客</b>。第一回起处处都有。第一个刀客只会一招，反反复复出，好让人看清楚起手式是什么样子。他留下的招叫破雨，全剧起手最快的一记。第六回城楼上的第一拨刀客，说书人说漏了嘴：「他和竹林里那个是一路的。——不，就是那个。」</p>
+<p><b>弓手</b>。第二回起在高处。箭是一阵一阵的，一阵与一阵之间有个空，空里能走。留下穿杨：把射来的东西弹回去。</p>
+<p><b>枪兵</b>。第三回起。直刺可挡；镇山两侧同打，站着挡不划算，得跳。留下镇山。</p>
+<p><b>力士</b>。第一回第三波首次登场，直线冲撞，教人用身法穿过去。留下连环腿。</p>
+<p><b>僧人</b>。第五回起。只挡不打，正面砍不开，背后照打。「空的东西，砍不开。」什么也没留下。</p>
+<p><b>刺客</b>。第四回起。先闪到你背后，落地后再起手。什么也没留下。</p>
+<p><b>提灯人</b>。只在雪山。雪里唯一的光源，不主动追人，只问一句「借个光？」。什么也没留下。</p>
+<aside class="jiao"><span class="jmark">校</span>城楼一战里这七种人都会再来一遍。囊中只容四物，带不动的就得放下。</aside>
+</section>
+<section class="card" id="s29"><h3>茶馆众人</h3>
+<p><b>茶博士</b>。楔子里让你挑位子：靠窗的听得清，靠门的走得快。终回里问先生今日说哪一段，客人爱听杀人的。留手结局里堂里只剩他，在擦桌子。</p>
+<p><b>老客</b>。这段听过三回，一回一个样。楔子里当场戳穿先生：上回说杀了六个，上上回说一个没杀。</p>
+<p><b>孩子</b>。问先生：他后来死了没有。</p>
+</section>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s30"><div class="volmark"><span class="seal">四</span></div><h2><span class="v">卷四</span><span class="t">无名的八句话 · 题壁录</span></h2></header>
+<h3 id="s31">八句话</h3>
+<p>全剧无名只开口八次。另有两处，他什么也没说。</p>
+<ol><li>「过河。」——渡口老翁问他过河做什么。</li><li>「让开。」——白衣说他走得太慢。</li><li>「这是谁写的。」——藏经阁里翻开那本书。</li><li>「我要过去。」——守阁人说他不还手。</li><li>「你说完了？」——师兄说缺的那张是结局。</li><li>「那就讲吧。」——师兄说你死了它才算数。</li><li>「我不记得了。」——说书人说他分不清哪段是做的哪段是说的。</li><li>「都不是我的。」——十二样一样不缺。</li></ol>
+<p>两处「……」：雨中刀问他看仔细了没有；铁笛先生问他叫什么。</p>
+<h3 id="s32">题壁录</h3>
+<p>一路上刻在竹上、柱上、桩上、碑上、梁上、砖上的字。每一句都在教一件事，没有一句用「按」「键」这样的字。</p>
+<div class="tbl"><table><thead><tr><th>回</th><th>刻在</th><th>字</th><th>教的是</th></tr></thead><tbody><tr><td>一</td><td>竹上</td><td>未出鞘　先见招</td><td>看起手式</td></tr><tr><td>一</td><td>另一根竹上</td><td>挨打亦是学</td><td>挨打也涨进度</td></tr><tr><td>二</td><td>柱上</td><td>碎一盏　得一滴</td><td>打碎灯笼回墨</td></tr><tr><td>二</td><td>楼梯口</td><td>上易　下难</td><td>隘口，让人排着来</td></tr><tr><td>三</td><td>渡口木牌</td><td>水急　勿立</td><td>筏子会动</td></tr><tr><td>三</td><td>桩上</td><td>洗　笔</td><td>石砚回满墨</td></tr><tr><td>四</td><td>半埋的碑</td><td>慢者　冻</td><td>雪里走慢了掉墨快</td></tr><tr><td>四</td><td>石阶上</td><td>风起处　可借一步</td><td>风口托人，空中落脚</td></tr><tr><td>五</td><td>梁上</td><td>守亦是招</td><td>守势也能观</td></tr><tr><td>五</td><td>门内小匾</td><td>不写　则无</td><td>书上没写的招砍不动</td></tr><tr><td>六</td><td>城砖上</td><td>囊中只容四物</td><td>四个招式格</td></tr><tr><td>六</td><td>旗杆下的纸</td><td>缺一页</td><td>结局还没写</td></tr></tbody></table></div>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s33"><div class="volmark"><span class="seal">五</span></div><h2><span class="v">卷五</span><span class="t">游戏设定</span></h2></header>
+<p>这个游戏没有教程，没有说明，没有一个字提到按键。一切规则都是靠关卡和台词让你自己摸出来的。这一卷把它们写明。</p>
+<h3 id="s34">墨</h3>
+<p>墨是唯一的资源。没有第二条槽。</p>
+<ul><li><b>花墨的事</b>：观势（按住看）持续耗墨；身法一次一笔；十二招各有定价。</li><li><b>添墨的事</b>：打中人。普攻每一下回一点，第三段多一点；招式命中按招不同；<b>看准了别人的招（完美观势）回得最多</b>。打碎灯笼、酒坛、竹节这类东西也漏一点出来。第三回渡口的石砚一蘸回满，死后重来还在。</li><li><b>墨不会自己回来。</b>站着不动一滴也不长。这就是「要添墨，只有一个法子——往前」。</li><li><b>墨枯了</b>：世界褪成纸色，出手的力气打六折，身上每过一会儿掉一点血——但只掉到剩一点为止，墨枯不会死人。</li><li><b>保底</b>：墨少到一定程度，身法和观势不再扣墨，照样能用。招式没有保底，墨不够放不出来。</li></ul>
+<p class="nums">上限 100 · 观势 12/秒 · 身法 12 · 完美观势 +18 · 普攻 +6/+6/+8 · 可碎物 +12–15 · 保底线 20 · 枯墨时伤害 ×0.6、每秒 −1 血至 1 为止</p>
+<h3 id="s35">观势 → 悟</h3>
+<p>敌人出招之前要停一停，那一停在空中画出一道朱砂线。按住看，时间慢下来，线变清楚，一颗光珠沿线走到落点。</p>
+<ul><li>招在你身上落下的那一刻你还在看着，就是<b>完美观势</b>：不掉血，回墨，敌人僵住一阵，那一招的「残墨」涨一大截。</li><li>没看住、被打中了，也涨一小截。挨打亦是学。</li><li>残墨涨满，「悟」：全屏定格，招名写出来，来处写出来，落进一个格子。</li><li>观势期间时间是慢的，所以敌人再快的招，你实际的反应余地都比看上去长。</li></ul>
+<p class="nums">慢镜 0.35× · 完美观势 +34% 残墨、敌硬直 0.9 秒 · 被击 +12% · 满 100 悟 · 悟的定格 1.75 秒，可在 1.05 秒后跳过</p>
+<h3 id="s36">生杀</h3>
+<p>六位倒下之后，画面停住，没有一个字。</p>
+<ul><li>出手，是杀。</li><li>走开，或者三秒什么都不做，是留手。默认是留手。</li><li>选完当场记入存档。这个选择<b>不改变任何一个后面的敌人、任何一段路</b>，只改变说书人后来怎么说，和最后一回讲哪一版。</li></ul>
+<p class="nums">倒地后 0.6 秒内不接受输入，防误触 · 留手计数决定结局</p>
+<h3 id="s37">四个格子</h3>
+<p>囊中只容四物。十二招只能带四招。</p>
+<ul><li>有空格时，悟到的招自动落进去。</li><li>四格满了，悟的画面下方会浮出四个格子，左右选替换哪一格，默认是最后一格。三秒不选就按默认办。</li><li>暂停菜单里的「换招」随时可以调。同一招不能占两格。</li></ul>
+<p class="nums">满格时悟的定格 3.0 秒</p>
+<h3 id="s38">血与复活</h3>
+<ul><li>三颗心，从头到尾不变。</li><li>死了回最近的检查点，<b>满血</b>；进新的一回，满血。落水扣一颗心，回到本关最近的检查点，不会淹死。</li><li>每回四个检查点（楔子与终回两个），存档只认章节：「继」从本回开头进。</li></ul>
+<p class="nums">血 60 = 三颗心 · 落水 −20</p>
+<h3 id="s39">结局怎么定</h3>
+<ol><li>十二招一样不缺 → 集大成。</li><li>否则六位一个没留 → 杀尽。</li><li>否则留了四位以上 → 留手。</li><li>否则 → 中间态。</li></ol>
+<h3 id="s40">哪句话教了哪件事</h3>
+<p>游戏里每一个规则都有一句台词或一块题壁在教。你当初就是被这些话教会的。</p>
+<div class="tbl"><table><thead><tr><th>规则</th><th>教的话</th></tr></thead><tbody><tr><td>墨会枯，只能靠打回墨</td><td>「墨淡了，字就看不清，人也看不清。要添墨，只有一个法子——往前。」</td></tr><tr><td>起手式存在，看会招</td><td>「停的那一下，招已经画在空里了。无名不躲。他看。」</td></tr><tr><td>挨打也涨进度</td><td>「挨得不冤——他把那一招的来路看清了。」</td></tr><tr><td>残墨是学习，不是伤</td><td>「那不是伤。是记住了一半。」</td></tr><tr><td>身法穿过直线招</td><td>「直的躲不开，只能穿过去。」</td></tr><tr><td>招是看会的</td><td>「招是看会的，不是打会的。」</td></tr><tr><td>单向楼板</td><td>「踩上去是路，踩不住就是下一层。」</td></tr><tr><td>打碎东西回墨</td><td>「破了会漏出一点东西来。不是火。」</td></tr><tr><td>远程存在</td><td>「他不用手。」「你退到哪里都一样。」</td></tr><tr><td>裂帛是远程</td><td>「隔着三丈，也能碰到人。」</td></tr><tr><td>石砚回满墨</td><td>「笔干了，来这里蘸一蘸。」</td></tr><tr><td>齐射有空档</td><td>「一阵与一阵之间，有个空。空里能走。」</td></tr><tr><td>筏子会动</td><td>「脚下的东西都是活的。」</td></tr><tr><td>读招看兵器尖端</td><td>「我的手在这头，篙在那头。你要看的是那头。」</td></tr><tr><td>风推人、墨掉得快</td><td>「人站不住，字也站不住。」「走得越慢，掉得越多。」</td></tr><tr><td>踏云：风口托起</td><td>「原来空里也能落脚。」</td></tr><tr><td>分身：砍中的未必是本体</td><td>「你砍的那个不是我。」</td></tr><tr><td>火烧掉地形</td><td>「没有故事的地方，站不住人。」</td></tr><tr><td>焚书：被火燎到才学</td><td>「他没有拍。火就成了他的了。」</td></tr><tr><td>只格挡的人砍不开</td><td>「空的东西，砍不开。」「是你那一剑，书上没写。」</td></tr><tr><td>守势也能观</td><td>「守亦是招」「不写　则无」</td></tr><tr><td>无锋让守势成不了招</td><td>「那你得让我这一守，成不了招。」</td></tr><tr><td>四格要换招</td><td>「带不动的，就得放下。」「囊中只容四物」</td></tr><tr><td>师兄现学你的招</td><td>「你使一次，我就见过一次。」</td></tr></tbody></table></div>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s41"><div class="volmark"><span class="seal">六</span></div><h2><span class="v">卷六</span><span class="t">十二招</span></h2></header>
+<p>每招一牌。牌上写来处、做什么、怎么用。牌脚是数。招名后面括号里的那个字，是它在四个格子里的样子。</p>
+<section class="card tech" id="s42"><div class="glyph">横</div><h3>横云断</h3>
+<p><b>来处</b> 雨中刀。<b>是什么</b> 前冲一斩，破防，穿透。<b>用法</b> 起手慢，冲得远，命中回墨多。对格挡中的敌人照样有效。是十二招里最「直」的一招，也是雨中刀教你只能看、不能躲的那一记。</p>
+<p class="nums">墨 20 · 冷却 0.7 秒 · 伤 18 · 命中 +12 墨</p>
+</section>
+<section class="card tech" id="s43"><div class="glyph">裂</div><h3>裂帛</h3>
+<p><b>来处</b> 铁笛先生。<b>是什么</b> 一道剑气飞出去，穿透，远程。<b>用法</b> 隔着三丈碰到人。射出后有后坐。对高处的弓手、隔水的枪兵最好用。</p>
+<p class="nums">墨 25 · 冷却 0.9 秒 · 伤 12 · 飞 1 秒</p>
+</section>
+<section class="card tech" id="s44"><div class="glyph">撑</div><h3>撑天</h3>
+<p><b>来处</b> 渡口老翁。<b>是什么</b> 上挑，把人挑到空中，自己也跳起来。<b>用法</b> 挑起来接空中的连招，或者把围上来的人挑散。判定又高又长。</p>
+<p class="nums">墨 22 · 冷却 0.8 秒 · 伤 12</p>
+</section>
+<section class="card tech" id="s45"><div class="glyph">孤</div><h3>孤影</h3>
+<p><b>来处</b> 白衣。<b>是什么</b> 残影留在原地，人瞬到最近敌人背后，瞬移中无敌。<b>用法</b> 不伤人，纯位移。对付背后有破绽的（僧人）和正面砍不动的，一步到位。</p>
+<p class="nums">墨 30 · 冷却 1.0 秒 · 找 340 内最近的敌人 · 无敌 0.3 秒</p>
+</section>
+<section class="card tech" id="s46"><div class="glyph">无</div><h3>无锋</h3>
+<p><b>来处</b> 守阁人。<b>是什么</b> 不伤人，但把对方的格挡和硬直一并清掉。<b>用法</b> 全剧唯一一招零伤害。唯一能撬开守阁人的招；对僧人也撬得开，而且开得久。</p>
+<p class="nums">墨 18 · 冷却 0.8 秒 · 伤 0 · 撬开守阁人 2.6 秒</p>
+</section>
+<section class="card tech" id="s47"><div class="glyph">连</div><h3>连环腿</h3>
+<p><b>来处</b> 力士。<b>是什么</b> 三连踢，最后一脚把人踢到空中。<b>用法</b> 便宜，快，收尾浮空。贴身用。</p>
+<p class="nums">墨 15 · 冷却 0.7 秒 · 伤 5+5+8</p>
+</section>
+<section class="card tech" id="s48"><div class="glyph">破</div><h3>破雨</h3>
+<p><b>来处</b> 刀客。<b>是什么</b> 短距突刺。<b>用法</b> 全剧起手最快、最便宜的一招，用来抢先手、补最后一下。第一回第一个刀客反复出的就是它。</p>
+<p class="nums">墨 12 · 冷却 0.45 秒 · 伤 10 · 起手 0.05 秒</p>
+</section>
+<section class="card tech" id="s49"><div class="glyph">穿</div><h3>穿杨</h3>
+<p><b>来处</b> 弓手。<b>是什么</b> 把射来的东西弹回去，弹回去的比来时更快更狠。<b>用法</b> 对着箭、音波用。自己的伤害很低，靠弹回的东西打人。</p>
+<p class="nums">墨 18 · 冷却 0.8 秒 · 弹回 ×1.7 速、×1.6 伤</p>
+</section>
+<section class="card tech" id="s50"><div class="glyph">镇</div><h3>镇山</h3>
+<p><b>来处</b> 枪兵。<b>是什么</b> 跃起下砸，震地，范围击倒。<b>用法</b> 全剧判定最宽、反馈最重的一招。人多的时候用。</p>
+<p class="nums">墨 24 · 冷却 1.1 秒 · 伤 16 · 判定宽 260</p>
+</section>
+<section class="card tech" id="s51"><div class="glyph">提</div><h3>踏云</h3>
+<p><b>来处</b> 雪山的风。<b>是什么</b> 空中再借一步。<b>用法</b> 本来空中就能再跃一次；踏云是在那之后再多一次，花墨。过第四回的断崖、第五回烧掉的楼板用。走进风口即学会，不用磨。</p>
+<p class="nums">墨 10 · 冷却 0.25 秒</p>
+</section>
+<section class="card tech" id="s52"><div class="glyph">焚</div><h3>焚书</h3>
+<p><b>来处</b> 藏经阁的火。<b>是什么</b> 周身炸开火墨，范围伤害，点燃。<b>用法</b> 全剧判定最大的一招，被围时用。第一次被火燎到即学会。</p>
+<p class="nums">墨 28 · 冷却 1.2 秒 · 伤 14 · 燃 2.5 秒</p>
+</section>
+<section class="card tech" id="s53"><div class="glyph">说</div><h3>说剑</h3>
+<p><b>来处</b> 师兄。<b>是什么</b> 复制敌人最近打中你或被你格开的那一招，立即使出。<b>用法</b> 全剧最贵、冷却最长。没有可复制的招时退化成一记破防重击。它是师兄教的，也是书名。</p>
+<p class="nums">墨 40 · 冷却 1.5 秒 · 退化态伤 20</p>
+</section>
+<h3 id="s54">三段普攻、身法、跳</h3>
+<ul><li><b>普攻</b>三段：横、斜、竖。第三段破防穿透，最重。</li><li><b>身法</b>：一段短冲，冲刺中无敌。直的躲不开，只能穿过去。</li><li><b>跳</b>：长按跳得高，点按跳得矮；空中可再跃一次。站在单向楼板上按住下再跳，穿下去。</li></ul>
+<p class="nums">普攻 8 / 9 / 14 · 身法 0.16 秒、无敌 0.2 秒、冷却 0.32 秒 · 满跳 114、两段累计约 205</p>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s55"><div class="volmark"><span class="seal">七</span></div><h2><span class="v">卷七</span><span class="t">敌人与 Boss 图鉴</span></h2></header>
+<section class="card" id="s56"><h3>先学会读那道线</h3>
+<p>敌人起手时画出的那道线，有三种画法。</p>
+<ul><li><b>细线</b>：普通招，站着看就能接住。</li><li><b>粗线，端点一颗实心朱砂</b>：重招，看归看，站着挡不划算，得让开。</li><li><b>双线，落点双环</b>：他要贴上来——瞬移、冲撞、扑。看落点。</li><li><b>石青色的线</b>：不打人。那是守阁人的守势，是让你「观」的，不是让你躲的。</li></ul>
+<p>线看不清的时候，按住看，线就清楚了。</p>
+</section>
+<section class="card" id="s57"><h3>路上的七种人</h3>
+<div class="tbl"><table><thead><tr><th></th><th>出现</th><th>招</th><th>怎么对付</th><th>留下</th></tr></thead><tbody><tr><td>刀客</td><td>一回起</td><td>破雨、横斩</td><td>看起手，或者抢先手</td><td>破雨</td></tr><tr><td>弓手</td><td>二回起</td><td>穿杨（射箭）</td><td>齐射之间有空；箭可以劈断，也可以弹回去</td><td>穿杨</td></tr><tr><td>枪兵</td><td>三回起</td><td>直刺、镇山</td><td>直刺可挡；镇山两侧同打，跳</td><td>镇山</td></tr><tr><td>力士</td><td>一回起</td><td>连环腿、冲撞</td><td>冲撞是直线，身法穿过去；他扛得住三下才僵</td><td>连环腿</td></tr><tr><td>僧人</td><td>五回起</td><td>反手掌</td><td>正面砍不开，绕背后；挡满三下他会还一掌；无锋或第三段普攻能撬开</td><td>无</td></tr><tr><td>刺客</td><td>四回起</td><td>闪、破雨</td><td>先闪到你背后再起手，落地后还有起手可看；挨打后可能立刻再闪</td><td>无</td></tr><tr><td>提灯人</td><td>只在四回</td><td>灯火</td><td>不主动追人；他是雪里唯一的光，打倒他灯就灭了</td><td>无</td></tr></tbody></table></div>
+<p class="nums">血：刀客 30 · 弓手 22 · 枪兵 40 · 力士 55 · 僧人 45 · 刺客 24 · 提灯人 30</p>
+</section>
+<section class="card" id="s58"><h3>六位</h3>
+<p><b>雨中刀</b> 两个阶段。第一阶段复习刀客的招，外加横云断：又高又快，罩头到脚，滚不过跳不过，只能看。第二阶段快一成，多了三连刀和雨落。</p>
+<p class="nums">血 300 · 换阶 50% · 最短起手 0.58 秒</p>
+<p><b>铁笛先生</b> 两个阶段。远程压制：裂帛、音波都能被穿杨弹回去。第二阶段三音齐发，高中低三道，只能看准了迎。近身有笛槌。</p>
+<p class="nums">血 360 · 换阶 55% · 最短起手 0.62 秒</p>
+<p><b>渡口老翁</b> 两个阶段。长兵器。横扫贴地，跳过去；点水短促；撑天挑空。第二阶段多浪头和旋风扫，旋风扫起手最长、转两圈两侧都打。读他的篙尖，别读他的手。</p>
+<p class="nums">血 400 · 换阶 55% · 最短起手 0.58 秒</p>
+<p><b>白衣</b> 三个阶段。快剑是全剧最短的起手；孤影瞬到你背后。第二阶段生两个影，第三阶段三个，影一击即散。第三阶段的遍照：本体与影同时起手，四道里只有本体那道是朱砂色，影是石青。</p>
+<p class="nums">血 380 · 换阶 62% / 30% · 最短起手 0.42 秒</p>
+<p><b>守阁人</b> 三个阶段。零伤害。他只守、退步、震脚（把你震开并抽墨）、合十（六秒没挨打就回血）。守势本身是一道石青色的招，观它就在学无锋；学会了用无锋撬开，撬开的两秒多里他挨打。普攻第三段对他无效。僵持太久他的守势会拉长、染成藤黄，那是提示。</p>
+<p class="nums">血 320 · 换阶 68% / 34% · 撬开 2.6 秒 · 合十回血 24</p>
+<p><b>师兄</b> 三个阶段。第一阶段是刀客与雨中刀的招，第二阶段加孤影、镇山，第三阶段加快剑，并且每隔几秒读一次你最近用过的招，用「说剑」复制出来，头顶飘着招名。你格开他复制的招，就在学说剑。</p>
+<p class="nums">血 520 · 换阶 66% / 33% · 每 5.5 秒读一次你的招 · 最短起手 0.51 秒</p>
+<aside class="jiao"><span class="jmark">校</span>六位每一招从起手到落下都不短于 0.4 秒，观势期间还要再慢成三分之一。没有反应不过来的招，只有没看的招。</aside>
+</section>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s59"><div class="volmark"><span class="seal">八</span></div><h2><span class="v">卷八</span><span class="t">章节导览与操作</span></h2></header>
+<h3 id="s60">操作</h3>
+<div class="tbl"><table><thead><tr><th>键</th><th>做什么</th></tr></thead><tbody><tr><td>A / D，← / →</td><td>左右</td></tr><tr><td>W / ↑</td><td>上、跳、互动</td></tr><tr><td>S / ↓</td><td>下；站在楼板上按住下再跳，穿下去</td></tr><tr><td>空格</td><td>跳、确认</td></tr><tr><td>J，鼠标左键</td><td>攻击、确认</td></tr><tr><td>K，鼠标右键</td><td>按住：观势</td></tr><tr><td>L / Shift</td><td>身法</td></tr><tr><td>U / I / O / P</td><td>四个格子里的招</td></tr><tr><td>F</td><td>互动</td></tr><tr><td>Esc</td><td>暂停</td></tr></tbody></table></div>
+<p>暂停菜单四项：继续、换招、音、出。「出」回标题，不是关游戏。标题三项：始、继、音。「始」有存档时要按两次。</p>
+<h3 id="s61">逐回</h3>
+<p><b>楔子 · 醒木</b> 从街上走进茶馆，挑个位子坐下。没有人可打。</p>
+<p><b>第一回 · 竹林听雨</b> 四波刀客，第三波混一个力士。两块题壁。地上没有坑。尽头是雨中刀。</p>
+<p><b>第二回 · 断桥客栈</b> 三层楼，螺旋向上：一层向右，二层向左折返，三层向右。灯笼可碎回墨。门口有水。楼梯口是隘口。楼顶是铁笛先生。第四波弓手两端交叉，第五波四种人齐上。</p>
+<p><b>第三回 · 长河渡</b> 整条河底是水，靠桥桩和两张移动的浮筏过去。对岸弓手齐射有空档。石砚三处，一蘸回满。第三波首次见枪兵。尽头渡口是老翁。</p>
+<p><b>第四回 · 雪照山门</b> 风向左推，墨掉得比平时快六成。雪里看不见三步以外，提灯人是唯一的光。断崖只能站进风口被托上去——这一步就是踏云。第二波首次见刺客。山门前是白衣。</p>
+<p><b>第五回 · 藏经阁</b> 四层木楼，火从东边烧起来，烧到的楼板会没。一层的架子告诉你满楼都是抄本；二层主路上那本《说剑》是题眼；顶层倒下的书架横在路上，搬开才能过，搬开的那一页就是物证。第一次被火燎到学会焚书。第二波没有门，可以绕过去。顶层是守阁人。</p>
+<p><b>第六回 · 城楼夜</b> 全剧最长的一回，五波，路上遇过的七种人都会再来。第四波最密，第五波五种人各一。四处敌楼是高地。城砖上写着囊中只容四物——这是最后一次换招的机会。城墙尽头是师兄。</p>
+<p><b>终回 · 说剑</b> 和楔子同一条街，同一间茶馆。走到台前。</p>
+<h3 id="s62">藏着的东西</h3>
+<p>十二块题壁全在卷四；第五回三处书（一层架子、二层题眼、顶层书页）在逐回里；第三回渡口三处石砚；第四回风口；第五回火。楔子和终回的茶博士、老客、孩子要走近了才开口。</p>
+<div class="rule" aria-hidden="true"></div>
+<header class="vol" id="s63"><div class="volmark"><span class="seal">附录</span></div><h2><span class="v">附录</span></h2></header>
+<h3 id="s64">甲 · 说书人说的与你做的</h3>
+<div class="tbl"><table><thead><tr><th>处</th><th>你若留手，他说</th><th>你若杀了，他说</th><th>对得上么</th></tr></thead><tbody><tr><td>一回收尾</td><td>那人慢慢坐了起来</td><td>雨里红了一小块</td><td>对</td></tr><tr><td>二回收尾</td><td>楼上还有一盏灯没灭</td><td>灯灭了半层</td><td>对</td></tr><tr><td>三回收尾</td><td>筏子自己漂到了对岸</td><td>老翁落进河里</td><td>对</td></tr><tr><td>四回中途（说一回）</td><td>刀客是他杀的</td><td>那个刀客后来活下来了</td><td>反</td></tr><tr><td>四回收尾</td><td>无名一剑挥下</td><td>他终究没有下手</td><td>反</td></tr><tr><td>五回书页（写四回）</td><td>写着他一剑挥下</td><td>写着他把剑收了</td><td>反，与四回收尾同向</td></tr><tr><td>五回收尾</td><td>守阁人死在架子底下</td><td>无名没有杀他</td><td>反</td></tr><tr><td>六回收尾</td><td>师兄从城楼上掉下去了</td><td>两个人一直坐到天亮</td><td>反</td></tr></tbody></table></div>
+<h3 id="s65">乙 · 这个游戏是怎么做出来的</h3>
+<ul><li>没有一张图片、一段音频素材。画面全是程序化的毛笔笔触，声音全是合成的。</li><li>纯浏览器，一个 HTML、二十五个脚本、约一万三千行。双击「开始游戏.command」即玩。</li><li>由一队 AI 代理并行做成：先写设计总纲与接口契约，再分引擎、水墨、音频、剧本、战斗、敌人、关卡七路；之后第二波四路增强。过程中留下二十七条契约决议，多数是「谁是某份数据的唯一写入者」这一类，防的是静默失效。</li><li>剧本一百八十八个节点，禁用词表里有「按键」「菜单」「血量」「技能」「教程」。</li><li>玩家自己在前两回撞出两次卡死，之后造了一个能通关八关的机器人把后六回全部走了一遍，又挖出十二个会毁掉一次通关的问题。</li><li>一周目按机器人近乎完美的操作是十六到二十四分钟，按人的节奏在五十分钟上下。</li></ul>
+<h3 id="s66">丙 · 印</h3>
+<p>最后一屏那枚朱砂印，印文两个字：无名。全剧只此一处。</p>
+<footer class="foot"><span class="seal" aria-hidden="true">无名</span>不说了。</footer>
+</main>
+</div>
+<script>
+(function(){
+ // 分隔线：程序化毛笔笔触（起收渐细 + 微抖 + 飞白断口），与游戏里 Ink.stroke 同一思路
+ function stroke(cv){
+  var W=cv.clientWidth||700, H=28; cv.width=W*2; cv.height=H*2; var g=cv.getContext('2d'); g.scale(2,2);
+  var seed=Math.random()*1000; function r(n){ seed=(seed*9301+49297)%233280; return seed/233280*n; }
+  var pts=[], n=40, x0=W*0.06+r(W*0.04), x1=W*0.94-r(W*0.04), y=H/2+2;
+  for(var i=0;i<=n;i++){ var t=i/n; pts.push({x:x0+(x1-x0)*t, y:y+Math.sin(t*3.1+r(0.3))*1.6+ (r(2)-1)*0.8}); }
+  g.fillStyle='rgba(27,26,23,0.78)'; g.beginPath();
+  for(var i=0;i<=n;i++){ var t=i/n, w=(0.9+3.2*Math.sin(Math.PI*Math.pow(t,0.7)))*(t<0.08?t/0.08:1); if(t>0.97) w*=(1-t)/0.03; g.lineTo(pts[i].x, pts[i].y-w/2); }
+  for(var i=n;i>=0;i--){ var t=i/n, w=(0.9+3.2*Math.sin(Math.PI*Math.pow(t,0.7)))*(t<0.08?t/0.08:1); if(t>0.97) w*=(1-t)/0.03; g.lineTo(pts[i].x, pts[i].y+w/2); }
+  g.closePath(); g.fill();
+  // 飞白：沿线擦掉两三段细缝
+  g.globalCompositeOperation='destination-out'; g.fillStyle='rgba(0,0,0,0.9)';
+  var gaps=2+Math.floor(r(2)); for(var k=0;k<gaps;k++){ var gx=x0+(x1-x0)*(0.25+r(0.5)); g.fillRect(gx, y-4, 1+r(2), 8); g.fillRect(gx+3+r(3), y-1, 1, 3); }
+  g.globalCompositeOperation='source-over';
+ }
+ document.querySelectorAll('.rule').forEach(function(d){ var c=document.createElement('canvas'); c.className='stroke'; d.appendChild(c); stroke(c); });
+ // 纸纹：一块 220×220 的淡噪点做底
+ var pc=document.createElement('canvas'); pc.width=pc.height=220; var pg=pc.getContext('2d'); var im=pg.createImageData(220,220);
+ for(var i=0;i<im.data.length;i+=4){ var v=Math.random(); im.data[i]=im.data[i+1]=im.data[i+2]= v<0.5?27:200; im.data[i+3]= v<0.5? 6 : (v>0.985? 14:0); }
+ pg.putImageData(im,0,0); document.body.style.backgroundImage='url('+pc.toDataURL()+')';
+})();
+</script>
