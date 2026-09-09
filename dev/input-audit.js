@@ -11,7 +11,7 @@
 // 这个脚本**只观测、不断言**，不进四份自检；结论记在 _spec/notes-T2.md。
 'use strict';
 const fs=require('fs'),path=require('path'),vm=require('vm');
-const ROOT='/Users/kyx/Documents/shuojian';
+const ROOT=require('path').join(__dirname,'..');
 const listeners={};
 let FAKE_MS=1e6;                                   // 受控墙钟
 const win={addEventListener:(t,f)=>{(listeners[t]=listeners[t]||[]).push(f);},
